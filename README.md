@@ -25,9 +25,25 @@ python3 build_static.py                 # writes docs/index.html
 python3 build_static.py "Some Cube"     # when more than one cube is loaded
 ```
 
-`docs/index.html` is what GitHub Pages serves, so re-run this after the cube list
-changes and commit the result. The design lives in `static/template.html`; the
-build only substitutes the data blob.
+The build has two halves. Exporting needs the 1.3 GB database; baking does not:
+
+```
+python3 build_static.py                 # export docs/cube_data.json, then bake
+python3 build_static.py --from-data     # bake the committed blob, no database
+```
+
+`docs/index.html` is what GitHub Pages serves. `.github/workflows/pages.yml`
+re-bakes and deploys it on every push to `static/template.html`, and weekly to
+pick up price changes via `refresh_prices.py` (which reads Scryfall's bulk file
+directly and needs no database either).
+
+**CI cannot refresh the analysis.** Combos, pairs and composition come out of the
+full database, and the cube list can't be fetched at all — every cube-list route
+on Cube Cobra is `Disallow`ed in their robots.txt. When the cube changes, export
+it here and commit `docs/cube_data.json`.
+
+Pages on a private repo needs a paid plan, so the deploy job is skipped until the
+repo is public; the build still runs and commits.
 
 ## Data sources
 

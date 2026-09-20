@@ -7,12 +7,14 @@ doesn't depend on the draft settings and this script drops that blob into the
 template. The draft arithmetic is re-implemented in the page, so the sliders
 still work with nothing running behind them.
 
-    python3 build_static.py <cube-id-or-name> [-o docs/index.html]
+    python3 build_static.py <cube-id-or-name>      # re-export, then bake
+    python3 build_static.py --from-data            # bake the committed blob
 
-The output is a plain file: open it locally, or commit it to docs/ and let
-GitHub Pages serve it.
+The export needs the 1.3 GB database, so only a machine that has one can do it.
+Baking does not, which is how CI rebuilds the page: the blob is committed at
+docs/cube_data.json and the workflow only re-runs the second half.
 """
-import argparse, json, os, sys, subprocess, tempfile
+import argparse, os, sys, subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,18 +25,22 @@ def main():
                     help="cube id or name; default is the only cube, if there is one")
     ap.add_argument("-o", "--out", default=os.path.join(HERE, "docs", "index.html"))
     ap.add_argument("--template", default=os.path.join(HERE, "static", "template.html"))
+    ap.add_argument("--data", default=os.path.join(HERE, "docs", "cube_data.json"),
+                    help="where the exported blob is written and read")
+    ap.add_argument("--from-data", action="store_true",
+                    help="skip the export and bake the existing blob (no database needed)")
     a = ap.parse_args()
 
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as t:
-        blob = t.name
-    cmd = [sys.executable, os.path.join(HERE, "export_cube.py"), "-o", blob]
-    if a.cube:
-        cmd.append(a.cube)
-    subprocess.run(cmd, check=True)
+    if not a.from_data:
+        cmd = [sys.executable, os.path.join(HERE, "export_cube.py"), "-o", a.data]
+        if a.cube:
+            cmd.append(a.cube)
+        subprocess.run(cmd, check=True)
+    elif not os.path.exists(a.data):
+        sys.exit("no %s to bake; run without --from-data on a machine with the database" % a.data)
 
-    with open(blob, encoding="utf-8") as f:
+    with open(a.data, encoding="utf-8") as f:
         data = f.read()
-    os.unlink(blob)
 
     # The blob is embedded in a <script type="application/json"> block, so the
     # only sequence that could end it early is a literal "</script".

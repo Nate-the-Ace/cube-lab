@@ -1,0 +1,81 @@
+# Rebuild and publish Cube Lab.
+#
+# What this workflow can refresh on its own: prices, and the page itself, so an
+# edit to static/template.html goes live without anyone running a build.
+#
+# What it cannot: the analysis. Combos, lift-ranked pairs and composition come
+# out of a 1.3 GB database that no runner is going to rebuild in a cron job, and
+# the cube list itself is off limits - every cube-list route on Cube Cobra is
+# Disallowed in their robots.txt, so the list has to be exported by hand. When
+# the cube changes, run `python3 build_static.py` locally and commit
+# docs/cube_data.json; this workflow bakes whatever blob it finds there.
+name: Publish Cube Lab
+
+on:
+  push:
+    branches: [main]
+    paths: ['static/template.html', 'docs/cube_data.json', 'build_static.py', '.github/workflows/pages.yml']
+  schedule:
+    - cron: '17 9 * * 1'      # Mondays, a little after Scryfall's daily price roll
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Deploy to Pages even if the repo is private (needs a paid plan)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: cube-lab-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Only on the schedule: a push is someone editing the page, and re-reading
+      # 500 MB of bulk data to confirm prices haven't moved is a waste of it.
+      - name: Refresh prices from Scryfall
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 refresh_prices.py
+
+      - name: Bake the page
+        run: python3 build_static.py --from-data
+
+      - name: Commit the rebuilt page
+        run: |
+          if git diff --quiet -- docs/; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git commit -m "Rebuild Cube Lab page"
+          git push
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    # Pages on a private repo needs a paid plan, so this is skipped until the
+    # repo goes public - the build above still runs and commits.
+    if: github.event.repository.visibility == 'public' || inputs.force_deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
