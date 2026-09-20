@@ -1,0 +1,8 @@
+# The card database and the bulk downloads that build it: 1.8 GB, and every
+# byte of it is rebuildable with fetch.py + load.py.
+data/
+*.sqlite
+*.json.gz
+__pycache__/
+*.pyc
+.DS_Store

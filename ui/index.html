@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brewer</title>
+<link rel="stylesheet" href="/shared.css">
+</head>
+<body>
+<header>
+  <h1>MTG <span>Brewer</span></h1>
+  <span class="meta" id="meta">loading…</span>
+  <span class="spacer"></span>
+  <button id="themeBtn" title="Toggle theme">◐</button>
+<div id="tipbox" class="hidden" role="tooltip"></div>
+<div id="cardpop" class="hidden" aria-hidden="true"></div>
+<div id="setpop" class="hidden" aria-hidden="true"></div>
+<div id="manapop" class="hidden" aria-hidden="true"></div>
+</header>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" data-tab="search" aria-selected="true">Search</button>
+  <button class="tab" role="tab" data-tab="deck" aria-selected="false">Price a deck</button>
+  <button class="tab" role="tab" data-tab="swaps" aria-selected="false">Swaps</button>
+  <button class="tab" role="tab" data-tab="cut" aria-selected="false">Cut picker</button>
+  <button class="tab" role="tab" data-tab="goal" aria-selected="false">Goal</button>
+  <button class="tab" role="tab" data-tab="combos" aria-selected="false">Combo finder</button>
+  <button class="tab" role="tab" data-tab="cube" aria-selected="false">Cube</button>
+  <button class="tab" role="tab" data-tab="brew" aria-selected="false">Brew</button>
+</div>
+
+<main>
+<!-- ───────────── search ───────────── -->
+<section id="tab-search">
+  <div class="panel">
+    <div id="searchStats" class="stats" style="margin-bottom:10px"></div>
+    <div id="searchNote"></div>
+    <table id="searchTable">
+      <thead>
+        <tr>
+          <th data-nosort></th>
+          <th data-server-sort="name">Card</th>
+          <th>Type</th>
+          <th class="num" data-server-sort="cmc">MV</th>
+          <th>CI</th>
+          <th class="num" data-server-sort="price" data-server-sort-alt="price_desc">Cheapest</th>
+          <th data-server-sort="printings" data-server-sort-alt="newest">Printing</th>
+          <th>Legal</th>
+          <th data-nosort></th>
+        </tr>
+        <tr class="filters">
+          <th data-nosort></th>
+          <th data-nosort><input id="q" placeholder="name or rules text"></th>
+          <th data-nosort><input id="types" placeholder="any type"></th>
+          <th data-nosort></th>
+          <th data-nosort><span class="pips" id="pips"></span>
+            <span class="mini" id="ciName"></span></th>
+          <th data-nosort><input id="max_usd" type="number" step="0.25" placeholder="max $"></th>
+          <th data-nosort><input id="setFilter" placeholder="any set"></th>
+          <th data-nosort><select id="fmt"></select></th>
+          <th data-nosort></th>
+        </tr>
+      </thead>
+      <tbody id="searchBody"><tr><td colspan="9" class="dim">searching…</td></tr></tbody>
+    </table>
+    <div class="row" id="searchPager" style="margin-top:10px"></div>
+    <p class="note">Every filter lives in the header row. Colour identity returns cards that
+      <em>fit inside</em> the colours you pick, so it matches what a commander can run. Prices are
+      the cheapest paper printing. Tokens, art cards and Un-set cards are all included and badged.</p>
+  </div>
+</section>
+
+<!-- ───────────── deck pricer ───────────── -->
+<section id="tab-deck" class="hidden">
+  <div class="split">
+    <div class="panel">
+      <div class="row" style="margin-bottom:8px">
+        <label>Format<select id="deckFmt"></select></label>
+        <button class="primary" id="priceBtn">Price it</button>
+      </div>
+      <textarea id="deckText" placeholder="1 Sol Ring
+1 Arcane Signet
+1 Command Tower
+35 Island
+…paste any decklist format"></textarea>
+      <p class="note">Handles <span class="mini">1x Name</span>, <span class="mini">1 Name (SET) 123</span>, headers and comments.</p>
+    </div>
+    <div class="panel"><div id="deckOut" class="dim">Paste a list and price it.</div></div>
+  </div>
+</section>
+
+<!-- ───────────── swaps ───────────── -->
+<section id="tab-swaps" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>Expensive card
+        <input id="swapName" placeholder="Rhystic Study" style="min-width:240px">
+      </label>
+      <label>Budget cap $
+        <input id="swapMax" type="number" step="0.25" value="2" style="min-width:90px">
+      </label>
+      <label>Format<select id="swapFmt"></select></label>
+      <button class="primary" id="swapBtn">Find swaps</button>
+    </div>
+    <p class="note">Ranked by shared rules-text vocabulary and mana-value distance. A text heuristic, not play-tested advice — read the cards.</p>
+  </div>
+  <div class="panel"><div id="swapOut" class="dim">Name a card you can't afford.</div></div>
+</section>
+
+<!-- ───────────── cut picker ───────────── -->
+<section id="tab-cut" class="hidden">
+  <div class="split">
+    <div class="panel">
+      <div class="row" style="margin-bottom:8px">
+        <label>Card going IN
+          <input id="cutAdd" placeholder="Counterspell" style="min-width:200px">
+        </label>
+      </div>
+      <div class="row" style="margin-bottom:8px">
+        <label>Commander (optional, sharpens it)
+          <input id="cutSlug" placeholder="talrand-sky-summoner" style="min-width:220px" list="cmdList">
+        </label>
+        <datalist id="cmdList"></datalist>
+      </div>
+      <label style="width:100%">Candidates to cut — a few names, or paste the whole deck
+        <textarea id="cutCands" style="min-height:220px" placeholder="Cancel
+Negate
+Ponder
+Sol Ring"></textarea>
+      </label>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="cutBtn">Pick the cut</button>
+        <label class="dim" style="flex-direction:row;align-items:center;gap:6px">
+          <input type="checkbox" id="cutWholeDeck" style="min-width:auto"> treat as a full decklist
+        </label>
+        <label class="dial">Price weight <span class="mini" id="cutSensVal">balanced</span>
+          <input id="cutSens" type="range" min="0" max="1" step="0.05" value="0.5">
+          <span class="ends"><span>deck quality only</span><span>money matters</span></span>
+        </label>
+      </div>
+      <p class="note">Ranks each candidate on five signals: how little this commander's decks run it, how little anyone runs it, how much it duplicates the incoming card, whether cutting it keeps the type balance, and how much money it frees.</p>
+    </div>
+    <div class="panel"><div id="cutOut" class="dim">Name the card going in, list what you'd consider cutting.</div></div>
+  </div>
+</section>
+
+<!-- ───────────── goal ───────────── -->
+<section id="tab-goal" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>What should the deck do?
+        <input id="goalText" placeholder="commander damage win" style="min-width:300px">
+      </label>
+      <label>Budget $ <span class="mini">(optional)</span>
+        <input id="goalBudget" type="number" step="5" placeholder="no limit" style="min-width:110px">
+      </label>
+      <label class="dial">How much price matters <span class="mini" id="goalSensVal">balanced</span>
+        <input id="goalSens" type="range" min="0" max="1" step="0.05" value="0.5">
+        <span class="ends"><span>ignore price</span><span>max value</span></span>
+      </label>
+      <button class="primary" id="goalBtn">Find the cards</button>
+    </div>
+    <p class="note">Goals resolve to real EDHREC strategy pages — no guessing. Try:
+      commander damage, mill, aristocrats, landfall, tokens, stax, extra turns, reanimate, storm, group hug.</p>
+  </div>
+  <div class="panel"><div id="goalOut" class="dim">Say what the deck should do.</div></div>
+</section>
+
+<!-- ───────────── combo finder ───────────── -->
+<section id="tab-combos" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>Interaction shape
+        <select id="comboTpl">
+          <option value="blink_engine">Blink engine (good precision)</option>
+          <option value="cost_reduction_mana">Cost-reduction mana (good precision)</option>
+          <option value="infinite_mana">Infinite mana, untap loops (fair precision)</option>
+          <option value="sac_drain">Sac + drain payoff (bounded, not infinite)</option>
+          <option value="sac_loop">Sacrifice / recursion engine (bounded, not infinite)</option>
+        </select>
+      </label>
+      <label>Colour identity
+        <input id="comboCI" placeholder="e.g. UB" style="min-width:90px">
+      </label>
+      <label>Max $ per card
+        <input id="comboPrice" type="number" step="1" placeholder="any" style="min-width:100px">
+      </label>
+      <label class="dim" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="comboNovel" style="min-width:auto" checked> hide known combos
+      </label>
+      <label class="dim" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="comboPayoffs" style="min-width:auto"> add a winning payoff
+      </label>
+      <button class="primary" id="comboBtn">Search interactions</button>
+    </div>
+    <p class="note">This tab ignores popularity entirely. Candidates come from parsing what each
+      card's text <em>does</em> and matching it against loop shapes, then checking the result against
+      110,355 known Commander Spellbook combos. <b>“Novel” means “not in that database” — not
+      “verified to work.”</b> The parser reads text, it doesn't know the rules. Check any hit by hand.</p>
+  </div>
+  <div class="panel"><div id="comboOut" class="dim">Pick a shape and search.</div></div>
+</section>
+
+<!-- ───────────── cube ───────────── -->
+<section id="tab-cube" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>Your cubes
+        <select id="cubeSel" style="min-width:200px"></select>
+      </label>
+      <button id="cubeRefresh" title="Re-pull this cube's list from Cube Cobra">Refresh list</button>
+      <label>Players <input id="cubePlayers" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
+      <label>Pack size <input id="cubePack" type="number" min="5" max="30" value="15" style="min-width:80px"></label>
+      <label>Packs each <input id="cubeRounds" type="number" min="1" max="6" value="3" style="min-width:80px"></label>
+      <label class="dial">How contested <span class="mini" id="cubeContVal">normal</span>
+        <input id="cubeCont" type="range" min="0" max="0.9" step="0.05" value="0.35">
+        <span class="ends"><span>nobody wants it</span><span>first pick for all</span></span>
+      </label>
+      <label class="dim" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="synLands" style="min-width:auto"> include mana base in pairs
+      </label>
+      <button class="primary" id="cubeGo">Analyse</button>
+    </div>
+    <div id="cubeShape" class="note"></div>
+  </div>
+
+  <details class="panel importer">
+    <summary>Import or replace a cube</summary>
+    <div class="row" style="margin-top:10px">
+      <label>Save as
+        <input id="cubeName" placeholder="my cube" style="min-width:150px">
+      </label>
+      <label>From a file <span class="mini">(.csv / .txt)</span>
+        <input id="cubeFile" type="file" accept=".csv,.txt,text/csv,text/plain" style="min-width:190px">
+      </label>
+      <button id="cubePasteToggle">Paste a list</button>
+      <button id="cubeDelete">Delete selected cube</button>
+    </div>
+    <div id="cubePasteBox" class="hidden" style="margin-top:8px">
+      <textarea id="cubeText" style="min-height:160px" placeholder="One card name per line"></textarea>
+      <button class="primary" id="cubeImportPaste" style="margin-top:6px">Import pasted list</button>
+    </div>
+    <div id="cubeImportOut" class="note"></div>
+    <p class="note">Export from your cube's list view — CSV or plain text both work, and a Cube Cobra
+      CSV keeps its maybeboard out automatically. Fetching straight from Cube Cobra was removed:
+      their robots.txt asks crawlers to stay off <code>/cube/api/</code>, which is the route it used.</p>
+  </details>
+
+  <div class="panel">
+    <div class="sec-tools">
+      <button id="secExpand">Expand all</button>
+      <button id="secCollapse">Collapse all</button>
+    </div>
+    <div id="cubeOut" class="dim">Import a cube, then analyse it.</div>
+  </div>
+</section>
+
+<!-- ───────────── brew ───────────── -->
+<section id="tab-brew" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>Commander
+        <input id="brewCmd" placeholder="type a commander name" style="min-width:260px">
+      </label>
+      <label>Budget $ <span class="mini">(blank = no limit)</span>
+        <input id="brewBudget" type="number" step="5" placeholder="no limit" style="min-width:110px">
+      </label>
+      <label>Max per card $
+        <input id="brewCap" type="number" step="1" placeholder="none" style="min-width:110px">
+      </label>
+      <label class="dial">How much price matters <span class="mini" id="brewSensVal">balanced</span>
+        <input id="brewSens" type="range" min="0" max="1" step="0.05" value="0.5">
+        <span class="ends"><span>ignore price</span><span>max value</span></span>
+      </label>
+      <button class="primary" id="brewBtn">Build it</button>
+      <button id="brewCopy">Copy decklist</button>
+    </div>
+    <div id="brewPicker" class="dim" style="margin-top:8px"></div>
+  </div>
+  <div class="panel"><div id="brewOut" class="dim">Pick a commander and a budget.</div></div>
+</section>
+</main>
+
+<script src="/shared.js"></script>
+<script src="/cube.js"></script>
+<script>
+/* ── tabs, colour pips and format pickers ──
+   These touch elements that only exist on this page, so they live here rather
+   than in shared.js, which the cube page also loads. */
+/* tabs */
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
+  ['search', 'deck', 'swaps', 'cut', 'goal', 'combos', 'cube', 'brew'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  explain();
+  hideTip();
+});
+
+/* colour pips */
+let CI = new Set();
+const pips = $('#pips');
+['W','U','B','R','G','C'].forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'pip ' + c; b.textContent = c; b.setAttribute('aria-pressed', 'false');
+  b.onclick = () => {
+    if (CI.has(c)) CI.delete(c); else CI.add(c);
+    b.setAttribute('aria-pressed', CI.has(c));
+    const picked = [...CI].filter(x => x !== 'C').join('');
+    $('#ciName').textContent = CI.size ? ciLabel(picked || 'C') : '';
+    runSearch(0);
+  };
+  pips.appendChild(b);
+});
+
+/* format selects */
+// Formats read better with their real names than with Scryfall's slugs.
+const FORMAT_LABELS = {
+  paupercommander: 'Pauper Commander', predh: 'preDH', standardbrawl: 'Standard Brawl',
+  competitivebrawl: 'Competitive Brawl', oldschool: 'Old School', penny: 'Penny Dreadful',
+  premodern: 'Premodern', duel: 'Duel Commander', tlr: 'TLR', cedh: 'cEDH',
+};
+const formatLabel = f => FORMAT_LABELS[f]
+  || f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+async function loadFormats() {
+  const fs = await (await fetch('/api/formats')).json();
+  // alphabetical: you scan this list looking for one specific format, and any
+  // "popularity" ordering just makes it a hunt
+  fs.forEach(f => f.label = formatLabel(f.format));
+  fs.sort((a, b) => a.label.localeCompare(b.label));
+  ['#fmt', '#deckFmt', '#swapFmt'].forEach(sel => {
+    const el = $(sel);
+    el.innerHTML = '<option value="">any format</option>' +
+      fs.map(f => `<option value="${f.format}">${esc(f.label)} (${f.n.toLocaleString()})</option>`).join('');
+    el.value = 'commander';
+  });
+}
+
+/* ── search ── */
+let SEARCH_SEQ = 0;
+
+function searchParams(offset) {
+  const p = new URLSearchParams({
+    q: $('#q').value, fmt: $('#fmt').value, types: $('#types').value,
+    sort: SEARCH_SORT.key, limit: 60, offset
+  });
+  // the box shows a set's NAME; the query wants its code. A short raw entry is
+  // taken as a code so typing "ust" works without picking from the list.
+  const sf = $('#setFilter'), sv = sf.value.trim();
+  if (sv) p.set('set', sf.dataset.label === sv && sf.dataset.code ? sf.dataset.code : sv);
+  if ($('#max_usd').value !== '') p.set('max_usd', $('#max_usd').value);
+  if (CI.size) p.set('ci', [...CI].join(''));
+  return p;
+}
+
+const LEGAL_CELL = {
+  legal: '<span class="badge good">legal</span>',
+  restricted: '<span class="badge">restricted</span>',
+  banned: '<span class="badge bad">banned</span>',
+  not_legal: '<span class="dim">—</span>',
+};
+
+// The header row holds the filters, so the table shell must survive a re-render -
+// rebuilding it would throw away focus and whatever is half-typed.
+async function runSearch(offset = 0) {
+  const my = ++SEARCH_SEQ;
+  const p = searchParams(offset);
+  const body = $('#searchBody');
+  body.innerHTML = '<tr><td colspan="9" class="dim">searching…</td></tr>';
+  const d = await (await fetch('/api/search?' + p)).json();
+  if (my !== SEARCH_SEQ) return;        // a newer search already answered
+  if (d.error) {
+    body.innerHTML = `<tr><td colspan="9"><span class="badge bad">${esc(d.error)}</span></td></tr>`;
+    return;
+  }
+  if (!d.results.length) {
+    body.innerHTML = '<tr><td colspan="9" class="dim">no matches</td></tr>';
+    $('#searchStats').innerHTML = '';
+    $('#searchPager').innerHTML = '';
+    $('#searchNote').innerHTML = '';
+    return;
+  }
+
+  $('#searchStats').innerHTML = `
+    <div class="stat"><b>${d.total.toLocaleString()}</b><span>matching cards</span></div>
+    <div class="stat"><b>${money(d.results.reduce((a, r) => a + (r.price_usd || 0), 0) / d.results.length)}</b><span>avg price, page</span></div>`;
+
+  body.innerHTML = d.results.map(r => `<tr>
+      <td>${r.image_uri ? `<img class="thumb" loading="lazy" src="${r.image_uri}" alt="">` : ''}</td>
+      <td data-oracle="${r.oracle_id}"><div class="name">${r.scryfall_uri ? `<a href="${r.scryfall_uri}" target="_blank" rel="noopener">${esc(r.name)}</a>` : esc(r.name)}${cardFlags(r)}</div>
+          <div class="dim">${esc((r.oracle_text || '').slice(0, 110))}</div></td>
+      <td class="dim">${esc(r.type_line)}</td>
+      <td class="num" data-sort="${r.cmc ?? ''}">${r.cmc ?? ''}</td>
+      <td data-sort="${esc(r.color_identity || '')}">${ciCell(r.color_identity)}</td>
+      <td class="num" data-sort="${r.price_usd ?? ''}">${money(r.price_usd)}${r.price_is_foil ? ' <span class="mini">foil</span>' : ''}</td>
+      <td class="dim" data-sort="${esc(r.set_code || '')}"><span data-set="${esc(r.set_code || '')}">${esc(r.set_code || '').toUpperCase()}</span> · ${esc(r.rarity || '')}</td>
+      <td data-sort="${esc(r.legal_status || '')}">${r.legal_status ? (LEGAL_CELL[r.legal_status] || esc(r.legal_status)) : '<span class="dim">—</span>'}</td>
+      <td>${tcgLink(r.tcgplayer_id)} <a href="#" data-oid="${r.oracle_id}" class="swapLink">swaps</a></td>
+    </tr>`).join('');
+
+  $('#searchPager').innerHTML = `
+    <button ${offset <= 0 ? 'disabled' : ''} id="prev">← prev</button>
+    <span class="dim">${offset + 1}–${offset + d.results.length} of ${d.total.toLocaleString()}</span>
+    <button ${offset + 60 >= d.total ? 'disabled' : ''} id="next">next →</button>`;
+  const prev = $('#prev'), next = $('#next');
+  if (prev) prev.onclick = () => runSearch(Math.max(0, offset - 60));
+  if (next) next.onclick = () => runSearch(offset + 60);
+
+  document.querySelectorAll('#searchBody .swapLink').forEach(a => a.onclick = e => {
+    e.preventDefault();
+    document.querySelector('.tab[data-tab="swaps"]').click();
+    renderSwaps(a.dataset.oid);
+  });
+
+  // Narrowing by set while the format filter is still on hides most of what you
+  // asked for, so say how much.
+  $('#searchNote').innerHTML = '';
+  if ($('#setFilter').value.trim() && $('#fmt').value) {
+    const p2 = new URLSearchParams(p);
+    p2.delete('fmt');
+    p2.set('limit', 1);
+    const all = await (await fetch('/api/search?' + p2)).json();
+    const hidden = (all.total || 0) - d.total;
+    if (hidden > 0 && my === SEARCH_SEQ) {
+      $('#searchNote').innerHTML = `<p class="note"><span class="badge bad">format filter active</span>
+        ${hidden.toLocaleString()} more match your other filters but aren't legal in
+        <b>${esc($('#fmt').value)}</b> — set the Legal column's filter to “any format” to see them.</p>`;
+    }
+  }
+}
+
+// filters apply as you use them; text boxes wait for you to stop typing
+let filterTimer = null;
+const rerun = (delay) => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(() => runSearch(0), delay);
+};
+['#q', '#types', '#max_usd'].forEach(sel =>
+  $(sel).addEventListener('input', () => rerun(350)));
+$('#fmt').addEventListener('change', () => rerun(0));
+$('#setFilter').addEventListener('input', () => rerun(500));
+document.querySelectorAll('#q, #types, #max_usd, #setFilter').forEach(el =>
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.defaultPrevented) rerun(0);
+  }));
+
+/* ── deck pricer ── */
+$('#priceBtn').onclick = async () => {
+  $('#deckOut').innerHTML = '<span class="dim">pricing…</span>';
+  const d = await (await fetch('/api/price-deck', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({deck: $('#deckText').value, fmt: $('#deckFmt').value})
+  })).json();
+  if (d.error) return $('#deckOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+  const illegal = d.items.filter(i => i.found && i.legal && i.legal !== 'legal' && i.legal !== 'restricted');
+  $('#deckOut').innerHTML = `
+    <div class="stats" style="margin-bottom:12px">
+      <div class="stat"><b>${money(d.total_usd)}</b><span>deck total</span></div>
+      <div class="stat"><b>${d.card_count}</b><span>cards</span></div>
+      <div class="stat"><b>${money(d.card_count ? d.total_usd / d.card_count : 0)}</b><span>per card</span></div>
+      <div class="stat"><b>${illegal.length}</b><span>not legal</span></div>
+      <div class="stat"><b>${d.missing}</b><span>unmatched</span></div>
+    </div>
+    <table><thead><tr><th class="num">#</th><th>Card</th><th>Set</th><th class="num">Unit</th><th class="num">Line</th><th>Legal</th><th data-nosort></th></tr></thead><tbody>
+    ${d.items.map(i => !i.found
+      ? `<tr><td class="num">${i.qty}</td><td colspan="6"><span class="badge bad">not found</span> ${esc(i.input)}</td></tr>`
+      : `<tr>
+        <td class="num" data-sort="${i.qty}">${i.qty}</td>
+        <td data-oracle="${i.oracle_id}"><div class="name">${i.scryfall_uri ? `<a href="${i.scryfall_uri}" target="_blank" rel="noopener">${esc(i.name)}</a>` : esc(i.name)}</div>
+            <div class="dim">${esc(i.type_line)}</div></td>
+        <td class="dim" data-sort="${esc(i.set_code || '')}"><span data-set="${esc(i.set_code || '')}">${esc((i.set_code || '').toUpperCase())}</span> · ${esc(i.rarity || '')}</td>
+        <td class="num" data-sort="${i.unit_usd ?? ''}">${money(i.unit_usd)}</td>
+        <td class="num" data-sort="${i.line_usd ?? ''}">${money(i.line_usd)}</td>
+        <td>${i.legal === 'legal' ? '<span class="badge good">legal</span>'
+             : `<span class="badge bad">${esc(i.legal || '?')}</span>`}</td>
+        <td>${tcgLink(i.tcgplayer_id)} <a href="#" class="swapLink" data-oid="${i.oracle_id}">swaps</a></td>
+      </tr>`).join('')}
+    </tbody></table>
+    ${d.most_expensive.length ? `<p class="note">Biggest line items: ${d.most_expensive.map(i => `${esc(i.name)} ${money(i.line_usd)}`).join(' · ')}</p>` : ''}`;
+  sortable('#deckOut');
+  document.querySelectorAll('#deckOut .swapLink').forEach(a => a.onclick = e => {
+    e.preventDefault();
+    document.querySelector('.tab[data-tab="swaps"]').click();
+    renderSwaps(a.dataset.oid);
+  });
+};
+
+/* ── swaps ── */
+async function renderSwaps(oracleId, name) {
+  $('#swapOut').innerHTML = '<span class="dim">looking…</span>';
+  if (!oracleId) {
+    const s = await (await fetch('/api/search?' + new URLSearchParams({q: name, limit: 1, sort: 'printings'}))).json();
+    if (!s.results || !s.results.length) return $('#swapOut').innerHTML = '<span class="badge bad">card not found</span>';
+    oracleId = s.results[0].oracle_id;
+  }
+  const p = new URLSearchParams({oracle_id: oracleId, max_usd: $('#swapMax').value || 2, fmt: $('#swapFmt').value});
+  const d = await (await fetch('/api/swaps?' + p)).json();
+  if (d.error) return $('#swapOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+  const s = d.source;
+  $('#swapName').value = s.name;
+  $('#swapOut').innerHTML = `
+    <div class="stats" style="margin-bottom:12px">
+      <div class="stat"><b>${money(s.price_usd)}</b><span>${esc(s.name)}</span></div>
+      <div class="stat"><b>${d.results.length}</b><span>candidates</span></div>
+      <div class="stat"><b>${money((s.price_usd || 0) - (d.results[0]?.price_usd ?? 0))}</b><span>top saving</span></div>
+    </div>
+    <p class="note">${d.method === 'edhrec'
+      ? '<span class="badge good">EDHREC</span> cards that show up in the same commanders\' decks as this one, weighted by how strongly they overlap.'
+      : '<span class="badge">text match</span> no EDHREC data for this card yet — falling back to rules-text overlap.'}</p>
+    ${d.results.length ? `<table><thead><tr><th data-nosort></th><th>Card</th><th class="num">MV</th>
+      <th class="num">Price</th><th class="num">${d.method === 'edhrec' ? 'Overlap' : 'Shared terms'}</th>
+      <th data-nosort></th></tr></thead><tbody>
+    ${d.results.map(r => `<tr>
+      <td>${r.image_uri ? `<img class="thumb" loading="lazy" src="${r.image_uri}" alt="">` : ''}</td>
+      <td data-oracle="${r.oracle_id}"><div class="name">${esc(r.name || r.card_name)}</div><div class="dim">${esc((r.oracle_text || '').slice(0, 140))}</div></td>
+      <td class="num" data-sort="${r.cmc ?? ''}">${r.cmc ?? ''}</td>
+      <td class="num" data-sort="${r.price_usd ?? ''}">${money(r.price_usd)}</td>
+      <td class="mini" data-sort="${d.method === 'edhrec' ? (r.affinity ?? '') : ((r.shared_terms || []).length)}">${
+        d.method === 'edhrec'
+          ? `${r.shared_commanders} commanders · ${((r.avg_inclusion || 0) * 100).toFixed(0)}% avg`
+          : (r.shared_terms || []).map(esc).join(', ')}</td>
+      <td>${tcgLink(r.tcgplayer_id)}</td>
+    </tr>`).join('')}</tbody></table>` : '<span class="dim">nothing close under that cap — raise the budget.</span>'}`;
+  sortable('#swapOut');
+}
+$('#swapBtn').onclick = () => renderSwaps(null, $('#swapName').value);
+$('#swapName').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.defaultPrevented) renderSwaps(null, $('#swapName').value);
+});
+
+
+/* ── cut picker ── */
+$('#cutBtn').onclick = async () => {
+  $('#cutOut').innerHTML = '<span class="dim">weighing…</span>';
+  const raw = $('#cutCands').value;
+  const slugEl = $('#cutSlug');
+  // the field shows the commander's NAME but the API wants its slug
+  const slug = (slugEl.dataset.label === slugEl.value.trim() && slugEl.dataset.slug)
+    ? slugEl.dataset.slug : (slugEl.value.trim() || null);
+  const body = {add: $('#cutAdd').value, slug: slug || null,
+                price_sensitivity: parseFloat($('#cutSens').value)};
+  if ($('#cutWholeDeck').checked) body.deck = raw;
+  else body.candidates = raw.split(/\n+/).map(s => s.replace(/^\s*\d+\s*[xX]?\s+/, '').trim()).filter(Boolean);
+  const d = await (await fetch('/api/pick-cut', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+  })).json();
+  if (d.error) return $('#cutOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+  const sigOrder = ['unplayed_here','unpopular','redundant','same_type','frees_money'];
+  const sigLabel = {unplayed_here:'unplayed here', unpopular:'unpopular', redundant:'redundant',
+                    same_type:'type fit', frees_money:'frees $'};
+  const bar = v => `<span style="display:inline-block;width:38px;height:6px;background:var(--panel-2);
+    border-radius:3px;overflow:hidden;vertical-align:middle"><span style="display:block;height:6px;
+    width:${Math.round(v*100)}%;background:var(--accent)"></span></span>`;
+  $('#cutOut').innerHTML = `
+    <div class="stats" style="margin-bottom:12px">
+      <div class="stat"><b>${esc(d.best.name)}</b><span>cut this</span></div>
+      <div class="stat"><b>${money(d.add.price_usd)}</b><span>${esc(d.add.name)} in</span></div>
+      <div class="stat"><b>${d.best.price_delta >= 0 ? '+' : ''}${money(Math.abs(d.best.price_delta)).replace('$','$')}</b><span>price delta</span></div>
+    </div>
+    ${d.commander_page_missing ? '<p class="note"><span class="badge">no EDHREC page cached for that commander — ranking uses global data only</span></p>' : ''}
+    <table><thead><tr><th>Cut</th><th class="num">Score</th><th class="num">$</th>
+      ${sigOrder.map(s => `<th class="num">${sigLabel[s]}</th>`).join('')}<th>Why</th></tr></thead><tbody>
+    ${d.ranked.map((r, i) => `<tr${i === 0 ? ' style="outline:1px solid var(--accent)"' : ''}>
+      <td class="name" data-oracle="${r.oracle_id}">${esc(r.name)}<div class="dim">${esc(r.type_line || '')}</div></td>
+      <td class="num" data-sort="${r.cut_score}">${r.cut_score.toFixed(3)}</td>
+      <td class="num" data-sort="${r.price_usd ?? ''}">${money(r.price_usd)}</td>
+      ${sigOrder.map(s => `<td class="num" data-sort="${r.signals[s]}">${bar(r.signals[s])}</td>`).join('')}
+      <td class="dim">${esc(r.why || '')}</td>
+    </tr>`).join('')}
+    </tbody></table>`;
+  sortable('#cutOut');
+};
+
+/* ── brew ── */
+let BREW = null;
+async function findCommanders(q) {
+  const d = await (await fetch('/api/commanders?' + new URLSearchParams({q, limit: 8}))).json();
+  return d.results || [];
+}
+async function runBrew(slug) {
+  $('#brewOut').innerHTML = '<span class="dim">brewing…</span>';
+  const p = new URLSearchParams({slug, price_sensitivity: $('#brewSens').value});
+  if ($('#brewBudget').value) p.set('budget', $('#brewBudget').value);
+  if ($('#brewCap').value) p.set('per_card_cap', $('#brewCap').value);
+  const d = await (await fetch('/api/brew?' + p)).json();
+  if (d.error) return $('#brewOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+  BREW = d;
+  const bySec = {};
+  d.cards.forEach(c => (bySec[c.section] = bySec[c.section] || []).push(c));
+  const order = ['creatures','artifacts','enchantments','instants','sorceries','planeswalkers','other','lands'];
+  $('#brewOut').innerHTML = `
+    <div class="stats" style="margin-bottom:12px">
+      <div class="stat"><b>${money(d.spent_usd)}</b><span>${d.budget ? 'of ' + money(d.budget) : 'no budget set'}</span></div>
+      <div class="stat"><b>${d.deck_size}</b><span>cards</span></div>
+      <div class="stat"><b>${d.played_cards}</b><span>real staples</span></div>
+      <div class="stat"><b>${d.filler_cards}</b><span>filler</span></div>
+      <div class="stat"><b>${money(d.baseline_cost)}</b><span>bare minimum</span></div>
+    </div>
+    <p class="note">Commander: <b>${esc(d.commander.name)}</b> · ${manaLabel(d.commander.color_identity)} ·
+      ${(d.commander.num_decks||0).toLocaleString()} decks on EDHREC.
+      “Filler” means the budget ran out before a played card could fill that slot.</p>
+    ${order.filter(s => bySec[s]).map(s => `
+      <h3 style="margin:14px 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)">
+        ${s} (${bySec[s].length})</h3>
+      <table><thead><tr><th>Card</th><th>Type</th><th class="num">$</th><th class="num">Played</th><th data-nosort></th></tr></thead>
+      <tbody>
+      ${bySec[s].map(c => `<tr>
+        <td class="name" data-oracle="${c.oracle_id}">${esc(c.card_name)}</td>
+        <td class="dim" style="width:40%">${esc(c.type_line || '')}</td>
+        <td class="num" data-sort="${c.price_usd ?? ''}">${money(c.price_usd)}</td>
+        <td class="num" data-sort="${c.inclusion_rate ?? ''}">${c.inclusion_rate ? (c.inclusion_rate*100).toFixed(0) + '%' : '<span class="dim">filler</span>'}</td>
+        <td>${tcgLink(c.tcgplayer_id)}</td>
+      </tr>`).join('')}
+      </tbody></table>`).join('')}
+    <h3 style="margin:14px 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)">basics</h3>
+    <table><tbody>${d.basics.map(b => `<tr><td class="name" data-card="${esc(b.name)}">${b.qty} ${esc(b.name)}</td><td class="num">${money(0)}</td></tr>`).join('')}</tbody></table>`;
+  sortable('#brewOut');
+}
+$('#brewBtn').onclick = async () => {
+  const v = $('#brewCmd').value.trim();
+  if (!v) return BREW && runBrew(BREW.commander.slug);
+  // rebuilding the same commander with new settings shouldn't need re-picking
+  if (BREW && BREW.commander.name === v) return runBrew(BREW.commander.slug);
+  const rs = await (await fetch('/api/suggest?' + new URLSearchParams(
+    {q: v, kind: 'commander', limit: 1}))).json();
+  if (rs.length) return runBrew(rs[0].value);
+  $('#brewOut').innerHTML = '<span class="badge bad">no commander matches that name</span>';
+};
+$('#brewCopy').onclick = () => {
+  if (!BREW) return;
+  const lines = ['1 ' + BREW.commander.name, ''];
+  BREW.cards.forEach(c => lines.push('1 ' + c.card_name));
+  BREW.basics.forEach(b => lines.push(b.qty + ' ' + b.name));
+  navigator.clipboard.writeText(lines.join('\n'));
+  $('#brewCopy').textContent = 'copied ✓';
+  setTimeout(() => $('#brewCopy').textContent = 'Copy decklist', 1500);
+};
+
+/* ── combo finder ── */
+$('#comboBtn').onclick = async () => {
+  $('#comboOut').innerHTML = '<span class="dim">matching interactions…</span>';
+  const p = new URLSearchParams({template: $('#comboTpl').value, limit: 80});
+  if ($('#comboCI').value.trim()) p.set('ci', $('#comboCI').value.trim());
+  if ($('#comboPrice').value) p.set('max_price', $('#comboPrice').value);
+  if ($('#comboNovel').checked) p.set('novel_only', '1');
+  if ($('#comboPayoffs').checked) p.set('payoffs', '1');
+  const d = await (await fetch('/api/combos?' + p)).json();
+  if (d.error) return $('#comboOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+  $('#comboOut').innerHTML = `
+    <div class="stats" style="margin-bottom:10px">
+      <div class="stat"><b>${d.generated.toLocaleString()}</b><span>candidates</span></div>
+      <div class="stat"><b>${d.known.toLocaleString()}</b><span>already known</span></div>
+      <div class="stat"><b>${d.novel.toLocaleString()}</b><span>not in the combo DB</span></div>
+      <div class="stat"><b>${d.known_rate == null ? 'n/a' : d.known_rate + '%'}</b><span>rediscovery rate</span></div>
+    </div>
+    <p class="note">Template reliability: <b>${esc(d.reliability)}</b>
+      ${d.bounded ? '' : `Rediscovery rate is how often this shape lands on a combo people already
+      documented — the honest proxy for whether its novel hits are worth chasing.`}</p>
+    <table><thead><tr><th>Cards</th><th class="num">$</th><th>What it does</th><th>Status</th><th data-nosort></th></tr></thead><tbody>
+    ${d.candidates.map(c => `<tr>
+      <td class="name">${c.cards.map(x => `<span data-oracle="${x.oracle_id}">${esc(x.name)}</span>`).join(' <span class="dim">+</span> ')}
+        <div class="dim">${c.cards.map(x => esc(x.type_line || '')).join(' · ')}</div></td>
+      <td class="num" data-sort="${c.total_price ?? ''}">${c.total_price == null ? '—' : money(c.total_price)}</td>
+      <td class="dim">${esc(c.why)}<div class="mini">produces: ${esc(c.produces)}</div></td>
+      <td data-sort="${c.novel ? 0 : 1}">${c.novel ? '<span class="badge good">novel</span>' : '<span class="badge">known</span>'}</td>
+      <td>${c.cards.map(x => tcgLink(x.tcgplayer_id)).join(' ')}</td>
+    </tr>`).join('')}</tbody></table>
+    ${(d.three_card && d.three_card.length) ? `
+      <h3 class="sec">Three-card versions that actually win</h3>
+      <p class="note">A loop on its own doesn't win the game. These attach a payoff — a mana sink for
+        an infinite-mana engine, a drain trigger for an infinite-ETB one. The known-combo database is
+        mostly 3- and 4-card entries for exactly this reason.
+        <b>${d.three_card_total.toLocaleString()}</b> built, <b>${d.three_card_rate}%</b> of them
+        already documented.</p>
+      <table><thead><tr><th>Combo</th><th class="num">Pieces</th><th class="num">$</th>
+        <th>What it does</th><th>Status</th></tr></thead><tbody>
+      ${d.three_card.map(c => `<tr>
+        <td class="name">${c.cards.map(x => `<span data-oracle="${x.oracle_id}">${esc(x.name)}</span>`).join(' <span class="dim">+</span> ')}</td>
+        <td class="num" data-sort="${c.pieces}">${c.pieces}</td>
+        <td class="num" data-sort="${c.total_price ?? ''}">${c.total_price == null ? '—' : money(c.total_price)}</td>
+        <td class="dim">${esc(c.why)}</td>
+        <td data-sort="${c.novel ? 0 : 1}">${c.novel
+          ? '<span class="badge good">novel</span>' : '<span class="badge">known</span>'}</td>
+      </tr>`).join('')}</tbody></table>` : ''}`;
+  sortable('#comboOut');
+};
+
+/* ── dials ── */
+const sensWord = v => v <= 0.05 ? 'price ignored' : v < 0.35 ? 'power first'
+  : v < 0.65 ? 'balanced' : v < 0.9 ? 'value leaning' : 'max value';
+[['#brewSens','#brewSensVal'],['#cutSens','#cutSensVal'],['#goalSens','#goalSensVal']].forEach(([s,o]) => {
+  const el = $(s); if (!el) return;
+  const upd = () => $(o).textContent = sensWord(parseFloat(el.value));
+  el.addEventListener('input', upd); upd();
+});
+
+/* ── goal ── */
+$('#goalBtn').onclick = async () => {
+  $('#goalOut').innerHTML = '<span class="dim">matching strategy…</span>';
+  const p = new URLSearchParams({goal: $('#goalText').value, price_sensitivity: $('#goalSens').value});
+  if ($('#goalBudget').value) p.set('budget', $('#goalBudget').value);
+  const d = await (await fetch('/api/goal?' + p)).json();
+  if (d.error) return $('#goalOut').innerHTML =
+    `<span class="badge bad">${esc(d.error)}</span><p class="note">${esc(d.hint || '')}</p>`;
+  const cardTable = (rows, showSyn) => `<table><thead><tr><th>Card</th><th>Type</th>
+      <th class="num">MV</th><th class="num">$</th><th class="num">${showSyn ? 'Synergy' : 'Played'}</th>
+      <th>Role</th><th data-nosort></th></tr></thead><tbody>
+    ${rows.map(c => `<tr>
+      <td class="name" data-oracle="${c.oracle_id}">${esc(c.card_name)}</td>
+      <td class="dim">${esc(c.type_line || '')}</td>
+      <td class="num" data-sort="${c.cmc ?? ''}">${c.cmc ?? ''}</td>
+      <td class="num" data-sort="${c.price_usd ?? ''}">${money(c.price_usd)}</td>
+      <td class="num" data-sort="${showSyn ? (c.synergy ?? '') : (c.inclusion_rate ?? '')}">${showSyn ? ((c.synergy>=0?'+':'') + (c.synergy||0).toFixed(2))
+                                : ((c.inclusion_rate*100)||0).toFixed(0) + '%'}</td>
+      <td class="mini" data-sort="${(c.roles || []).join(', ')}">${(c.roles || []).join(', ')}</td>
+      <td>${tcgLink(c.tcgplayer_id)}</td>
+    </tr>`).join('')}</tbody></table>`;
+  $('#goalOut').innerHTML = `
+    <div class="stats" style="margin-bottom:10px">
+      <div class="stat"><b>${d.pool_size.toLocaleString()}</b><span>cards serve this plan</span></div>
+      <div class="stat"><b>${d.budget ? money(d.budget) : '∞'}</b><span>budget</span></div>
+      <div class="stat"><b>${d.commanders.length}</b><span>commanders for it</span></div>
+      <div class="stat"><b>${money(d.total_if_you_bought_all)}</b><span>the shortlist, all in</span></div>
+    </div>
+    <p class="note">Matched: ${d.themes.map(t =>
+      `<span class="badge good">${esc(t.name)}</span> <span class="mini">${esc(t.matched_by)} · weight ${t.weight}</span>`).join(' · ')}</p>
+    <p class="note">Support in the shortlist: ${Object.entries(d.role_counts).map(([k,v]) =>
+      `<span class="badge">${k} ${v}</span>`).join(' ') || '<span class="dim">none detected</span>'}</p>
+
+    <h3 style="margin:16px 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)">Commanders that play this plan</h3>
+    <table><thead><tr><th>Commander</th><th>CI</th><th class="num">Decks</th><th class="num">$</th><th data-nosort></th></tr></thead>
+    <tbody>${d.commanders.slice(0,10).map(c => `<tr>
+      <td class="name" data-card="${esc(c.name)}">${esc(c.name)}</td>
+      <td class="dim" data-sort="${esc(c.color_identity || '')}">${esc(ciLabel(c.color_identity))}</td>
+      <td class="num" data-sort="${c.num_decks||0}">${(c.num_decks||0).toLocaleString()} decks</td>
+      <td class="num" data-sort="${c.price_usd ?? ''}">${money(c.price_usd)}</td>
+      <td><button class="goalBrew" data-slug="${esc(c.cmd_slug)}">brew this</button></td>
+    </tr>`).join('')}</tbody></table>
+
+    <h3 style="margin:16px 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)">Cards that define the plan</h3>
+    ${cardTable(d.cards.slice(0,40), true)}
+
+    <h3 style="margin:16px 0 4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)">Generic staples it still wants</h3>
+    ${cardTable((d.staples || []).slice(0,15), false)}`;
+  sortable('#goalOut');
+  document.querySelectorAll('.goalBrew').forEach(b => b.onclick = () => {
+    document.querySelector('.tab[data-tab="brew"]').click();
+    if ($('#goalBudget').value) $('#brewBudget').value = $('#goalBudget').value;
+    runBrew(b.dataset.slug);
+  });
+};
+$('#goalText').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.defaultPrevented) $('#goalBtn').click();
+});
+
+/* ── wire the pickers ── */
+attachTypeahead('#q', 'card', it => { $('#q').value = it.label; runSearch(0); });
+attachTypeahead('#swapName', 'card', it => renderSwaps(it.value));
+attachTypeahead('#cutAdd', 'card');
+attachTypeahead('#cutSlug', 'commander', it => {
+  $('#cutSlug').dataset.slug = it.value;
+  $('#cutSlug').dataset.label = it.label;
+});
+attachTypeahead('#brewCmd', 'commander', it => runBrew(it.value));
+attachTypeahead('#setFilter', 'set', it => {
+  const el = $('#setFilter');
+  el.dataset.code = it.value;
+  el.dataset.label = it.label;
+  runSearch(0);
+});
+attachTypeahead('#goalText', 'theme', it => {
+  // the goal box holds a sentence ("commander damage win, $150"); replace only the
+  // strategy words the user was typing, keep any budget they already wrote
+  const cur = $('#goalText').value;
+  const money = cur.match(/\$\s*[\d,.]+/);
+  $('#goalText').value = it.label + (money ? ' ' + money[0] : '');
+});
+
+explain();
+sortable('#tab-search');          // header row is permanent, so wire it once
+loadStats(); loadCubes(); loadFormats().then(() => runSearch(0));
+</script>
+</body>
+</html>

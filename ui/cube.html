@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cube Lab</title>
+<link rel="stylesheet" href="/shared.css">
+<style>
+  header .sub{color:var(--ink-dim);font-size:12px}
+  main{max-width:1280px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cube <span>Lab</span></h1>
+  <span class="meta" id="meta">loading…</span>
+  <span class="spacer"></span>
+  <button id="themeBtn" title="Toggle theme">◐</button>
+  <div id="tipbox" class="hidden" role="tooltip"></div>
+  <div id="cardpop" class="hidden" aria-hidden="true"></div>
+  <div id="setpop" class="hidden" aria-hidden="true"></div>
+  <div id="manapop" class="hidden" aria-hidden="true"></div>
+</header>
+
+<main>
+<section id="tab-cube">
+  <div class="panel">
+    <div class="row">
+      <label>Your cubes
+        <select id="cubeSel" style="min-width:200px"></select>
+      </label>
+      <button id="cubeRefresh" title="Re-pull this cube's list from Cube Cobra">Refresh list</button>
+      <label>Players <input id="cubePlayers" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
+      <label>Pack size <input id="cubePack" type="number" min="5" max="30" value="15" style="min-width:80px"></label>
+      <label>Packs each <input id="cubeRounds" type="number" min="1" max="6" value="3" style="min-width:80px"></label>
+      <label class="dial">How contested <span class="mini" id="cubeContVal">normal</span>
+        <input id="cubeCont" type="range" min="0" max="0.9" step="0.05" value="0.35">
+        <span class="ends"><span>nobody wants it</span><span>first pick for all</span></span>
+      </label>
+      <label class="dim" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="synLands" style="min-width:auto"> include mana base in pairs
+      </label>
+      <button class="primary" id="cubeGo">Analyse</button>
+    </div>
+    <div id="cubeShape" class="note"></div>
+  </div>
+
+  <details class="panel importer">
+    <summary>Import or replace a cube</summary>
+    <div class="row" style="margin-top:10px">
+      <label>Save as
+        <input id="cubeName" placeholder="my cube" style="min-width:150px">
+      </label>
+      <label>From a file <span class="mini">(.csv / .txt)</span>
+        <input id="cubeFile" type="file" accept=".csv,.txt,text/csv,text/plain" style="min-width:190px">
+      </label>
+      <button id="cubePasteToggle">Paste a list</button>
+      <button id="cubeDelete">Delete selected cube</button>
+    </div>
+    <div id="cubePasteBox" class="hidden" style="margin-top:8px">
+      <textarea id="cubeText" style="min-height:160px" placeholder="One card name per line"></textarea>
+      <button class="primary" id="cubeImportPaste" style="margin-top:6px">Import pasted list</button>
+    </div>
+    <div id="cubeImportOut" class="note"></div>
+    <p class="note">Export from your cube's list view — CSV or plain text both work, and a Cube Cobra
+      CSV keeps its maybeboard out automatically. Fetching straight from Cube Cobra was removed:
+      their robots.txt asks crawlers to stay off <code>/cube/api/</code>, which is the route it used.</p>
+  </details>
+
+  <div class="panel">
+    <div class="sec-tools">
+      <button id="secExpand">Expand all</button>
+      <button id="secCollapse">Collapse all</button>
+    </div>
+    <div id="cubeOut" class="dim">Import a cube, then analyse it.</div>
+  </div>
+</section>
+
+<!-- ───────────── brew ───────────── -->
+</main>
+
+<script src="/shared.js"></script>
+<script src="/cube.js"></script>
+<script>
+// This page is only the cube analysis, so the bootstrap is small: label the
+// data, load the cube list, and analyse whichever cube is selected.
+async function boot() {
+  explain();
+  try {
+    const s = await (await fetch('/api/stats')).json();
+    $('#meta').textContent =
+      `${Number(s.n_cards).toLocaleString()} cards · prices ${String(s.scryfall_updated_at).slice(0, 10)}`;
+  } catch (e) {
+    $('#meta').textContent = '';
+  }
+  const cubes = await loadCubes();
+  if (cubes.length) runCube();
+  else $('#cubeOut').innerHTML =
+    '<span class="dim">No cube loaded yet — open “Import or replace a cube” above.</span>';
+}
+boot();
+</script>
+</body>
+</html>
