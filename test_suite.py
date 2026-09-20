@@ -873,6 +873,70 @@ def test_pages_and_privacy():
     check("no personal records remain in the project", not hits, str(hits[:4]))
 
 
+def test_game_nights():
+    print("game night tracker")
+    import nights as N
+
+    doc = {"players": [], "nights": []}
+    N.add_player(doc, "Ada")
+    N.add_player(doc, "Bo")
+    check("a player gets a slug id", doc["players"][0]["id"] == "ada")
+    try:
+        N.add_player(doc, "ada")
+        check("adding the same player twice is refused", False)
+    except ValueError:
+        check("adding the same player twice is refused", True)
+    try:
+        N.set_night(doc, {"date": "last tuesday"})
+        check("a night needs a real date", False)
+    except ValueError:
+        check("a night needs a real date", True)
+
+    # THE rule for this page: a bye is recorded and then kept out of every rate.
+    # Counting it would reward not playing, which is exactly the distortion that
+    # made an earlier analysis read far too high.
+    N.set_night(doc, {"date": "2026-09-01",
+                      "results": {"ada": {"w": 2, "l": 1}, "bo": {"w": 1, "l": 2, "b": 1}}})
+    st = {r["name"]: r for r in N.standings(doc)}
+    check("byes are recorded", st["Bo"]["byes"] == 1)
+    check("byes are not games", st["Bo"]["games"] == 3, str(st["Bo"]["games"]))
+    check("byes don't move the rate", st["Bo"]["win_pct"] == 33.3, str(st["Bo"]["win_pct"]))
+
+    # a draw is half a win in the score and no win at all in the win rate
+    N.set_night(doc, {"date": "2026-09-08", "results": {"ada": {"w": 0, "l": 0, "d": 2}}})
+    ada = {r["name"]: r for r in N.standings(doc)}["Ada"]
+    check("a draw is half a win in the score", ada["score_pct"] == 60.0, str(ada["score_pct"]))
+    check("a draw is not a win in the win rate", ada["win_pct"] == 40.0, str(ada["win_pct"]))
+
+    # saving an existing night replaces it; it took an id to stop editing one
+    # night from quietly adding a second
+    before = len(doc["nights"])
+    N.set_night(doc, {"id": "2026-09-01", "date": "2026-09-01",
+                      "results": {"ada": {"w": 3, "l": 0}}})
+    check("editing a night replaces it", len(doc["nights"]) == before, str(len(doc["nights"])))
+    check("two nights on one date both survive",
+          N.set_night(doc, {"date": "2026-09-08"})["id"] == "2026-09-08-2")
+
+    N.remove_player(doc, "bo")
+    check("removing a player strips their results",
+          all("bo" not in n["results"] for n in doc["nights"]))
+    check("a result for an unknown player is dropped",
+          "ghost" not in N.set_night(
+              doc, {"date": "2026-09-15", "results": {"ghost": {"w": 1}}})["results"])
+    check("counts can't go negative",
+          N.set_night(doc, {"date": "2026-09-22",
+                            "results": {"ada": {"w": -5}}})["results"]["ada"]["w"] == 0)
+
+    # the results file holds real people's names, so it must stay out of the repo
+    here = os.path.dirname(os.path.abspath(__file__))
+    check("results are stored under the gitignored data folder",
+          os.path.dirname(N.STORE) == os.path.join(here, "data"), N.STORE)
+    ignored = open(os.path.join(here, ".gitignore")).read()
+    check("the data folder is gitignored", "data/" in ignored)
+    check("the published page carries no tracker",
+          "nights" not in open(os.path.join(here, "static", "template.html")).read().lower())
+
+
 def test_color_names():
     print("colour combination names")
     cases = [("UB", "UB (Dimir)"), ("BU", "BU (Dimir)"), ("RW", "RW (Boros)"),
@@ -991,6 +1055,7 @@ def main():
     test_combo_prerequisites(con)
     test_ui_glossary()
     test_pages_and_privacy()
+    test_game_nights()
     test_color_names()
     test_draft_math()
     test_cube_parsing()

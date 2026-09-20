@@ -11,8 +11,24 @@ actually do** (parsed oracle text). Price is a dial, not the point.
 python3 server.py     # http://127.0.0.1:8747
 ```
 
-Two pages, one server: `/` is the full personal tool, `/cube` is **Cube Lab** —
-the cube analysis alone, with nothing personal in it.
+Three pages, one server: `/` is the full personal tool, `/cube` is **Cube Lab** —
+the cube analysis alone, with nothing personal in it — and `/nights` tracks game
+night results.
+
+## Game nights
+
+`/nights` keeps wins, losses, draws and byes per player per night, in
+`data/game_nights.json`. That folder is gitignored, so the results never reach
+the repo and nothing about them is exported to the published Cube Lab page.
+
+A **bye is recorded but never counted.** It isn't a game anyone played, so
+including it would quietly reward not playing — the same distortion that inflated
+an earlier read of these numbers. Every rate divides by games actually played.
+`Score%` counts a draw as half a win (Swiss convention) and is what the table
+sorts by; `Win%` counts outright wins only.
+
+Export and import round-trip the whole file, so a season can be archived or moved
+between machines.
 
 ## Cube Lab as a file you can hand out
 

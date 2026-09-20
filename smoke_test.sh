@@ -19,6 +19,12 @@ except Exception:
   [ "$code" = "200" ] && [ "$err" = "ok" ] || fail=$((fail + 1))
 }
 
+page() {
+  code=$(curl -s -o /tmp/smoke.html -w "%{http_code}" -m 60 "$BASE$2")
+  printf "  %-24s %s\n" "$1" "$code"
+  [ "$code" = "200" ] || fail=$((fail + 1))
+}
+
 post() {
   code=$(curl -s -o /tmp/smoke.json -w "%{http_code}" -m 120 -X POST "$BASE$2" \
          -H 'Content-Type: application/json' -d "$3")
@@ -59,6 +65,14 @@ check cube-tactics   "/api/cube/tactics?cube_id=$CUBE"
 echo "POST:"
 post price-deck "/api/price-deck" '{"deck":"1 Sol Ring"}'
 post pick-cut   "/api/pick-cut"   '{"add":"Counterspell","candidates":["Cancel","Ponder"]}'
+
+echo "PAGES:"
+page  brewer        "/"
+page  cube-lab      "/cube"
+
+echo "GAME NIGHTS (read only - posting would leave junk in the standings):"
+page  nights-page   "/nights"
+check nights-api    "/api/nights"
 
 echo
 echo "failures: $fail"

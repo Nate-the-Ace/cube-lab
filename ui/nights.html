@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Nights</title>
+<link rel="stylesheet" href="/shared.css">
+<style>
+  header .sub{color:var(--ink-dim);font-size:12px}
+  main{max-width:1100px}
+  .gridin{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--panel)}
+  .pcard .who{font-weight:600;margin-bottom:6px}
+  .pcard .fields{display:flex;gap:6px}
+  .pcard label{flex:1;font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-dim);display:flex;flex-direction:column;gap:2px}
+  .pcard input{width:100%;text-align:right;font-variant-numeric:tabular-nums}
+  .pcard.bye{opacity:.72}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .bar{display:inline-block;height:7px;border-radius:2px;background:var(--accent);vertical-align:middle}
+  tr.me td{font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Game <span>Nights</span></h1>
+  <span class="meta" id="meta">loading…</span>
+  <span class="spacer"></span>
+  <a href="/cube" class="badge">Cube Lab</a>
+  <a href="/" class="badge">Brewer</a>
+  <button id="themeBtn" title="Toggle theme">◐</button>
+  <div id="tipbox" class="hidden" role="tooltip"></div>
+  <div id="cardpop" class="hidden" aria-hidden="true"></div>
+  <div id="setpop" class="hidden" aria-hidden="true"></div>
+  <div id="manapop" class="hidden" aria-hidden="true"></div>
+</header>
+
+<main>
+<section id="tab-nights">
+
+  <div class="panel">
+    <div class="row">
+      <strong>Standings</strong>
+      <span class="spacer"></span>
+      <span class="mini dim" id="totals"></span>
+    </div>
+    <p class="note">
+      A <b>bye</b> is recorded but never counted: it isn't a game anyone played, so
+      including it would quietly reward not playing. Every rate below divides by
+      games actually played. <b>Score</b> counts a draw as half a win, the usual
+      Swiss convention; <b>Win%</b> counts only outright wins.
+    </p>
+    <div id="standings"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <strong>Record a night</strong>
+      <span class="spacer"></span>
+      <span class="mini dim" id="editing"></span>
+    </div>
+    <div class="row">
+      <label>Date <input type="date" id="nDate"></label>
+      <label>Format <input id="nFormat" placeholder="Cube draft" style="width:150px"></label>
+      <label style="flex:1">Note <input id="nNote" placeholder="optional" style="width:100%"></label>
+    </div>
+    <div class="gridin" id="entry" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="saveNight" class="primary">Save night</button>
+      <button id="clearNight">Clear</button>
+      <span class="mini dim" id="saveMsg"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <strong>Players</strong>
+      <span class="spacer"></span>
+      <input id="newPlayer" placeholder="First name" style="width:160px">
+      <button id="addPlayer">Add player</button>
+    </div>
+    <div id="players"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <strong>Nights recorded</strong>
+      <span class="spacer"></span>
+      <button id="exportBtn">Export JSON</button>
+      <button id="importBtn">Import JSON</button>
+    </div>
+    <div id="nights"></div>
+  </div>
+
+</section>
+</main>
+
+<script src="/shared.js"></script>
+<script src="/nights.js"></script>
+<script>boot();</script>
+</body>
+</html>

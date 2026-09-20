@@ -511,6 +511,15 @@ const GLOSSARY = {
   'filler': ['Filler', 'A slot the budget could not afford a played card for, filled with the cheapest legal option.'],
   'overlap': ['Overlap', "How strongly two cards share commanders: for every commander running your card, its other staples score by how often they're played."],
   // ─ cut picker ─
+  // game-night tracker
+  'w': ['Wins', 'Games won outright.'],
+  'l': ['Losses', 'Games lost.'],
+  'd': ['Draws', 'Games that ended level. Counted as half a win in Score%, and not at all in Win%.'],
+  'byes': ['Byes', 'Rounds sat out because the table had an odd number of players. Recorded so a night adds up, but kept out of every rate below — a bye is not a game anyone played, and counting it would reward not playing.'],
+  'games': ['Games played', 'Wins plus losses plus draws. Byes are excluded, which is why this can be lower than the rounds a night ran.'],
+  'nights': ['Nights', 'Game nights this player has a result recorded for.'],
+  'win%': ['Win rate', 'Outright wins as a share of games played. Draws count against it; byes are excluded.'],
+  'score%': ['Match score', 'Wins plus half a draw each, as a share of games played — the usual Swiss convention, and the column the table sorts by.'],
   'score': ['Cut score', 'Weighted blend of the five signals to the right. Higher means safer to cut.'],
   'unplayed here': ['Unplayed by this commander', "How rarely this commander's decks run the card. Rarely played, safe to cut."],
   'unpopular': ['Unplayed generally', 'How rarely anyone runs the card, across every commander.'],

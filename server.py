@@ -59,10 +59,15 @@ class H(BaseHTTPRequestHandler):
                 return self._send_file("index.html", "text/html; charset=utf-8")
             if p in ("/cube", "/cube.html"):
                 return self._send_file("cube.html", "text/html; charset=utf-8")
-            if p in ("/shared.css", "/shared.js", "/cube.js"):
+            if p in ("/nights", "/nights.html"):
+                return self._send_file("nights.html", "text/html; charset=utf-8")
+            if p in ("/shared.css", "/shared.js", "/cube.js", "/nights.js"):
                 kind = ("text/css" if p.endswith(".css")
                         else "application/javascript") + "; charset=utf-8"
                 return self._send_file(p.lstrip("/"), kind)
+            if p == "/api/nights":
+                import nights as nights_mod
+                return self._send(200, nights_mod.summary(nights_mod.load()))
             if p == "/api/stats":
                 return self._send(200, mtgdb.stats(con()))
             if p == "/api/set-types":
@@ -232,6 +237,27 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(n) or b"{}")
         try:
+            if u.path.startswith("/api/nights/"):
+                import nights as nights_mod
+                doc = nights_mod.load()
+                what = u.path[len("/api/nights/"):]
+                try:
+                    if what == "add-player":
+                        nights_mod.add_player(doc, body.get("name"))
+                    elif what == "remove-player":
+                        nights_mod.remove_player(doc, body.get("id"))
+                    elif what == "set-night":
+                        nights_mod.set_night(doc, body.get("night") or {})
+                    elif what == "remove-night":
+                        nights_mod.remove_night(doc, body.get("id"))
+                    elif what == "replace":
+                        doc = body.get("doc") or {"players": [], "nights": []}
+                    else:
+                        return self._send(404, {"error": "not found"})
+                except ValueError as e:
+                    return self._send(200, {"error": str(e)})
+                nights_mod.save(doc)
+                return self._send(200, nights_mod.summary(doc))
             if u.path == "/api/cube/delete":
                 import cube as cube_mod
                 return self._send(200, cube_mod.delete_cube((body.get("id") or "").strip()))
