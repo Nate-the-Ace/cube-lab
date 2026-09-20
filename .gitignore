@@ -6,3 +6,8 @@ data/
 __pycache__/
 *.pyc
 .DS_Store
+
+# The game-night results and the hand transcription that seeds them. Both carry
+# real people's names and records, which is exactly what test_suite.py keeps out
+# of this repo.
+game_nights_seed.py

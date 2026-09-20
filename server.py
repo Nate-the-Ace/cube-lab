@@ -244,6 +244,10 @@ class H(BaseHTTPRequestHandler):
                 try:
                     if what == "add-player":
                         nights_mod.add_player(doc, body.get("name"))
+                    elif what == "rename-player":
+                        nights_mod.rename_player(doc, body.get("id"), body.get("name"))
+                    elif what == "merge-players":
+                        nights_mod.merge_players(doc, body.get("keep"), body.get("drop"))
                     elif what == "remove-player":
                         nights_mod.remove_player(doc, body.get("id"))
                     elif what == "set-night":

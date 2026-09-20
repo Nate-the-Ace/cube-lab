@@ -6,7 +6,7 @@ comment on each says which one, because the tests look arbitrary otherwise.
 """
 import sys
 
-import os
+import os, subprocess
 
 import combo_finder
 import cube
@@ -866,6 +866,10 @@ def test_pages_and_privacy():
                 continue
             if fn == "test_suite.py":
                 continue
+            # the seed script is a transcription of real results, so it is
+            # gitignored rather than scrubbed - checked for below
+            if fn == "game_nights_seed.py":
+                continue
             body = open(os.path.join(root, fn), errors="replace").read()
             for word in personal:
                 if word in body:
@@ -933,6 +937,14 @@ def test_game_nights():
           os.path.dirname(N.STORE) == os.path.join(here, "data"), N.STORE)
     ignored = open(os.path.join(here, ".gitignore")).read()
     check("the data folder is gitignored", "data/" in ignored)
+    seed = os.path.join(here, "game_nights_seed.py")
+    check("the results seed is gitignored if it exists",
+          not os.path.exists(seed) or "game_nights_seed.py" in ignored)
+    tracked = subprocess.run(["git", "ls-files", "--error-unmatch",
+                              "game_nights_seed.py", "data/game_nights.json"],
+                             cwd=here, capture_output=True)
+    check("neither the results nor the seed are tracked by git",
+          tracked.returncode != 0, tracked.stdout.decode()[:80])
     check("the published page carries no tracker",
           "nights" not in open(os.path.join(here, "static", "template.html")).read().lower())
 

@@ -52,8 +52,41 @@ function renderPlayers() {
     ? `<table><thead><tr><th>Player</th><th class="num">Games</th><th data-nosort></th></tr></thead>
        <tbody>${DOC.players.map(p => `<tr>
          <td class="name">${esc(p.name)}</td><td class="num">${p.games}</td>
-         <td><button data-drop="${esc(p.id)}">Remove</button></td></tr>`).join('')}</tbody></table>`
+         <td><button data-rename="${esc(p.id)}">Rename</button>
+             <button data-merge="${esc(p.id)}">Merge into…</button>
+             <button data-drop="${esc(p.id)}">Remove</button></td></tr>`).join('')}</tbody></table>`
     : '<span class="dim">Nobody yet.</span>';
+  $('#players').querySelectorAll('[data-rename]').forEach(b => {
+    b.onclick = async () => {
+      const p = DOC.players.find(x => x.id === b.dataset.rename);
+      const name = prompt('New name for ' + (p ? p.name : 'this player'), p ? p.name : '');
+      if (!name) return;
+      const res = await nightsApi('rename-player', {id: b.dataset.rename, name});
+      if (res.error) return alert(res.error);
+      DOC = res;
+      renderAll();
+    };
+  });
+  // the same person shows up as a handle, a first name and a full name across
+  // the old records, so folding two rows together is routine here
+  $('#players').querySelectorAll('[data-merge]').forEach(b => {
+    b.onclick = async () => {
+      const drop = DOC.players.find(x => x.id === b.dataset.merge);
+      const others = DOC.players.filter(x => x.id !== b.dataset.merge);
+      if (!others.length) return alert('Nobody to merge into.');
+      const into = prompt(`Fold ${drop.name}'s results into which player?\n\n`
+        + others.map(o => o.name).join('\n'));
+      if (!into) return;
+      const keep = others.find(o => o.name.toLowerCase() === into.trim().toLowerCase());
+      if (!keep) return alert('No player called ' + into);
+      if (!confirm(`Move every result of ${drop.name} onto ${keep.name}, `
+                   + `and remove ${drop.name}?`)) return;
+      const res = await nightsApi('merge-players', {keep: keep.id, drop: drop.id});
+      if (res.error) return alert(res.error);
+      DOC = res;
+      renderAll();
+    };
+  });
   $('#players').querySelectorAll('[data-drop]').forEach(b => {
     b.onclick = async () => {
       const p = DOC.players.find(x => x.id === b.dataset.drop);

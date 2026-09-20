@@ -56,6 +56,42 @@ def add_player(doc, name):
     return pid
 
 
+def rename_player(doc, pid, name):
+    """Change a display name without touching their results. The id stays put, so
+    every night keeps pointing at them - which is the whole reason results are
+    keyed by id and not by name."""
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("a player needs a name")
+    if any(p["id"] != pid and p["name"].lower() == name.lower() for p in doc["players"]):
+        raise ValueError("%s is already on the list" % name)
+    for p in doc["players"]:
+        if p["id"] == pid:
+            p["name"] = name
+            return p
+    raise ValueError("no such player")
+
+
+def merge_players(doc, keep, drop):
+    """Fold one player's results into another. The Discord records name the same
+    people three ways - a handle, a first name, and a full name - so merging is a
+    normal correction here, not an edge case."""
+    if keep == drop:
+        raise ValueError("that's the same player")
+    ids = {p["id"] for p in doc["players"]}
+    if keep not in ids or drop not in ids:
+        raise ValueError("no such player")
+    for n in doc["nights"]:
+        gone = n["results"].pop(drop, None)
+        if not gone:
+            continue
+        into = n["results"].setdefault(keep, {"w": 0, "l": 0, "d": 0, "b": 0})
+        for k in ("w", "l", "d", "b"):
+            into[k] += gone[k]
+    doc["players"] = [p for p in doc["players"] if p["id"] != drop]
+    return doc
+
+
 def remove_player(doc, pid):
     """Drop a player and every result recorded for them. Their past nights stay,
     they just no longer have a row in them."""
