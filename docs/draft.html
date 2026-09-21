@@ -3219,6 +3219,10 @@ function p1PlacePackTip(el, box) {
 
 function p1Boosters() {
   p1SeatsLock();
+  // innerHTML below replaces every wrapper, and a removed element never fires
+  // mouseleave - so the tooltip has to be closed here or it hangs around,
+  // pointing at a pack that no longer exists
+  p1HidePackTip();
   const box = $('#p1Boosters');
   if (!box) return;
   if (!P1_ALL.length) { box.innerHTML = ''; return; }
@@ -3248,7 +3252,10 @@ function p1Boosters() {
       aria-label="${what}, ${label}">${face.html}</div>`;
   }).join('');
 
-  box.querySelectorAll('.booster').forEach(el => {
+  // The painting is part of choosing a pack. Once the draft is under way the
+  // wrappers sit behind your hand as scenery, and a tooltip over the cards you
+  // are picking from is in the way.
+  if (choosing) box.querySelectorAll('.booster').forEach(el => {
     el.onmouseenter = () => p1ShowPackTip(el);
     el.onmouseleave = p1HidePackTip;
     el.onfocus = () => p1ShowPackTip(el);
