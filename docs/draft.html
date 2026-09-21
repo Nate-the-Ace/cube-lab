@@ -3020,9 +3020,11 @@ function p1Tableau(toggle) {
       <span class="count">${P1_TAKEN.length}</span></h3>
     <div class="row" style="margin-bottom:8px">
       <label class="seats">Sort by
-        <select id="p1GroupBy">${Object.entries(P1_GROUPS).map(([k, v]) =>
-          `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
-        ).join('')}</select>
+        <select id="p1GroupBy">${Object.entries(P1_GROUPS)
+          .filter(([k, v]) => !v.egg || P1_EGG || k === P1_GROUP_BY)
+          .map(([k, v]) =>
+            `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
+          ).join('')}</select>
       </label>
     </div>
     <div class="stacks">${names.map(name => {
@@ -3195,6 +3197,9 @@ function p1ShowPackTip(el) {
       </div>`;
     box.classList.remove('hidden');
     p1PlacePackTip(el, box);
+    // you have just read a painter's name off a wrapper; that is the whole
+    // thought behind stacking your picks by painter, so it stops hiding
+    if (a.artist) P1_EGG = true;
 
     const d = code && await setData(code);
     if (my !== packToken || !d || d.error) return;

@@ -1149,7 +1149,9 @@ def test_pack_art():
     # stacking your picks by painter is not in the menu until you go looking
     check("the artist stacking is hidden until it is found",
           "artist: {label: 'Artist', egg: true" in js
-          and "!v.egg || P1_EGG || k === P1_GROUP_BY" in js)
+          and js.count("!v.egg || P1_EGG || k === P1_GROUP_BY") == 2)
+    check("reading a painter off a wrapper is one of the ways to find it",
+          "if (a.artist) P1_EGG = true;" in js)
     check("the find box matches artists as well as card names",
           "(c.artist || '').toLowerCase().includes(f.q)" in js)
     css = open(os.path.join(here, "ui", "shared.css")).read()
