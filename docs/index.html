@@ -399,12 +399,25 @@ button.big{font-size:15px;padding:10px 26px}
                     69% 88%,78% 28%,87% 95%,95% 35%,100% 100%);
   background-color:rgba(207,169,78,.35)}
 
-/* sealed, and not reachable while a pack is in your hand */
-.booster.waiting{opacity:.24;filter:saturate(.4) brightness(.8);transform:scale(.96)}
-.booster.waiting::after{opacity:.5}
+/* Sealed, and not reachable while a pack is in your hand. Desaturated rather
+   than faded: a transparent pack reads as missing, when the point is that it is
+   still sitting there and simply not yours to open yet. */
+.booster.waiting{filter:grayscale(.9) brightness(.62);opacity:.92;transform:scale(.97)}
+.booster.waiting::after{background:linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,.06));
+  box-shadow:none}
 
-.booster.done{opacity:.22;transform:scale(.94)}
-.booster.done::after{background:rgba(255,255,255,.12);box-shadow:none}
+/* Drafted: an empty wrapper. It keeps the torn top of an opened pack - faded
+   with the seam still crimped, it looked sealed, which is the opposite of what
+   happened to it - and the face falls in where the cards used to be. */
+.booster.done{filter:grayscale(.95) brightness(.5);opacity:.9;
+  transform:scale(.95) rotate(-1deg);border-top-color:transparent}
+.booster.done::before{background:none;border:0;top:0;height:9px;
+  clip-path:polygon(0 100%,8% 26%,17% 88%,27% 18%,36% 84%,46% 24%,55% 90%,65% 20%,
+                    74% 86%,84% 30%,92% 92%,100% 100%);
+  background-color:rgba(255,255,255,.16)}
+.booster.done::after{width:26px;height:4px;border-radius:2px;top:auto;bottom:16%;
+  transform:translate(-50%,0) rotate(-3deg);
+  background:rgba(0,0,0,.45);box-shadow:none}
 
 /* the draft's controls, on the table with the things they act on */
 .tabletools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
