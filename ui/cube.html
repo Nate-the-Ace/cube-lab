@@ -139,7 +139,7 @@ async function boot() {
   try {
     const s = await (await fetch('/api/stats')).json();
     $('#meta').textContent =
-      `${Number(s.n_cards).toLocaleString()} cards · prices ${String(s.scryfall_updated_at).slice(0, 10)}`;
+      `${Number(s.n_cards).toLocaleString()} cards · card data ${String(s.scryfall_updated_at).slice(0, 10)}`;
   } catch (e) {
     $('#meta').textContent = '';
   }

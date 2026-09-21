@@ -336,11 +336,26 @@
               icon: s.icon_svg_uri, card_count: s.card_count};
     }
     if (path === '/api/suggest') {
-      const q = qs.get('q') || '';
-      if (q.length < 2) return [];
+      const q = (qs.get('q') || '').trim().toLowerCase();
+      const limit = parseInt(qs.get('limit'), 10) || 12;
+      if (!q) return [];
+      const mine = (D.p1p1.cards || [])
+        .filter(c => c.name.toLowerCase().includes(q))
+        .sort((a, b) => (a.name.toLowerCase().indexOf(q) - b.name.toLowerCase().indexOf(q))
+                     || a.name.localeCompare(b.name))
+        .slice(0, limit)
+        .map(c => ({label: c.name, value: c.oracle_id,
+                    hint: (c.type_line || '').split(' \u2014')[0]}));
+      if (mine.length >= limit || q.length < 2) return mine;
+
       const j = await sfJson('https://api.scryfall.com/cards/autocomplete?q='
                              + encodeURIComponent(q));
-      return ((j || {}).data || []).map(name => ({name}));
+      const have = new Set(mine.map(m => m.label.toLowerCase()));
+      const rest = ((j || {}).data || [])
+        .filter(n => !have.has(n.toLowerCase()))
+        .slice(0, limit - mine.length)
+        .map(name => ({label: name, value: name, hint: 'not in the cube'}));
+      return mine.concat(rest);
     }
     return null;
   }
