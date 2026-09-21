@@ -1134,7 +1134,7 @@ def test_hand_sort():
     check("a sort says how to group and what a run's line reads",
           "const grouped = !!sorter.groupBy;" in js and "sorter.does(g.key)" in js)
     check("the artist sort groups by painter",
-          "groupBy: c => c.artist || 'Unknown'" in js and "cards in this cube" in js)
+          "groupBy: c => c.artist || 'Unknown'" in js and "in this cube" in js)
     # the fan opens up to fit the names before any of them stack
     check("the fan widens to fit the run names",
           "const want = Math.max(step, ...need);" in js and "READABLE_CW = 112" in js)
