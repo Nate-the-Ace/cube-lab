@@ -635,6 +635,7 @@ function p1Deal() {
   P1_PACK = pack;
   P1_PICK = null;
   P1_REVEALED = false;
+  $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO += 1;
   p1TitleFace();
   $('#p1Reveal').disabled = true;
@@ -869,6 +870,7 @@ $('#p1Restart').onclick = () => {
   P1_PICK = null;
   P1_REVEALED = false;
   $('#p1Reveal').disabled = true;
+  $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO = 0;
   p1TitleFace();
   $('#p1Out').innerHTML = '';
@@ -885,7 +887,17 @@ $('#p1Deal').onclick = async () => {
   if (P1.error) return $('#p1Out').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
   p1Deal();
 };
-$('#p1Reveal').onclick = () => { P1_REVEALED = true; p1Render(); };
+$('#p1Reveal').onclick = () => {
+  P1_REVEALED = !P1_REVEALED;
+  p1Render();
+  $('#p1Reveal').textContent = P1_REVEALED ? 'Hide the numbers' : 'Show the numbers';
+  if (P1_REVEALED) {
+    const box = $('#p1Out');
+    if (box.getBoundingClientRect().top > window.innerHeight - 120) {
+      box.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+  }
+};
 $('#p1Deck').onclick = () => p1Tableau(true);
 $('#p1Deck').onkeydown = e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p1Tableau(true); }

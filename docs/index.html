@@ -431,13 +431,13 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
       <span class="passline r" id="p1PassR"></span>
       <div class="hand" id="p1Hand"><span class="dim">Press “Deal a pack”.</span></div>
     </div>
+    <div id="p1Out"></div>
     <div class="deckrow">
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
       <span class="hint" id="p1DeckHint">Cards you take go here, face down.</span>
     </div>
     <div id="p1Tableau"></div>
-    <div id="p1Out"></div>
   </div>
 
   <div class="panel">
@@ -2437,6 +2437,7 @@ function p1Deal() {
   P1_PACK = pack;
   P1_PICK = null;
   P1_REVEALED = false;
+  $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO += 1;
   p1TitleFace();
   $('#p1Reveal').disabled = true;
@@ -2671,6 +2672,7 @@ $('#p1Restart').onclick = () => {
   P1_PICK = null;
   P1_REVEALED = false;
   $('#p1Reveal').disabled = true;
+  $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO = 0;
   p1TitleFace();
   $('#p1Out').innerHTML = '';
@@ -2687,7 +2689,17 @@ $('#p1Deal').onclick = async () => {
   if (P1.error) return $('#p1Out').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
   p1Deal();
 };
-$('#p1Reveal').onclick = () => { P1_REVEALED = true; p1Render(); };
+$('#p1Reveal').onclick = () => {
+  P1_REVEALED = !P1_REVEALED;
+  p1Render();
+  $('#p1Reveal').textContent = P1_REVEALED ? 'Hide the numbers' : 'Show the numbers';
+  if (P1_REVEALED) {
+    const box = $('#p1Out');
+    if (box.getBoundingClientRect().top > window.innerHeight - 120) {
+      box.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+  }
+};
 $('#p1Deck').onclick = () => p1Tableau(true);
 $('#p1Deck').onkeydown = e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p1Tableau(true); }
