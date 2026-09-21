@@ -3051,7 +3051,22 @@ function p1CollectPacks(was) {
     ], {duration: 520, easing: 'cubic-bezier(.3,.9,.3,1)'});
   });
 
-  const seats = Math.max(0, p1Wheel().players - 1);
+  /* The other seats sit around the table, so their packs go TO them: the ring
+     is an ellipse around the tabletop with your chair at the bottom, and seat k
+     gets the point one step round from you. Packs that are not in this draft at
+     all do not fly anywhere - they simply are not here, so they fade. */
+  const table = ($('#p1Table') || box).getBoundingClientRect();
+  const cx = table.left + table.width / 2;
+  const cy = table.top + table.height / 2;
+  const rx = table.width * 0.46;
+  const ry = table.height * 0.62;
+  const players = p1Wheel().players;
+  const seats = Math.max(0, players - 1);
+  const seatAt = k => {
+    const a = Math.PI / 2 + (2 * Math.PI * k) / players;   // your chair is at PI/2
+    return {x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a)};
+  };
+
   const leaving = Object.keys(was)
     .filter(k => !P1_CHOSEN.includes(parseInt(k, 10)))
     .sort((a, b) => was[a].left - was[b].left);
@@ -3066,25 +3081,40 @@ function p1CollectPacks(was) {
     });
     document.body.appendChild(ghost);
 
-    const toSeat = n < seats;
-    // dealt out to the other players, alternating sides; the rest are not in
-    // this draft at all and fall away
-    const dx = toSeat
-      ? (n % 2 ? 1 : -1) * (window.innerWidth * 0.6)
-      : (from.left - window.innerWidth / 2) * 0.35;
-    const dy = toSeat ? -60 - (n * 6) : window.innerHeight * 0.45;
-
-    const anim = ghost.animate([
-      {transform: 'none', opacity: 1},
-      {transform: `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(${toSeat ? 0.5 : 0.7})`
-        + ` rotate(${toSeat ? (n % 2 ? 12 : -12) : 4}deg)`, opacity: 0},
-    ], {
-      duration: toSeat ? 620 : 520,
-      delay: 40 + n * 12,
-      easing: toSeat ? 'cubic-bezier(.4,0,.5,1)' : 'ease-in',
-      fill: 'forwards',
-    });
-    anim.finished.then(() => ghost.remove()).catch(() => ghost.remove());
+    let frames, opts;
+    if (n < seats) {
+      const seat = seatAt(n + 1);
+      const dx = seat.x - (from.left + from.width / 2);
+      const dy = seat.y - (from.top + from.height / 2);
+      const tilt = (seat.x - cx) / rx * 14;            // lean toward the chair
+      frames = [
+        {transform: 'none', opacity: 1},
+        {transform: `translate(${(dx * 0.6).toFixed(0)}px, ${(dy * 0.6).toFixed(0)}px) scale(.8)`,
+         opacity: 1, offset: 0.55},
+        {transform: `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(.62) rotate(${tilt.toFixed(1)}deg)`,
+         opacity: .85},
+      ];
+      opts = {duration: 640, delay: 40 + n * 45, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'forwards'};
+    } else {
+      frames = [
+        {transform: 'none', opacity: 1},
+        {transform: 'scale(.86)', opacity: 0},
+      ];
+      opts = {duration: 420, delay: 30 + n * 8, easing: 'ease-in', fill: 'forwards'};
+    }
+    const anim = ghost.animate(frames, opts);
+    // a seated pack lingers a moment at its chair before it goes with the player
+    const linger = n < seats ? 420 : 0;
+    anim.finished
+      .then(() => new Promise(r => setTimeout(r, linger)))
+      .then(() => {
+        if (!ghost.isConnected) return;
+        if (!linger) { ghost.remove(); return; }
+        const out = ghost.animate([{opacity: .85}, {opacity: 0}],
+          {duration: 260, easing: 'ease-in', fill: 'forwards'});
+        out.finished.then(() => ghost.remove()).catch(() => ghost.remove());
+      })
+      .catch(() => ghost.remove());
   });
 }
 
