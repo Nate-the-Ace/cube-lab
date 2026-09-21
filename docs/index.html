@@ -1158,8 +1158,8 @@ const GLOSSARY = {
   'why it might work': ['Mechanism', 'A guess from the parsed rules text at what the two cards are doing for each other. Annotation only — it never affects the ranking, and a blank just means the parser could not name the link, not that there is none.'],
   'pair': ['Pair', 'Two cards from your cube. Hover either name to read the card.'],
   'drafts to hit': ['Drafts to hit', 'How many drafts you would expect to need before all the pieces come to you. Simply 1 ÷ odds.'],
-  'odds': ['Draft odds', 'The chance you draft every piece in one draft, shown as a headline plus its range. Two things have to happen: the card has to be opened at the table at all (fixed by pod size and pack count), and it has to survive the drafters between its opener and your seat. That second part depends on how much everyone else wants it, so the number is given three ways \u2014 if nobody else is in your lane, at a normal amount of competition, and if everyone first-picks it.<span class="warn">Pieces are treated as independent, which slightly overstates it — they compete for your own picks and for pack space. Read it as an upper bound.</span>'],
-  'p(draft': ['Chance of drafting enough', 'The chance you draft at least the number of cards the tactic needs, shown with its range. A broad archetype holds up even when contested; a thin one only works when nobody else is in your lane, which is what the spread tells you.'],
+  'odds': ['Draft odds', 'The chance you draft every piece in one draft, shown as a headline plus its range. Two things have to happen: the card has to be opened at the table at all (fixed by pod size and pack count), and it has to survive the drafters between its opener and your seat. That second part depends on how much everyone else wants it, so the number is given three ways: the large figure is a normal amount of competition, and the pair beneath it is uncontested (nobody else in your lane) first, then contested (everyone first-picks it).<span class="warn">Pieces are treated as independent, which slightly overstates it — they compete for your own picks and for pack space. Read it as an upper bound.</span>'],
+  'p(draft': ['Chance of drafting enough', 'The chance you draft at least the number of cards the tactic needs, shown with its range — the large figure at normal competition, then uncontested and contested beneath. A broad archetype holds up even when contested; a thin one only works when nobody else is in your lane, which is what the spread tells you.'],
   'odds on any one card': ['Per-card odds', 'Chance you end up with one specific cube card: it has to be opened at all, then survive the drafters between its pack\'s opener and your seat.'],
   'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one.'],
   'pack size': ['Pack size', 'Cards per pack. Bigger packs mean a card has to survive fewer picks before it wheels back to you.'],
@@ -1583,7 +1583,7 @@ const cardNames = (list, sep) => (list || []).filter(Boolean)
 function bandCell(b, mid, fmt) {
   const f = fmt || (v => pct(v));
   if (!b) return f(mid);
-  return `${f(b.mid)}<div class="mini dim">${f(b.low)} if uncontested · ${f(b.high)} if everyone wants it</div>`;
+  return `${f(b.mid)}<div class="mini dim">${f(b.low)} · ${f(b.high)}</div>`;
 }
 
 function tacticBlurb(x) {

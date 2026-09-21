@@ -67,7 +67,7 @@ const cardNames = (list, sep) => (list || []).filter(Boolean)
 function bandCell(b, mid, fmt) {
   const f = fmt || (v => pct(v));
   if (!b) return f(mid);
-  return `${f(b.mid)}<div class="mini dim">${f(b.low)} if uncontested · ${f(b.high)} if everyone wants it</div>`;
+  return `${f(b.mid)}<div class="mini dim">${f(b.low)} · ${f(b.high)}</div>`;
 }
 
 function tacticBlurb(x) {
