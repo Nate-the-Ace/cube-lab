@@ -428,6 +428,57 @@ document.addEventListener('focusin', e => {
 document.addEventListener('focusout', e => { if (e.target.closest('.manadisc')) hideMana(); });
 window.addEventListener('scroll', hideMana, true);
 
+/* ── set symbols, as a font ──
+
+   Scryfall serves the symbols as SVGs from svgs.scryfall.io, a different host
+   from the card images, and it is not reliably reachable - it answered nothing
+   here and drew a broken image on the page. Keyrune is the same symbols as a
+   webfont, loaded from a CDN, so a symbol is a glyph rather than a request that
+   can fail on its own.
+
+   Keyrune by Andrew Gioia (keyrune.andrewgioia.com), font under OFL-1.1. The
+   list below is which set codes it has a glyph for, read out of its stylesheet
+   - a class it does not define renders nothing at all, and silently, so the
+   page has to know before it asks. Promo sets are prefixed p and carry no
+   symbol of their own; they wear their parent set's, which is the same code
+   without the p. Regenerate with:
+     curl -s https://cdn.jsdelivr.net/npm/keyrune@3.19.0/css/keyrune.css \
+       | grep -o '\.ss-[a-z0-9]*:before' | sed 's/[^-]*-//;s/:before//' | sort -u
+*/
+const KEYRUNE = new Set(`
+  10e 1e 2e 2ed 2u 2x2 2xm 30a 3e 3ed 40k 4ed 5dn 5ed 6ed 7ed 8ed 9ed a25 acr aer afc
+  afr akh akr ala all ann apc arb arc arn ath atq avr azorius bbd bcore bfz big blb
+  blc bng bok boros bot br brb brc bro brr btd c13 c14 c15 c16 c17 c18 c19 c20 c21
+  cc1 cc2 chk chr clb clu cm1 cm2 cma cmc cmd cmm cmr cn2 cns con csp dd2 ddc ddd dde
+  ddf ddg ddh ddi ddj ddk ddl ddm ddn ddo ddp ddq ddr dds ddt ddu dft dgm dimir dis
+  dka dkm dmc dmr dmu dom dpa drb drc drk dsc dsk dst dtk duels dvk e01 e02 ea1 ecc
+  ecl eld ema emn eoc eoe eos eve evg exo exp fca fdc fdn fem fic fin fra frf fut gk1
+  gk2 gn2 gn3 gnt golgari gpt grn gruul gs1 gtc h09 h17 ha1 hbg hml hob hoc hop hou
+  htr htr17 ice ice2 iko ima inr inv isd izzet j20 j21 j22 j25 j25a jmp jou jud khc
+  khm kld klr ktk lcc lci lea leb leg lgn lrw ltc ltr m10 m11 m12 m13 m14 m15 m19 m20
+  m21 m3c mar mat mb1 mb2 mbs md1 me1 me2 me3 me4 med mh1 mh2 mh3 mic mid mir mkc mkm
+  mm2 mm3 mma mmq moc modo mom mor mp1 mp2 mps mrd msc msh mul ncc nec nem neo nms
+  nph ody ogw om1 omb onc one ons ori orzhov otc otj otp p02 papac parl parl2 parl3
+  past pbook pc2 pca pcy pd2 pd3 pdep pdrc peuro pfnm pgru pheart pidw pio pip plc
+  pleaf pls pm2 pma pmei pmodo pmps pmpu pmtg1 pmtg2 po2 por psalvat05 psalvat11
+  psega psld psum ptg ptk ptsa pxbox pz1 pz2 pza rakdos rav ren rex rin rix rna roe
+  rtr rvr s00 s99 scd scg selesnya shm simic sir sis sld sld2 slu snc soa soc soi sok
+  som sos spe spg spm ss1 ss2 ss3 sta sth stx td2 tdc tdm thb ths tla tle tmc tmp tmt
+  tor tpr tsp tsr uds ugl ulg uma una und unf unh usg ust v09 v0x v10 v11 v12 v13 v14
+  v15 v16 v17 van vis vma voc vow w16 w17 war who woc woe wot wth wwk x2ps x4ea xcle
+  xdnd xduels xice xkld xlcu xln xmods xren xrin xssm y22 y23 y24 y25 y26 yblb ybro
+  ydft ydmu ydsk yeoe ylci ymid ymkm yneo yone yotj ysnc ytdm ywoe zen znc zne znr
+`.trim().split(/\s+/));
+
+function setSymbol(code) {
+    const c = (code || '').toLowerCase();
+    if (!c) return '';
+    // an exact match first, then the parent set a promo code hangs off
+    const hit = KEYRUNE.has(c) ? c
+        : (c[0] === 'p' && KEYRUNE.has(c.slice(1))) ? c.slice(1) : '';
+    return hit ? `<i class="ss ss-${hit}" aria-hidden="true"></i>` : '';
+}
+
 /* An <img> that fails to load leaves a broken-image glyph, which reads as a bug
    in the page rather than a missing picture. Take it out instead, and let the
    caller re-measure whatever it was sitting in. */
@@ -478,11 +529,10 @@ function showSet(el) {
             d.parent_name ? `part of ${esc(d.parent_name)}` : null,
         ].filter(Boolean);
         box.innerHTML = `<div class="row1">
-              ${d.icon_svg_uri ? `<img src="${esc(d.icon_svg_uri)}" alt="">` : ''}
+              ${setSymbol(d.code)}
               <span><b>${esc(d.name)}</b><span class="code">${esc(d.code)}</span></span>
             </div>
             <div class="facts">${facts.join('<br>')}</div>`;
-        dropOnError(box.querySelector('img'));
         box.classList.remove('hidden');
         const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
         let left = Math.min(Math.max(8, r.left - 6), window.innerWidth - b.width - 8);

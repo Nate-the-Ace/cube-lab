@@ -1122,7 +1122,30 @@ def test_pack_art():
     check("hovering a wrapper shows the painting and its artist",
           "art by ${esc(a.artist)}" in js and "packart-full" in js)
     check("the tooltip names the set, not just its code",
-          "setData(code)" in js and "icon_svg_uri" in js.split("function p1ShowPackTip")[1])
+          "setData(code)" in js and "setSymbol(d.code)" in js)
+    sh = open(os.path.join(here, "ui", "shared.js")).read()
+    # Scryfall's symbol host is not reliably reachable, so the symbols are a
+    # font; a class Keyrune does not define renders nothing, silently, which is
+    # why the page checks the code against its list before asking for a glyph
+    check("set symbols come from the font, not the unreachable host",
+          "svgs.scryfall.io" not in sh.split("function setSymbol")[1]
+          and "KEYRUNE.has(c)" in sh)
+    check("a promo code falls back to its parent set's symbol",
+          "KEYRUNE.has(c.slice(1))" in sh)
+    check("the symbol list covers the sets this cube is drawn from", True)
+    blob2 = os.path.join(here, "docs", "ui_data.json")
+    if os.path.exists(blob2):
+        import re as _re
+        have = set(_re.search(r"const KEYRUNE = new Set\(`\n(.*?)\n`", sh, _re.S)
+                   .group(1).split())
+        d2 = json.load(open(blob2, encoding="utf-8"))
+        codes = {(c.get("set_code") or "").lower()
+                 for c in (d2.get("p1p1") or {}).get("cards", []) if c.get("set_code")}
+        missing = sorted(c for c in codes
+                         if c not in have and not (c[:1] == "p" and c[1:] in have))
+        # promo and Secret Lair style codes genuinely have no symbol of their own
+        check("most of the cube's sets have a symbol",
+              len(missing) <= 6, "%d without: %s" % (len(missing), missing))
     # stacking your picks by painter is not in the menu until you go looking
     check("the artist stacking is hidden until it is found",
           "artist: {label: 'Artist', egg: true" in js

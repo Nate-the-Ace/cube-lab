@@ -212,8 +212,7 @@ details.importer summary:hover{color:var(--accent)}
 #packpop .by{display:block;margin-top:2px;font-size:11px;color:var(--ink-dim)}
 #packpop .setline{display:flex;align-items:center;gap:7px;margin-top:8px;
   font-size:11px;color:var(--ink-dim);font-family:var(--mono)}
-#packpop .setline img{width:16px;height:16px;flex:none;filter:invert(1) brightness(1.6)}
-:root[data-theme="light"] #packpop .setline img{filter:none}
+#packpop .setline .ss{font-size:15px;line-height:1;flex:none;color:var(--accent)}
 #packpop .code{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-dim);opacity:.8}
 
@@ -225,9 +224,7 @@ details.importer summary::before{content:"+ ";color:var(--accent)}
 details.importer[open] summary::before{content:"\2212 "}
 details.importer summary:hover{color:var(--accent)}
 #setpop .row1{display:flex;align-items:center;gap:9px}
-#setpop img{width:30px;height:30px;flex:none;
-  filter:invert(1) brightness(1.6)}
-:root[data-theme="light"] #setpop img{filter:none}
+#setpop .ss{font-size:26px;line-height:1;flex:none;color:var(--accent)}
 #setpop b{display:block;font-size:13px;color:var(--accent);line-height:1.25}
 #setpop .code{font-family:var(--mono);font-size:10px;color:var(--ink-dim);
   text-transform:uppercase;letter-spacing:.08em}

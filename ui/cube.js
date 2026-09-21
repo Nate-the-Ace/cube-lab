@@ -1065,13 +1065,9 @@ function p1ShowPackTip(el) {
     if (my !== packToken || !d || d.error) return;
     const line = box.querySelector('.setline');
     if (!line) return;
-    line.innerHTML = `${d.icon_svg_uri ? `<img src="${esc(d.icon_svg_uri)}" alt="">` : ''}
+    line.innerHTML = `${setSymbol(d.code)}
       ${esc(d.name)} <span class="code">${esc(d.code.toUpperCase())}</span>
       ${d.released_at ? `<span class="code">${esc(String(d.released_at).slice(0, 4))}</span>` : ''}`;
-    // the symbols come from a different Scryfall host than the art, and it is
-    // not always reachable; a broken-image glyph is worse than no symbol, and
-    // the set is named in full beside it either way
-    dropOnError(line.querySelector('img'), () => p1PlacePackTip(el, box));
     p1PlacePackTip(el, box);
   }, PACK_HOVER_DELAY);
 }
