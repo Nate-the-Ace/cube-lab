@@ -27,6 +27,15 @@ def main(cube_id, out):
     bal = cube.cube_balance(con, cube_id)
     near = cube.cube_near_misses(con, cube_id, limit=60)
 
+    # how many game nights the measured lane numbers rest on. The count is all
+    # that travels - never a name, never a per-player figure.
+    local_nights = 0
+    try:
+        import nights
+        local_nights = len(nights.load()["nights"])
+    except Exception:
+        pass
+
     # strip the fields that only mean anything at the settings used here; the
     # page recomputes them from its own sliders
     for c in combos["known"] + combos["candidates"]:
@@ -53,7 +62,8 @@ def main(cube_id, out):
                    "self_contained": combos["known_self_contained"],
                    "needs_extra": combos["known_needs_extra"]},
         "near": near,
-        "opportunity": opp["lanes"],
+        "opportunity": opp["lanes"], "has_local": opp.get("has_local", False),
+        "local_nights": local_nights,
         "lanes": tactics.get("lanes", []),
         "pairs": syn["pairs"], "pairs_total": syn["total_pairs"],
         "pairs_by_kind": syn["by_kind"],

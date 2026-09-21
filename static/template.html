@@ -296,18 +296,32 @@ function render() {
   const out = [];
 
   /* opportunity */
+  const hasLocal = !!D.has_local;
   out.push(section('opp', 'Where the opportunity is', D.opportunity.length,
     `<b>Depth</b> is a hard fact about the list. <b>Power</b> is the average EDHREC play rate of the
      lane's twenty best spells — a proxy, and a loose one: that data is multiplayer Commander, so it
-     says "these cards are strong" far better than "this strategy is strong".`,
+     says "these cards are strong" far better than "this strategy is strong".` + (hasLocal
+     ? ` <b>Measured</b> is what this group has actually done with the lane across
+        ${D.local_nights} game nights — the only number here drawn from your own cube instead of
+        someone else's format, and also the smallest, so the match count sits beside it. A
+        three-colour deck counts toward each of its pairs. On this list the two disagree sharply:
+        Boros is last by Power and near the top when measured.` : ''),
     `<div class="scroll"><table><thead><tr><th>Lane</th><th class="num">Spells</th>
       <th class="num">Power</th><th class="num">Expect to draft</th><th class="num">Opportunity</th>
+      ${hasLocal ? '<th class="num">Measured</th><th class="num">Matches</th>' : ''}
       </tr></thead><tbody>${D.opportunity.map(l => `<tr>
         <td class="nm">${manaLabel(l.colors)}</td>
         <td class="num">${l.spells}</td>
         <td class="num">${(l.top20_power / 1000).toFixed(0)}k</td>
         <td class="num">${(l.cards_in_cube * o.each).toFixed(1)}</td>
-        <td class="num">${l.opportunity.toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`,
+        <td class="num">${l.opportunity.toLocaleString()}</td>
+        ${hasLocal ? (l.local
+          ? `<td class="num">${l.local.score_pct.toFixed(1)}%
+               <div class="mini">${l.local.w}-${l.local.l}${l.local.d ? '-' + l.local.d : ''}</div></td>
+             <td class="num">${l.local.matches}
+               <div class="mini">${l.local.decks} deck${l.local.decks === 1 ? '' : 's'}</div></td>`
+          : '<td class="num dim">—</td><td class="num dim">never drafted</td>') : ''}
+      </tr>`).join('')}</tbody></table></div>`,
     true));
 
   /* lanes */
