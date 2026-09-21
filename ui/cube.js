@@ -595,7 +595,7 @@ function p1WhyLines(card) {
 
   const ps = card.partners || [];
   lines.push([ps.length ? 'good' : 'bad', ps.length
-    ? `${ps.length} cube card${ps.length === 1 ? '' : 's'} want to be beside it, led by `
+    ? `${ps.length} cube card${ps.length === 1 ? ' wants' : 's want'} to be beside it, led by `
       + ps.slice(0, 2).map(p => `<b>${esc(p.name)}</b> (${(p.lift || 0).toFixed(0)}\u00d7)`).join(' and ') + '.'
     : 'Nothing in the cube pairs with it above chance — you play it because it is good, not for what it combines with.']);
 
@@ -697,6 +697,8 @@ function p1Zoom(card) {
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
         : `<div class="zname">${esc(card.name)}</div>`}
       <div class="zname">${esc(card.name)}</div>
+      <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
+        `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
       ${P1_PACK.some(c => c.oracle_id === card.oracle_id)
         ? `<button class="ztake">Take this card</button>
            <div class="zhint">or double-click it in the hand \u00b7 Esc to close</div>`

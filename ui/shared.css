@@ -318,6 +318,11 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .zoomveil img{max-height:78vh;max-width:min(92vw,460px);border-radius:14px;
   box-shadow:0 30px 70px rgba(0,0,0,.7)}
 .zoomveil .zname{font-size:15px;font-weight:600;color:#fff;text-align:center}
+.zoomveil figure{max-height:92vh;overflow-y:auto}
+.zwhy{max-width:min(92vw,460px);border-top-color:rgba(255,255,255,.18)}
+.zwhy .whyline{color:rgba(255,255,255,.72);font-size:12px}
+.zwhy .whyline.good{color:#fff}
+.zwhy .whyline::before{color:rgba(255,255,255,.45)}
 .zoomveil .zhint{font-size:12px;color:rgba(255,255,255,.7)}
 .zoomveil .ztake{font:inherit;font-size:13px;padding:7px 16px;border-radius:8px;
   border:1px solid var(--accent);background:var(--accent);color:#1a1205;
