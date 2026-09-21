@@ -857,12 +857,25 @@ function p1LayoutHand() {
      one takes the tilt and the drop of the point in the fan its cards are
      centred on, so the run of them traces the same curve the cards do. */
   hand.querySelectorAll('.handgroup').forEach(g => {
-    const mine = [...g.querySelectorAll('.dcard')].map(el => cards.indexOf(el));
+    const own = [...g.querySelectorAll('.dcard')];
+    const mine = own.map(el => cards.indexOf(el));
     if (!mine.length) return;
     const centre = mine.reduce((a, b) => a + b, 0) / mine.length;
     const d = mid ? (centre - mid) / mid : 0;
     g.style.setProperty('--gtilt', (d * 7).toFixed(2) + 'deg');
     g.style.setProperty('--glift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
+
+    /* Raising a run is not enough to read it: inside the run the cards still
+       overlap each other by cw - step, so a five-card run went up as a stack of
+       slivers. Each card also gets the sideways push that would separate them,
+       spread about the run's centre so it grows in place. It only applies while
+       the run is hovered, and the run is above the rest of the fan then, so
+       reaching over its neighbours is free. */
+    const spread = Math.max(0, cw - step + 6);
+    const gmid = (own.length - 1) / 2;
+    own.forEach((el, k) => {
+      el.style.setProperty('--gdx', ((k - gmid) * spread).toFixed(1) + 'px');
+    });
   });
 }
 

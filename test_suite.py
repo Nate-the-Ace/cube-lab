@@ -1140,6 +1140,15 @@ def test_hand_sort():
           and ".glabel:hover em" in css)
     check("hovering a group's name raises that run",
           ":has(.glabel:hover) .dcard" in css)
+    # raising is not enough: inside a run the cards overlap each other, so a
+    # five-card run went up as a stack of slivers
+    check("a raised run spreads out far enough to read",
+          "--gdx" in js and "translate(var(--gdx,0px)" in css)
+    # and it has to clear the whole fan, not just the group beside it: every
+    # card carries its own z-index, one per card in the pack
+    check("a raised run is above every other card",
+          ":has(.glabel:hover),\n.hand.fan.grouped .handgroup:has(.glabel:focus-visible){z-index:50}"
+          in css)
 
 
 def test_pack_art():
