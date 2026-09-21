@@ -373,6 +373,16 @@ def test_ui_glossary():
           all(p in labels.values() for p in prompts),
           "prompts %s vs buttons %s" % (prompts, sorted(labels.values())))
 
+    css = open(os.path.join(ui, "shared.css")).read()
+    # the packs sit behind the hand, so the hand must not swallow clicks meant
+    # for them - an empty hand is still a full-size div lying on top
+    check("the hand passes clicks through to the packs behind it",
+          ".hand{" in css.replace(" ", "") and "pointer-events:none" in
+          css[css.index(".hand{"):css.index(".hand{") + 260],
+          "hand rule must set pointer-events:none")
+    check("cards in the hand still take clicks",
+          ".hand .dcard{pointer-events:auto}" in css)
+
     check("the cube page shows no prices",
           "money(" not in cube_js and "price_usd" not in cube_js)
     check("EDHREC play rate is not a displayed signal",

@@ -251,7 +251,8 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .tabletop .passline.r{right:12px}
 
 .hand{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;
-  padding:22px 4px 4px;perspective:1200px}
+  padding:22px 4px 4px;perspective:1200px;pointer-events:none}
+.hand .dcard{pointer-events:auto}
 .dcard{position:relative;width:132px;aspect-ratio:1/1.396;border-radius:8px;
   background:var(--bg-soft);border:1px solid var(--line);overflow:hidden;cursor:pointer;
   transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease;
