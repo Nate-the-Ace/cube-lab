@@ -428,6 +428,16 @@ document.addEventListener('focusin', e => {
 document.addEventListener('focusout', e => { if (e.target.closest('.manadisc')) hideMana(); });
 window.addEventListener('scroll', hideMana, true);
 
+/* An <img> that fails to load leaves a broken-image glyph, which reads as a bug
+   in the page rather than a missing picture. Take it out instead, and let the
+   caller re-measure whatever it was sitting in. */
+function dropOnError(img, then) {
+    if (!img) return;
+    const gone = () => { img.remove(); if (then) then(); };
+    img.onerror = gone;
+    if (img.complete && !img.naturalWidth) gone();
+}
+
 /* ── set symbols ──
    A three-letter set code tells you nothing on its own, so hovering one shows the
    set's real name and symbol. Shorter delay than the card preview: it's a small
@@ -472,6 +482,7 @@ function showSet(el) {
               <span><b>${esc(d.name)}</b><span class="code">${esc(d.code)}</span></span>
             </div>
             <div class="facts">${facts.join('<br>')}</div>`;
+        dropOnError(box.querySelector('img'));
         box.classList.remove('hidden');
         const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
         let left = Math.min(Math.max(8, r.left - 6), window.innerWidth - b.width - 8);
