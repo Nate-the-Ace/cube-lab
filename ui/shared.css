@@ -47,6 +47,9 @@ th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
 td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:hover td{background:var(--panel-2)}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+tr.filters .filter-note{margin-top:0}
+.filter-note{margin:6px 2px 0}
+tbody tr[hidden]{display:none}
 tr.filters th{padding:4px 6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 tr.filters input[type=text],tr.filters input[type=number],tr.filters input:not([type]),
 tr.filters select{width:100%;min-width:0;padding:4px 6px;font-size:12px}

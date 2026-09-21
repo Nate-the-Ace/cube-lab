@@ -170,9 +170,9 @@ async function runCube() {
       checked for it. “Drafts to hit” counts only the named cards, so it is optimistic for anything
       that isn't self-contained.
       ${combos.known_self_contained} of ${combos.known_total} need nothing beyond the cards named.</p>
-    ${combos.known.length ? `<table><thead><tr><th>Combo</th><th class="num">Pieces</th>
-      <th class="num">Odds</th><th class="num">Drafts to hit</th><th>Produces</th>
-      <th>Also needs</th></tr></thead>
+    ${combos.known.length ? `<table><thead><tr><th data-filter="text">Combo</th><th class="num" data-filter="min">Pieces</th>
+      <th class="num">Odds</th><th class="num">Drafts to hit</th><th data-filter="text">Produces</th>
+      <th data-filter="text">Also needs</th></tr></thead>
       <tbody>${comboRows(combos.known, false)}</tbody></table>`
       : '<span class="dim">no known combos are fully contained in this cube</span>'}
 
@@ -196,9 +196,9 @@ async function runCube() {
            match count sits beside every rate. A three-colour deck counts toward each of its pairs.`
         : `A third signal, what this table has actually done with each lane, appears here once
            game-night results are recorded.`}</p>
-    <table><thead><tr><th>Lane</th><th class="num">Spells</th><th class="num">Power</th>
+    <table><thead><tr><th data-filter="text">Lane</th><th class="num" data-filter="min">Spells</th><th class="num">Power</th>
       <th class="num">Opportunity</th>${opp && opp.has_local
-        ? '<th class="num">Measured</th><th class="num">Matches</th>' : ''}</tr></thead><tbody>
+        ? '<th class="num" data-filter="min">Measured</th><th class="num" data-filter="min">Matches</th>' : ''}</tr></thead><tbody>
       ${((opp && opp.lanes) || []).map(l => `<tr>
         <td class="name" data-sort="${esc(l.colors)}">${manaLabel(l.colors)}</td>
         <td class="num" data-sort="${l.spells}">${l.spells}</td>
@@ -215,8 +215,8 @@ async function runCube() {
     <h3 class="sec">Colour lanes</h3>
     <p class="note">How cube drafting actually works: pick a pair and see how deep it runs.
       “Expect” is how many of that lane's cards should reach you across the whole draft.</p>
-    <table><thead><tr><th>Lane</th><th class="num">Cards</th>
-      <th class="num">Mono</th><th class="num">Gold</th><th class="num">Expect to draft</th></tr></thead><tbody>
+    <table><thead><tr><th data-filter="text">Lane</th><th class="num" data-filter="min">Cards</th>
+      <th class="num">Mono</th><th class="num">Gold</th><th class="num" data-filter="min">Expect to draft</th></tr></thead><tbody>
       ${(tactics.lanes || []).map(l => `<tr>
         <td class="name" data-sort="${esc(l.colors)}">${manaLabel(l.colors)}</td>
         <td class="num" data-sort="${l.cards_in_cube}">${l.cards_in_cube}</td>
@@ -237,9 +237,9 @@ async function runCube() {
 </p>
     <p class="note">${Object.entries((syn && syn.by_kind) || {}).map(([k, v]) =>
       `<span class="badge">${esc(k)} ${v.toLocaleString()}</span>`).join(' ')}</p>
-    <table><thead><tr><th>Pair</th><th>Type</th><th class="num">Lift</th>
-      <th class="num">Decks together</th><th class="num">$</th>
-      <th>Why it might work</th></tr></thead><tbody>
+    <table><thead><tr><th data-filter="text">Pair</th><th data-filter="pick">Type</th><th class="num" data-filter="min">Lift</th>
+      <th class="num" data-filter="min">Decks together</th><th class="num" data-filter="max">$</th>
+      <th data-filter="text">Why it might work</th></tr></thead><tbody>
       ${((syn && syn.pairs) || []).map(x => `<tr>
         <td class="name">${x.cards.map(c => cardName(c.name, c.oracle_id)).join(' <span class="dim">+</span> ')}
           <div class="dim">${manaDisc(x.colors, 14)} ${x.cards.map(c => esc((c.type_line||'').split(' —')[0])).join(' · ')}</div></td>
@@ -256,9 +256,9 @@ async function runCube() {
       so it happily reports set mechanics (morph, kicker, foretell) as though they were archetypes.
       The colour lanes above and the composition below are the trustworthy signals; this table is
       “the cube holds this many cards that do this kind of thing”, nothing stronger.</p>
-    <table><thead><tr><th>Tactic</th><th class="num">Cards in cube</th>
-      <th class="num">Expect to draft</th><th class="num">Support</th>
-      <th class="num">P(draft ${tactics.need}+)</th></tr></thead><tbody>
+    <table><thead><tr><th data-filter="text">Tactic</th><th class="num" data-filter="min">Cards in cube</th>
+      <th class="num" data-filter="min">Expect to draft</th><th class="num" data-filter="min">Support</th>
+      <th class="num" data-filter="min">P(draft ${tactics.need}+)</th></tr></thead><tbody>
       ${(tactics.tactics || []).map(x => `<tr>
         <td class="name">
           <details class="cardlist">
@@ -306,7 +306,7 @@ async function runCube() {
     <h3 class="sec">What the cube is made of</h3>
     <p class="note">Measured from card text and Scryfall's function tags — format-neutral, unlike the
       theme data above.</p>
-    <table><thead><tr><th>Does this</th><th class="num">Cards</th><th>Source</th></tr></thead><tbody>
+    <table><thead><tr><th data-filter="text">Does this</th><th class="num" data-filter="min">Cards</th><th data-filter="pick">Source</th></tr></thead><tbody>
       ${(tactics.functions || []).map(f => `<tr>
         <td class="name">
           <details class="cardlist">
@@ -327,8 +327,8 @@ async function runCube() {
         near.excluded_illegal ? ` — ${near.excluded_illegal} were dropped for that reason, including
         ${cardNames(near.illegal_examples)}` : ''}.
       Combos that also need something unnamed are left out, because adding a card wouldn't finish them.</p>
-    ${(near.cards || []).length ? `<table><thead><tr><th>Add this</th><th>Type</th>
-      <th class="num">$</th><th class="num">Completes</th><th>What it finishes</th></tr></thead><tbody>
+    ${(near.cards || []).length ? `<table><thead><tr><th data-filter="text">Add this</th><th data-filter="text">Type</th>
+      <th class="num" data-filter="max">$</th><th class="num" data-filter="min">Completes</th><th data-filter="text">What it finishes</th></tr></thead><tbody>
       ${near.cards.map(c => `<tr>
         <td class="name" data-card="${esc(c.name)}">${esc(c.name)}</td>
         <td class="dim">${manaDisc(c.color_identity, 14)} ${esc((c.type_line || '').split(' —')[0])}</td>
@@ -341,6 +341,7 @@ async function runCube() {
 `;
   collapsibleSections('#cubeOut');
   sortable('#cubeOut');
+  filterable('#cubeOut');
 }
 // Explicit user action only: this never fires on load, on a timer, or as part of
 // analysis. See the note in cube.py about what we're doing and why.

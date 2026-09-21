@@ -801,3 +801,109 @@ function sortable(scope) {
     });
   });
 }
+
+/* ── in-table filters ──
+   The filters ARE the header, the same way the headers are the sort control.
+   A column opts in with data-filter on its <th>:
+
+     text   substring match on the cell, as you type
+     pick   a dropdown built from the values actually present in the column
+     min    numeric floor ("at least")
+     max    numeric ceiling ("at most")
+
+   These tables are rendered from data already in the page, so filtering is row
+   visibility - no re-query, and it works identically on the published snapshot
+   where there is no server to re-query. */
+function filterable(scope) {
+  document.querySelectorAll(scope + ' table').forEach(tb => {
+    const head = tb.tHead && tb.tHead.rows[0], body = tb.tBodies[0];
+    if (!head || !body) return;
+    const cols = [...head.cells];
+    if (!cols.some(th => th.dataset.filter)) return;
+    if (tb.tHead.querySelector('tr.filters')) return;      // already built
+
+    const row = tb.tHead.insertRow(-1);
+    row.className = 'filters';
+    const controls = [];
+
+    cols.forEach((th, i) => {
+      const cell = row.insertCell(-1);
+      cell.dataset.nosort = '';
+      const kind = th.dataset.filter;
+      if (!kind) return;
+      const clean = th.cloneNode(true);
+      clean.querySelectorAll('.tip').forEach(t => t.remove());
+      const label = clean.textContent.trim().replace(/\s+/g, ' ');
+
+      let use = kind;
+      if (kind === 'pick') {
+        const distinct = new Set([...body.rows]
+          .map(r => ((r.cells[i] || {}).textContent || '').trim().replace(/\s+/g, ' ')));
+        // a column with a value per row is a text box, not a menu - but it still
+        // gets a filter, rather than silently getting none
+        if (distinct.size > 40) use = 'text';
+      }
+      if (use === 'pick') {
+        const sel = document.createElement('select');
+        const seen = [...new Set([...body.rows]
+          .map(r => (r.cells[i] || {}).textContent || '')
+          .map(t => t.trim().replace(/\s+/g, ' ')).filter(Boolean))].sort();
+        sel.innerHTML = '<option value="">any</option>'
+          + seen.map(v => `<option>${esc(v)}</option>`).join('');
+        cell.appendChild(sel);
+        controls.push({i, kind: use, el: sel});
+      } else {
+        const inp = document.createElement('input');
+        inp.type = use === 'text' ? 'text' : 'number';
+        inp.placeholder = use === 'min' ? 'min' : use === 'max' ? 'max'
+          : label.toLowerCase().slice(0, 14);
+        if (use !== 'text') inp.step = 'any';
+        cell.appendChild(inp);
+        controls.push({i, kind: use, el: inp});
+      }
+    });
+
+    // a count of what the filters are hiding, so an empty table is never a mystery
+    const note = document.createElement('div');
+    note.className = 'mini dim filter-note';
+    note.hidden = true;
+    tb.parentNode.insertBefore(note, tb.nextSibling);
+
+    const numeric = txt => {
+      const n = parseFloat(String(txt).replace(/[$,%\s]/g, '').replace(/,/g, ''));
+      return isNaN(n) ? null : n;
+    };
+    const apply = () => {
+      const active = controls.filter(c => String(c.el.value).trim() !== '');
+      let hidden = 0;
+      [...body.rows].forEach(r => {
+        const show = active.every(c => {
+          const txt = ((r.cells[c.i] || {}).textContent || '').trim();
+          const v = String(c.el.value).trim();
+          if (c.kind === 'text') return txt.toLowerCase().includes(v.toLowerCase());
+          if (c.kind === 'pick') return txt.replace(/\s+/g, ' ') === v;
+          const n = numeric(txt);
+          if (n === null) return false;
+          return c.kind === 'min' ? n >= parseFloat(v) : n <= parseFloat(v);
+        });
+        r.hidden = !show;
+        if (!show) hidden++;
+      });
+      note.hidden = !hidden;
+      note.textContent = hidden
+        ? `${hidden.toLocaleString()} row${hidden === 1 ? '' : 's'} hidden by the filters above`
+        : '';
+    };
+
+    let t = null;
+    controls.forEach(c => {
+      const go = () => {
+        clearTimeout(t);
+        // typing debounces; a dropdown answers at once
+        t = setTimeout(apply, c.kind === 'pick' ? 0 : 200);
+      };
+      c.el.addEventListener('input', go);
+      c.el.addEventListener('change', go);
+    });
+  });
+}
