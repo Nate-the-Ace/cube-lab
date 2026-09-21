@@ -592,7 +592,7 @@ const GLOSSARY = {
   'colour lanes': ['Colour lanes', 'Depth per colour pair — the signal that actually drives cube picks.'],
   'mono': ['Mono-coloured', 'Cards of a single colour inside this pair, so they are playable in other lanes too.'],
   'gold': ['Gold cards', 'Multicolour cards locked to this exact pair.'],
-  'archetypes supported': ['Archetypes', 'Strategies the cube holds enough cards for.<span class="warn">Built from EDHREC theme data, which is Commander-shaped — it reports set mechanics like morph or kicker as if they were archetypes. Trust the colour lanes and composition instead.</span>'],
+  'things the cube does': ['Things the cube does', 'How many distinct effects the cube has six or more cards for, read from card text and Scryfall\u2019s function tags. This replaced a count of EDHREC themes, which on a Pioneer cube reported Dandan and Planechase as archetypes.'],
   'does this': ['Function — click to list the cards', 'What the card does, read from its rules text by the parser or taken from Scryfall\'s function tags. Format-neutral, unlike the theme data.'],
   'combos you could actually assemble': ['Self-contained combos', 'Known combos that need nothing beyond the cards they name, with every one of those cards in your cube.'],
   'need a piece the cube may lack': ['Incomplete combos', 'Combos whose named cards are all in your cube but which also require something unnamed — "a way to give it lifelink", "a persist creature". Where that requirement is a keyword, the cube is checked for it.'],

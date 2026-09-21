@@ -326,10 +326,14 @@ def test_ui_glossary():
     check("explainers annotate the innermost element only",
           "candidates.some(other => other !== el && el.contains(other))" in src)
 
-    # cube tactics and composition rows explain themselves from the data, because
-    # EDHREC's own theme descriptions are SEO boilerplate
+    # composition rows explain themselves from the data. The tactics table they
+    # used to share this with is gone: it came from EDHREC's theme list, which on
+    # a Pioneer cube reports Dandan and Planechase as archetypes.
     check("inline tooltips exist alongside the glossary", "function tipInline(" in src)
-    check("tactics rows carry an explainer", "tipInline(x.name, tacticBlurb(x))" in src)
+    check("composition rows carry an explainer", "tipInline(f.label, functionBlurb(f))" in src)
+    check("the EDHREC theme table is gone", "Tactics this cube supports" not in src)
+    check("EDHREC play rate is not a displayed signal",
+          "top20_power" not in src and "median_power" not in src)
     check("composition rows carry an explainer", "tipInline(f.label, functionBlurb(f))" in src)
 
     # the cube page folds into sections, and the open/closed state must outlive a
