@@ -510,6 +510,10 @@ details.numbers>summary:hover{color:var(--accent)}
 .poolbar .pip.on{opacity:1;transform:scale(1.1)}
 .poolbar .pip:hover{opacity:.85}
 .poolbar input{min-width:150px}
+tr.deckrow{cursor:pointer}
+tr.deckrow:hover td{background:var(--bg-soft)}
+tr.deckrow.picked td{background:rgba(207,169,78,.10)}
+tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 </style>
 <style>
@@ -3177,6 +3181,7 @@ function p1PoolView() {
   };
   if ($('#poolClear')) $('#poolClear').onclick = () => {
     P1_FILTER = {colours: new Set(), role: '', q: ''};
+    document.querySelectorAll('.deckrow.picked').forEach(r => r.classList.remove('picked'));
     p1PoolView();
   };
   box.querySelectorAll('[data-pick]').forEach(el => {
@@ -3243,7 +3248,8 @@ function p1DraftOver() {
       <th>Deck</th><th class="num">Playables</th><th class="num">Short by</th>
       <th class="num">Avg pick score</th><th class="num">Pairs</th>
       <th class="num">Record</th><th>Curve 1-6</th>
-    </tr></thead><tbody>${decks.map(d => `<tr>
+    </tr></thead><tbody>${decks.map(d => `<tr class="deckrow" data-pair="${esc(d.pair)}"
+      role="button" tabindex="0" title="Show the ${esc(ciName(d.pair))} cards in your pool">
       <td class="name">${ciCell(d.pair)} ${esc(ciName(d.pair))}</td>
       <td class="num">${d.spells}</td>
       <td class="num">${d.short ? `<span class="badge bad">${d.short}</span>` : '<span class="badge good">none</span>'}</td>
@@ -3255,6 +3261,22 @@ function p1DraftOver() {
 
   p1PoolView();
   sortable('#p1Out');
+
+  // clicking a deck asks the pool to show exactly what that deck could play:
+  // its two colours plus colourless, which any deck can cast
+  $('#p1Out').querySelectorAll('.deckrow').forEach(row => {
+    const show = () => {
+      P1_FILTER.colours = new Set([...row.dataset.pair, 'C']);
+      P1_FILTER.role = '';
+      P1_FILTER.q = '';
+      p1PoolView();
+      $('#p1Out').querySelectorAll('.deckrow').forEach(r => r.classList.remove('picked'));
+      row.classList.add('picked');
+      $('#p1Pool').scrollIntoView({behavior: 'smooth', block: 'start'});
+    };
+    row.onclick = show;
+    row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } };
+  });
 }
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);

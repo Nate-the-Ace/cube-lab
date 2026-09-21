@@ -499,3 +499,7 @@ details.numbers>summary:hover{color:var(--accent)}
 .poolbar .pip.on{opacity:1;transform:scale(1.1)}
 .poolbar .pip:hover{opacity:.85}
 .poolbar input{min-width:150px}
+tr.deckrow{cursor:pointer}
+tr.deckrow:hover td{background:var(--bg-soft)}
+tr.deckrow.picked td{background:rgba(207,169,78,.10)}
+tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
