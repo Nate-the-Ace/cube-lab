@@ -161,6 +161,7 @@ async function boot() {
     $('#meta').textContent = '';
   }
   const cubes = await loadCubes();
+  p1Data().catch(() => {});      // card previews explain picks on every tab
   if (cubes.length) runCube();
   else $('#cubeOut').innerHTML =
     '<span class="dim">No cube loaded yet — open “Import or replace a cube” above.</span>';

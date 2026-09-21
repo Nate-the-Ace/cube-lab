@@ -291,7 +291,9 @@ function showCardFor(el, x, y) {
                <div class="rules">${esc(d.oracle_text || '')}</div>
                <div class="meta"><span>no image</span><span>${money(d.price_usd)}</span></div></div>`)
             + (flags ? `<div class="legal-head">${flags}</div>` : '')
-            + legalityBlock(d.legality);
+            + (typeof CARD_NOTE === 'function'
+                 ? (CARD_NOTE(d) || legalityBlock(d.legality))
+                 : legalityBlock(d.legality));
         box.classList.remove('hidden');
         placeCardPop(x, y);
     }, CARD_HOVER_DELAY);

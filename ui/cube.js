@@ -416,6 +416,7 @@ let P1_TAKEN = [];
 let P1_PACKNO = 0, P1_ANIMATING = false;
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
+// the previews want this data on every tab, so it is fetched once at load
 async function p1Data() {
   if (P1) return P1;
   const cube_id = $('#cubeSel').value || (LOADED_CUBES[0] || {}).id;
@@ -558,6 +559,81 @@ function p1MarkBest() {
         + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
         + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
       : 'What the numbers would take')}">\u2605</span>`);
+}
+
+/* What the preview says instead of a legality grid.
+
+   A cube card is legal in whatever it is legal in and it makes no difference to
+   a draft pick, so the space is better spent on the four things that DO bear on
+   it: the colours' record at this table, what the card commits you to, what the
+   cube wants beside it, and - once you have picks - whether it pairs with them.
+   Each line is a fact with its number attached, not a verdict. */
+function p1WhyLines(card) {
+  const lines = [];
+  const lanes = (P1 && P1.lane_pct) || {};
+  const base = (P1 && P1.lane_baseline) || 50;
+  const ci = card.color_identity || '';
+
+  const fits = Object.entries(lanes).filter(([pair]) => [...ci].every(c => pair.includes(c)));
+  if (fits.length) {
+    const [bestPair, bestPct] = fits.sort((a, b) => b[1] - a[1])[0];
+    const d = bestPct - base;
+    lines.push([d >= 2 ? 'good' : d <= -2 ? 'bad' : '',
+      `Best lane <b>${esc(ciName(bestPair))}</b> at <b>${bestPct}%</b> here`
+      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against your ${base}% average.`]);
+  } else if (!ci) {
+    lines.push(['good', 'Colourless, so it fits whatever you end up in.']);
+  }
+
+  const n = [...ci].length;
+  lines.push([n <= 1 ? 'good' : n >= 3 ? 'bad' : '',
+    card.is_land ? 'A land: it is the fixing, not a way of keeping options open.'
+      : n === 0 ? 'Commits you to nothing.'
+      : n === 1 ? 'One colour, so it closes almost nothing off.'
+      : n === 2 ? 'Two colours — it picks your lane for you.'
+      : `${n} colours, which rules out most of the ten lanes.`]);
+
+  const ps = card.partners || [];
+  lines.push([ps.length ? 'good' : 'bad', ps.length
+    ? `${ps.length} cube card${ps.length === 1 ? '' : 's'} want to be beside it, led by `
+      + ps.slice(0, 2).map(p => `<b>${esc(p.name)}</b> (${(p.lift || 0).toFixed(0)}\u00d7)`).join(' and ') + '.'
+    : 'Nothing in the cube pairs with it above chance — you play it because it is good, not for what it combines with.']);
+
+  if (P1_TAKEN.length && !$('#tab-p1p1').classList.contains('hidden')) {
+    const mine = new Set(P1_TAKEN.map(c => c.oracle_id));
+    const hits = ps.filter(p => mine.has(p.oracle_id));
+    const back = P1_TAKEN.filter(t => (t.partners || []).some(p => p.oracle_id === card.oracle_id));
+    const names = [...new Set(hits.map(h => h.name).concat(back.map(b => b.name)))];
+    lines.push([names.length ? 'good' : '', names.length
+      ? `Pairs with <b>${names.slice(0, 2).map(esc).join('</b> and <b>')}</b>, already in your deck.`
+      : `No pair with any of your ${P1_TAKEN.length} picks.`]);
+  }
+
+  const onDraftTab = !$('#tab-p1p1').classList.contains('hidden');
+  const inPack = onDraftTab && P1_PACK.some(c => c.oracle_id === card.oracle_id);
+  if (inPack && P1_PACK.length > 1) {
+    const ranked = P1_PACK.slice().sort((a, b) => p1Total(b) - p1Total(a));
+    const rank = ranked.findIndex(c => c.oracle_id === card.oracle_id) + 1;
+    const w = p1Wheel();
+    const taken = w.players - 1;
+    lines.push([rank === 1 ? 'good' : '',
+      `Ranked <b>${rank}</b> of ${P1_PACK.length} in this pack`
+      + (w.wheels
+          ? rank <= taken ? ' — gone before it wheels.'
+          : rank <= taken + 2 ? ' — close, it may not wheel.'
+          : ' — should still be here on the wheel.'
+          : '.')]);
+  }
+  return lines;
+}
+
+function CARD_NOTE(d) {
+  const card = p1Card(d.oracle_id) || (P1 && (P1.cards || []).find(c => c.name === d.name));
+  const lines = card
+    ? p1WhyLines(card)
+    : [['', `Not in the cube${d.type_line ? ' \u2014 ' + esc(d.type_line.split(' \u2014')[0]) : ''}.`]];
+  return `<div class="whybox">${lines.map(([tone, text]) =>
+    `<div class="whyline ${tone}">${text}</div>`).join('')}</div>`;
 }
 
 function p1LayoutHand() {

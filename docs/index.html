@@ -184,8 +184,11 @@ details.importer summary::-webkit-details-marker{display:none}
 details.importer summary::before{content:"+ ";color:var(--accent)}
 details.importer[open] summary::before{content:"\2212 "}
 details.importer summary:hover{color:var(--accent)}
+#cardpop{max-height:92vh;overflow-y:auto}
 #cardpop img{width:100%;display:block;border-radius:9px}
 #cardpop img+img{margin-top:6px}
+#cardpop:has(img+img) img{width:calc(50% - 3px);display:inline-block;vertical-align:top}
+#cardpop:has(img+img) img+img{margin-top:0;margin-left:6px}
 #cardpop .meta{display:flex;justify-content:space-between;gap:8px;
   padding:5px 4px 2px;font-size:11px;color:var(--ink-dim);font-family:var(--mono)}
 #cardpop .legal-head{padding:2px 4px 4px;font-size:11px;line-height:1.35}
@@ -331,6 +334,16 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   border:1px solid var(--accent);background:var(--accent);color:#1a1205;
   font-weight:600;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.zoomveil{animation:none}}
+
+/* the pick rationale that replaces the legality grid on the draft tab */
+.whybox{margin-top:6px;border-top:1px solid var(--line);padding-top:6px;
+  display:flex;flex-direction:column;gap:4px}
+.whyline{font-size:11.5px;line-height:1.4;color:var(--ink-dim);
+  padding-left:11px;position:relative}
+.whyline::before{content:"\2022";position:absolute;left:0;color:var(--ink-dim)}
+.whyline.good{color:var(--ink)}
+.whyline.good::before{content:"\25B2";font-size:8px;top:2px;color:var(--good,#6fae7c)}
+.whyline.bad::before{content:"\25BC";font-size:8px;top:2px;color:var(--bad,#d8746e)}
 
 </style>
 <style>
@@ -1161,7 +1174,9 @@ function showCardFor(el, x, y) {
                <div class="rules">${esc(d.oracle_text || '')}</div>
                <div class="meta"><span>no image</span><span>${money(d.price_usd)}</span></div></div>`)
             + (flags ? `<div class="legal-head">${flags}</div>` : '')
-            + legalityBlock(d.legality);
+            + (typeof CARD_NOTE === 'function'
+                 ? (CARD_NOTE(d) || legalityBlock(d.legality))
+                 : legalityBlock(d.legality));
         box.classList.remove('hidden');
         placeCardPop(x, y);
     }, CARD_HOVER_DELAY);
@@ -2224,6 +2239,7 @@ let P1_TAKEN = [];
 let P1_PACKNO = 0, P1_ANIMATING = false;
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
+// the previews want this data on every tab, so it is fetched once at load
 async function p1Data() {
   if (P1) return P1;
   const cube_id = $('#cubeSel').value || (LOADED_CUBES[0] || {}).id;
@@ -2366,6 +2382,81 @@ function p1MarkBest() {
         + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
         + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
       : 'What the numbers would take')}">\u2605</span>`);
+}
+
+/* What the preview says instead of a legality grid.
+
+   A cube card is legal in whatever it is legal in and it makes no difference to
+   a draft pick, so the space is better spent on the four things that DO bear on
+   it: the colours' record at this table, what the card commits you to, what the
+   cube wants beside it, and - once you have picks - whether it pairs with them.
+   Each line is a fact with its number attached, not a verdict. */
+function p1WhyLines(card) {
+  const lines = [];
+  const lanes = (P1 && P1.lane_pct) || {};
+  const base = (P1 && P1.lane_baseline) || 50;
+  const ci = card.color_identity || '';
+
+  const fits = Object.entries(lanes).filter(([pair]) => [...ci].every(c => pair.includes(c)));
+  if (fits.length) {
+    const [bestPair, bestPct] = fits.sort((a, b) => b[1] - a[1])[0];
+    const d = bestPct - base;
+    lines.push([d >= 2 ? 'good' : d <= -2 ? 'bad' : '',
+      `Best lane <b>${esc(ciName(bestPair))}</b> at <b>${bestPct}%</b> here`
+      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against your ${base}% average.`]);
+  } else if (!ci) {
+    lines.push(['good', 'Colourless, so it fits whatever you end up in.']);
+  }
+
+  const n = [...ci].length;
+  lines.push([n <= 1 ? 'good' : n >= 3 ? 'bad' : '',
+    card.is_land ? 'A land: it is the fixing, not a way of keeping options open.'
+      : n === 0 ? 'Commits you to nothing.'
+      : n === 1 ? 'One colour, so it closes almost nothing off.'
+      : n === 2 ? 'Two colours — it picks your lane for you.'
+      : `${n} colours, which rules out most of the ten lanes.`]);
+
+  const ps = card.partners || [];
+  lines.push([ps.length ? 'good' : 'bad', ps.length
+    ? `${ps.length} cube card${ps.length === 1 ? '' : 's'} want to be beside it, led by `
+      + ps.slice(0, 2).map(p => `<b>${esc(p.name)}</b> (${(p.lift || 0).toFixed(0)}\u00d7)`).join(' and ') + '.'
+    : 'Nothing in the cube pairs with it above chance — you play it because it is good, not for what it combines with.']);
+
+  if (P1_TAKEN.length && !$('#tab-p1p1').classList.contains('hidden')) {
+    const mine = new Set(P1_TAKEN.map(c => c.oracle_id));
+    const hits = ps.filter(p => mine.has(p.oracle_id));
+    const back = P1_TAKEN.filter(t => (t.partners || []).some(p => p.oracle_id === card.oracle_id));
+    const names = [...new Set(hits.map(h => h.name).concat(back.map(b => b.name)))];
+    lines.push([names.length ? 'good' : '', names.length
+      ? `Pairs with <b>${names.slice(0, 2).map(esc).join('</b> and <b>')}</b>, already in your deck.`
+      : `No pair with any of your ${P1_TAKEN.length} picks.`]);
+  }
+
+  const onDraftTab = !$('#tab-p1p1').classList.contains('hidden');
+  const inPack = onDraftTab && P1_PACK.some(c => c.oracle_id === card.oracle_id);
+  if (inPack && P1_PACK.length > 1) {
+    const ranked = P1_PACK.slice().sort((a, b) => p1Total(b) - p1Total(a));
+    const rank = ranked.findIndex(c => c.oracle_id === card.oracle_id) + 1;
+    const w = p1Wheel();
+    const taken = w.players - 1;
+    lines.push([rank === 1 ? 'good' : '',
+      `Ranked <b>${rank}</b> of ${P1_PACK.length} in this pack`
+      + (w.wheels
+          ? rank <= taken ? ' — gone before it wheels.'
+          : rank <= taken + 2 ? ' — close, it may not wheel.'
+          : ' — should still be here on the wheel.'
+          : '.')]);
+  }
+  return lines;
+}
+
+function CARD_NOTE(d) {
+  const card = p1Card(d.oracle_id) || (P1 && (P1.cards || []).find(c => c.name === d.name));
+  const lines = card
+    ? p1WhyLines(card)
+    : [['', `Not in the cube${d.type_line ? ' \u2014 ' + esc(d.type_line.split(' \u2014')[0]) : ''}.`]];
+  return `<div class="whybox">${lines.map(([tone, text]) =>
+    `<div class="whyline ${tone}">${text}</div>`).join('')}</div>`;
 }
 
 function p1LayoutHand() {
@@ -2853,6 +2944,7 @@ async function boot() {
     $('#meta').textContent = '';
   }
   const cubes = await loadCubes();
+  p1Data().catch(() => {});      // card previews explain picks on every tab
   if (cubes.length) runCube();
   else $('#cubeOut').innerHTML =
     '<span class="dim">No cube loaded yet — open “Import or replace a cube” above.</span>';
