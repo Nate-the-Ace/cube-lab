@@ -3,8 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cube Lab</title>
+<title>Cube Draft</title>
 <style>
+  /* draft table only: the analysis and swap tabs are loaded but not shown */
+  .tabs, #tab-cube, #tab-swap { display: none !important; }
+  #tab-p1p1 { display: block !important; }
+
   /* published snapshot: anything that writes needs the local tool */
   .importer, #cubeRefresh { display: none !important; }
   label:has(> #cubeSel) { display: none !important; }
@@ -563,11 +567,11 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 </head>
 <body>
 <header>
-  <h1>Cube <span>Lab</span></h1>
+  <h1>Cube <span>Draft</span></h1>
   <span class="meta" id="meta">loading…</span>
   <span class="spacer"></span>
   
-  <a href="draft.html" class="badge">Draft table</a>
+  <a href="./" class="badge">Cube analysis</a>
   <button id="themeBtn" title="Toggle theme">◐</button>
 </header>
 
@@ -639,7 +643,7 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 <!-- ───────────── brew ───────────── -->
 
-<section id="tab-p1p1" class="hidden">
+<section id="tab-p1p1">
   <div class="panel">
     <div class="tabletop" id="p1Table">
       <span class="passline l" id="p1PassL"></span>
@@ -3908,9 +3912,8 @@ async function boot() {
     p1DrawHand();
   }).catch(() => {});
   p1DrawHand();
-  if (cubes.length) runCube();
-  else $('#cubeOut').innerHTML =
-    '<span class="dim">No cube loaded yet — open “Import or replace a cube” above.</span>';
+  if (!cubes.length) $('#p1Out').innerHTML =
+    '<span class="dim">No cube loaded.</span>';
 }
 boot();
 </script>

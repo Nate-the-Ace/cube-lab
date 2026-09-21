@@ -3,6 +3,7 @@
 
     python3 build_static.py                 # re-export, then bake
     python3 build_static.py --from-data     # bake the committed data, no database
+    python3 build_static.py --only p1p1 -o docs/draft.html    # the draft table alone
 
 This publishes ui/cube.html itself - the same shared.css, shared.js and cube.js
 the local tool serves - with static-shim.js standing in for the server. That is
@@ -24,6 +25,37 @@ def read(*parts):
         return f.read()
 
 
+def solo_p1p1(page):
+    """The draft table as a page of its own.
+
+    The other two tabs are HIDDEN rather than cut out. cube.js binds handlers to
+    elements in all three at load time - `$('#secExpand').onclick` and friends
+    are not null-guarded - so deleting the markup would throw before the draft
+    ever drew a pack. Hiding costs a few KB of dead DOM and keeps this page the
+    same code the full one runs, which is the whole point of baking the real UI.
+    """
+    page = page.replace("<title>Cube Lab</title>", "<title>Cube Draft</title>", 1)
+    page = page.replace("<h1>Cube <span>Lab</span></h1>",
+                        "<h1>Cube <span>Draft</span></h1>", 1)
+    page = page.replace('<button id="themeBtn"',
+                        '<a href="./" class="badge">Cube analysis</a>\n  '
+                        '<button id="themeBtn"', 1)
+    page = page.replace('<section id="tab-p1p1" class="hidden">',
+                        '<section id="tab-p1p1">', 1)
+    page = page.replace("<style>", """<style>
+  /* draft table only: the analysis and swap tabs are loaded but not shown */
+  .tabs, #tab-cube, #tab-swap { display: none !important; }
+  #tab-p1p1 { display: block !important; }
+""", 1)
+    # boot without the cube analysis: it renders into a section nobody can see
+    page = page.replace("  if (cubes.length) runCube();\n"
+                        "  else $('#cubeOut').innerHTML =\n"
+                        "    '<span class=\"dim\">No cube loaded yet \u2014 open \u201cImport or replace a cube\u201d above.</span>';",
+                        "  if (!cubes.length) $('#p1Out').innerHTML =\n"
+                        "    '<span class=\"dim\">No cube loaded.</span>';", 1)
+    return page
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("cube", nargs="?", default=None)
@@ -31,6 +63,8 @@ def main():
     ap.add_argument("--data", default=os.path.join(HERE, "docs", "ui_data.json"))
     ap.add_argument("--from-data", action="store_true",
                     help="skip the export and bake the committed data")
+    ap.add_argument("--only", choices=["p1p1"], default=None,
+                    help="publish one tab as a page of its own")
     a = ap.parse_args()
 
     if not a.from_data:
@@ -69,6 +103,14 @@ def main():
             "  .importer, #cubeRefresh { display: none !important; }\n"
             "  label:has(> #cubeSel) { display: none !important; }\n")
     page = page.replace("<style>", "<style>\n" + hide, 1)
+
+    if a.only == "p1p1":
+        page = solo_p1p1(page)
+    else:
+        # the full page points at the draft table, which is a page of its own
+        page = page.replace('<button id="themeBtn"',
+                            '<a href="draft.html" class="badge">Draft table</a>\n  '
+                            '<button id="themeBtn"', 1)
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:

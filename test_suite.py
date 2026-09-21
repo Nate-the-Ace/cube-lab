@@ -1072,6 +1072,34 @@ def test_game_nights():
               all(set(l.get("local", {})) <= {"w", "l", "d", "matches", "decks", "score_pct"}
                   for l in doc.get("opportunity", [])))
 
+    # the draft table is published as a page of its own. It is the same baked
+    # UI with two tabs hidden, so it inherits every guard above - what it must
+    # NOT do is become a second, drifting copy of the draft code.
+    draft = os.path.join(here, "docs", "draft.html")
+    if os.path.exists(draft):
+        d = open(draft, encoding="utf-8").read()
+        check("the draft page is published", len(d) > 100_000, "%d bytes" % len(d))
+        check("the draft page is titled as a draft", "<title>Cube Draft</title>" in d)
+        check("the draft page hides the other tabs",
+              ".tabs, #tab-cube, #tab-swap { display: none !important; }" in d)
+        check("the draft page opens on the table",
+              '<section id="tab-p1p1">' in d and '<section id="tab-p1p1" class="hidden">' not in d)
+        check("the draft page still carries the draft code",
+              all(x in d for x in ("p1CutCube", "p1MarkWanted", "p1CollectPacks")))
+        check("the draft page skips the analysis it cannot show",
+              "if (cubes.length) runCube();" not in d)
+        check("the draft page links back to the full page",
+              '<a href="./" class="badge">Cube analysis</a>' in d)
+        who = [p["name"] for p in N.load()["players"]]
+        check("no player name reaches the draft page",
+              not [w for w in who if w in d])
+        check("the draft page refuses writes like the full page does",
+              "READ_ONLY" in d and "/api/cube/import" in d)
+        idx = os.path.join(here, "docs", "index.html")
+        if os.path.exists(idx):
+            check("the full page links to the draft table",
+                  '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
+
 
 def test_color_names():
     print("colour combination names")

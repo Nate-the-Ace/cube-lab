@@ -48,6 +48,9 @@ jobs:
       - name: Bake the page
         run: python3 build_static.py --from-data
 
+      - name: Bake the draft table
+        run: python3 build_static.py --from-data --only p1p1 -o docs/draft.html
+
       - name: Commit the rebuilt page
         run: |
           if git diff --quiet -- docs/; then
