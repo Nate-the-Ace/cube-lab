@@ -356,6 +356,15 @@ def test_ui_glossary():
     unexplained = sorted({h.strip() for h in headers if not resolves(h)})
     check("every cube-page column has an explainer", not unexplained, str(unexplained))
 
+    # a numeric column must sort numerically whatever unit it wears. "7.3x" once
+    # failed the number test and the column sorted alphabetically: 11.5, 12.1,
+    # ... 59.8, 7.3
+    shared_js = open(os.path.join(ui, "shared.js")).read()
+    check("sortable strips units before deciding a cell is a number",
+          "[$,%\\s\\u00d7x]" in shared_js or "\u00d7" in shared_js)
+    check("the numeric test runs on the stripped value",
+          "/^[-+]?\\d*\\.?\\d+$/.test(bare)" in shared_js)
+
     check("the cube page shows no prices",
           "money(" not in cube_js and "price_usd" not in cube_js)
     check("EDHREC play rate is not a displayed signal",

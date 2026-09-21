@@ -779,8 +779,10 @@ function cellValue(row, i) {
   }
   const txt = cell.textContent.trim();
   if (!txt || txt === '—') return null;
-  const n = parseFloat(txt.replace(/[$,%\s]/g, ''));
-  if (!isNaN(n) && /^[-+]?[$]?[\d,]*\.?\d+%?$/.test(txt)) return n;
+  // strip the units a number can wear here: $ 1,234.5 % \u00d7 and a leading +
+  const bare = txt.replace(/[$,%\s\u00d7x]/gi, '');
+  const n = parseFloat(bare);
+  if (!isNaN(n) && /^[-+]?\d*\.?\d+$/.test(bare)) return n;
   return txt.toLowerCase();
 }
 
