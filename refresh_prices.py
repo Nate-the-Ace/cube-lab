@@ -12,19 +12,32 @@ falls back to the cheapest foil, which is what the loader does too.
 import gzip, json, os, sys, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BLOB = os.path.join(HERE, "docs", "cube_data.json")
+BLOB = os.path.join(HERE, "docs", "ui_data.json")
 UA = {"User-Agent": "mtg-cube-lab/1.0", "Accept": "*/*"}
 
 
+def priced(doc):
+    """Every dict in the blob that carries a price, wherever it sits.
+
+    The blob is now whole endpoint responses rather than a hand-picked subset, so
+    walking it beats naming the paths - a new priced field in any endpoint gets
+    refreshed without touching this file."""
+    found = []
+    def walk(node):
+        if isinstance(node, dict):
+            if "oracle_id" in node and "price_usd" in node:
+                found.append(node)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(doc)
+    return found
+
+
 def wanted(doc):
-    """Every oracle_id the page shows a price for."""
-    ids = set()
-    for c in doc.get("near", {}).get("cards", []):
-        ids.add(c["oracle_id"])
-    for p in doc.get("pairs", []):
-        for c in p.get("cards", []):
-            ids.add(c["oracle_id"])
-    return ids
+    return {c["oracle_id"] for c in priced(doc)}
 
 
 def cheapest(ids):
@@ -32,7 +45,7 @@ def cheapest(ids):
     entry = next(e for e in json.load(urllib.request.urlopen(
         urllib.request.Request("https://api.scryfall.com/bulk-data", headers=UA)))["data"]
         if e["type"] == "default_cards")
-    best, updated = {}, entry["updated_at"][:10]
+    cheap, foil, updated = {}, {}, entry["updated_at"][:10]
     with urllib.request.urlopen(urllib.request.Request(entry["jsonl_download_uri"], headers=UA)) as r:
         raw = gzip.GzipFile(fileobj=r)   # the JSONL bulk file is always gzipped
         for line in raw:
@@ -44,13 +57,15 @@ def cheapest(ids):
             if oid not in ids:
                 continue
             pr = card.get("prices") or {}
-            for key in ("usd", "usd_foil"):
-                v = pr.get(key)
-                if v:
-                    v = float(v)
-                    if oid not in best or v < best[oid]:
-                        best[oid] = v
-                    break
+            nonfoil, anyfoil = pr.get("usd"), pr.get("usd_foil") or pr.get("usd_etched")
+            if nonfoil:
+                v = float(nonfoil)
+                cheap[oid] = v if oid not in cheap else min(cheap[oid], v)
+            if anyfoil:
+                v = float(anyfoil)
+                foil[oid] = v if oid not in foil else min(foil[oid], v)
+    best = dict(foil)
+    best.update(cheap)          # a real nonfoil price always wins
     return best, updated
 
 
@@ -65,19 +80,15 @@ def main():
     print("found %d" % len(best))
 
     moved = 0
-    for c in doc["near"]["cards"]:
-        new = best.get(c["oracle_id"])
-        if new is not None and new != c.get("price_usd"):
-            c["price_usd"], moved = new, moved + 1
-    for p in doc["pairs"]:
-        for c in p["cards"]:
-            new = best.get(c["oracle_id"])
-            if new is not None and new != c.get("price_usd"):
-                c["price_usd"], moved = new, moved + 1
-        # the pair total is derived, so recompute it rather than trust the old one
-        vals = [c.get("price_usd") for c in p["cards"]]
+    for c in priced(doc):
+        fresh = best.get(c["oracle_id"])
+        if fresh is not None and fresh != c.get("price_usd"):
+            c["price_usd"], moved = fresh, moved + 1
+    # pair totals are derived, so recompute rather than trust the old ones
+    for p in doc.get("synergies", {}).get("pairs", []):
+        vals = [c.get("price_usd") for c in p.get("cards", [])]
         p["total_price"] = round(sum(v for v in vals if v), 2) if any(vals) else None
-    doc["built_from"]["prices"] = updated
+    doc.setdefault("stats", {})["scryfall_updated_at"] = updated
 
     with open(BLOB, "w", encoding="utf-8") as f:
         json.dump(doc, f, separators=(",", ":"))

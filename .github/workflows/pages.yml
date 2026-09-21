@@ -1,20 +1,22 @@
 # Rebuild and publish Cube Lab.
 #
 # What this workflow can refresh on its own: prices, and the page itself, so an
-# edit to static/template.html goes live without anyone running a build.
+# edit to anything under ui/ goes live without anyone running a build. The
+# published page IS ui/cube.html, baked with its assets and a shim that answers
+# its API calls from docs/ui_data.json.
 #
 # What it cannot: the analysis. Combos, lift-ranked pairs and composition come
 # out of a 1.3 GB database that no runner is going to rebuild in a cron job, and
 # the cube list itself is off limits - every cube-list route on Cube Cobra is
 # Disallowed in their robots.txt, so the list has to be exported by hand. When
 # the cube changes, run `python3 build_static.py` locally and commit
-# docs/cube_data.json; this workflow bakes whatever blob it finds there.
+# docs/ui_data.json; this workflow bakes whatever blob it finds there.
 name: Publish Cube Lab
 
 on:
   push:
     branches: [main]
-    paths: ['static/template.html', 'docs/cube_data.json', 'build_static.py', '.github/workflows/pages.yml']
+    paths: ['ui/**', 'docs/ui_data.json', 'build_static.py', '.github/workflows/pages.yml']
   schedule:
     - cron: '17 9 * * 1'      # Mondays, a little after Scryfall's daily price roll
   workflow_dispatch:

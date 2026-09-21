@@ -979,11 +979,16 @@ def test_game_nights():
                              cwd=here, capture_output=True)
     check("neither the results nor the seed are tracked by git",
           tracked.returncode != 0, tracked.stdout.decode()[:80])
-    tpl = open(os.path.join(here, "static", "template.html")).read()
-    check("the published page has no tracker UI",
-          not any(x in tpl for x in ("/api/nights", "add-player", "set-night",
-                                     "remove-player", "merge-players")))
-    blob = os.path.join(here, "docs", "cube_data.json")
+    # the published page is ui/cube.html itself, so the guard is on the shim:
+    # nothing that reaches the tracker may be served to a published page
+    shim = open(os.path.join(here, "ui", "static-shim.js")).read()
+    check("the published page cannot reach the tracker",
+          not any(x in shim for x in ("/api/nights", "add-player", "set-night",
+                                      "remove-player", "merge-players")))
+    check("the published page refuses writes",
+          all(x in shim for x in ("/api/cube/import", "/api/cube/refresh",
+                                  "/api/cube/delete", "READ_ONLY")))
+    blob = os.path.join(here, "docs", "ui_data.json")
     if os.path.exists(blob):
         body = open(blob, encoding="utf-8").read()
         doc = json.loads(body)

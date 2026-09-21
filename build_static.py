@@ -1,61 +1,79 @@
 #!/usr/bin/env python3
-"""Bake one cube's analysis into a single self-contained HTML file.
+"""Bake the real cube page into one self-contained file.
 
-The live tool answers from a 1.3 GB database behind a local server. A page you
-can hand to someone has neither, so export_cube.py freezes everything that
-doesn't depend on the draft settings and this script drops that blob into the
-template. The draft arithmetic is re-implemented in the page, so the sliders
-still work with nothing running behind them.
+    python3 build_static.py                 # re-export, then bake
+    python3 build_static.py --from-data     # bake the committed data, no database
 
-    python3 build_static.py <cube-id-or-name>      # re-export, then bake
-    python3 build_static.py --from-data            # bake the committed blob
+This publishes ui/cube.html itself - the same shared.css, shared.js and cube.js
+the local tool serves - with static-shim.js standing in for the server. That is
+deliberate: the earlier version of this script baked a hand-written page that
+reimplemented a fraction of the UI, and everything not reimplemented was simply
+missing from the published site. One page, two transports.
 
-The export needs the 1.3 GB database, so only a machine that has one can do it.
-Baking does not, which is how CI rebuilds the page: the blob is committed at
-docs/cube_data.json and the workflow only re-runs the second half.
+Exporting needs the 1.3 GB database. Baking does not, which is how CI rebuilds
+the page: docs/ui_data.json is committed and the workflow re-runs only the bake.
 """
-import argparse, os, sys, subprocess
+import argparse, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+UI = os.path.join(HERE, "ui")
+
+
+def read(*parts):
+    with open(os.path.join(*parts), encoding="utf-8") as f:
+        return f.read()
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cube", nargs="?", default=None,
-                    help="cube id or name; default is the only cube, if there is one")
+    ap.add_argument("cube", nargs="?", default=None)
     ap.add_argument("-o", "--out", default=os.path.join(HERE, "docs", "index.html"))
-    ap.add_argument("--template", default=os.path.join(HERE, "static", "template.html"))
-    ap.add_argument("--data", default=os.path.join(HERE, "docs", "cube_data.json"),
-                    help="where the exported blob is written and read")
+    ap.add_argument("--data", default=os.path.join(HERE, "docs", "ui_data.json"))
     ap.add_argument("--from-data", action="store_true",
-                    help="skip the export and bake the existing blob (no database needed)")
+                    help="skip the export and bake the committed data")
     a = ap.parse_args()
 
     if not a.from_data:
-        cmd = [sys.executable, os.path.join(HERE, "export_cube.py"), "-o", a.data]
+        cmd = [sys.executable, os.path.join(HERE, "export_ui.py"), "-o", a.data]
         if a.cube:
             cmd.append(a.cube)
         subprocess.run(cmd, check=True)
     elif not os.path.exists(a.data):
         sys.exit("no %s to bake; run without --from-data on a machine with the database" % a.data)
 
-    with open(a.data, encoding="utf-8") as f:
-        data = f.read()
+    page = read(UI, "cube.html")
 
-    # The blob is embedded in a <script type="application/json"> block, so the
-    # only sequence that could end it early is a literal "</script".
-    data = data.replace("</", "<\\/")
+    # Inline the three assets the page links, in the order it linked them.
+    page = page.replace('<link rel="stylesheet" href="/shared.css">',
+                        "<style>\n%s\n</style>" % read(UI, "shared.css"), 1)
 
-    with open(a.template, encoding="utf-8") as f:
-        tpl = f.read()
-    if "__DATA__" not in tpl:
-        sys.exit("template has no __DATA__ placeholder")
-    page = tpl.replace("__DATA__", data)
+    data = read(a.data).replace("</", "<\\/")   # can't end the script block early
+    scripts = (
+        '<script id="uidata" type="application/json">%s</script>\n' % data
+        + '<script>window.UI_DATA = JSON.parse(document.getElementById("uidata").textContent);</script>\n'
+        + "<script>\n%s\n</script>\n" % read(UI, "static-shim.js")
+        + "<script>\n%s\n</script>\n" % read(UI, "shared.js")
+        + "<script>\n%s\n</script>\n" % read(UI, "cube.js")
+    )
+    # The shim has to be installed before shared.js or cube.js can call fetch,
+    # and the data before the shim.
+    page, n = re.subn(r'<script src="/shared\.js"></script>\s*<script src="/cube\.js"></script>',
+                      scripts.replace("\\", "\\\\"), page, count=1)
+    if n != 1:
+        sys.exit("could not find the script tags in ui/cube.html to replace")
+
+    # Nothing that needs a server should advertise itself on a published page:
+    # the tracker link, and the controls that write to the database.
+    page = page.replace('<a href="/nights" class="badge">Game Nights</a>', "", 1)
+    hide = ("  /* published snapshot: anything that writes needs the local tool */\n"
+            "  .importer, #cubeRefresh { display: none !important; }\n"
+            "  label:has(> #cubeSel) { display: none !important; }\n")
+    page = page.replace("<style>", "<style>\n" + hide, 1)
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w", encoding="utf-8") as f:
         f.write(page)
-    print(f"{a.out}  {len(page)/1024:.0f} KB")
+    print("%s  %.0f KB" % (a.out, os.path.getsize(a.out) / 1024))
 
 
 if __name__ == "__main__":
