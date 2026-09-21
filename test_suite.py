@@ -1105,6 +1105,25 @@ def test_game_nights():
                   '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
 
 
+def test_hand_sort():
+    print("hand sorting")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    html = open(os.path.join(here, "ui", "cube.html")).read()
+    for key in ("deal", "score", "fit", "colour", "mv", "name", "role"):
+        check("the hand can be sorted by %s" % key,
+              ("  %s: {label:" % key) in js and ('value="%s"' % key) in html)
+    # the pack keeps the order it was dealt in, so "as dealt" is always a way back
+    check("sorting reorders the render, not the pack",
+          "return P1_PACK.slice();" in js and "P1_PACK.slice().sort" in js)
+    check("ties fall back to the dealt order",
+          "at.get(a.oracle_id) - at.get(b.oracle_id)" in js)
+    check("the sort control only shows while a pack is in hand",
+          "sortWrap.hidden = !P1_PACK.length" in js)
+    check("colourless sorts last and gold after the mono colours",
+          "if (!ci) return 99;" in js and "if (ci.length > 1) return 90;" in js)
+
+
 def test_pack_art():
     print("pack art")
     here = os.path.dirname(os.path.abspath(__file__))
@@ -1339,6 +1358,7 @@ def main():
     test_game_nights()
     test_name_lookup_skips_non_cards()
     test_pack_art()
+    test_hand_sort()
     test_color_names()
     test_draft_math()
     test_cube_parsing()

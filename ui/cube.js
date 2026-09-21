@@ -391,6 +391,11 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
+$('#p1HandSort') && $('#p1HandSort').addEventListener('change', e => {
+  P1_HAND_SORT = e.target.value;
+  p1DrawHand();
+});
+
 $('#p1Players') && $('#p1Players').addEventListener('input', () => {
   if (P1_PACK.length) p1Render();
 });
@@ -449,8 +454,50 @@ function cardFace(c, extra) {
     aria-label="${esc(c.name)}">${face}</div>`;
 }
 
+/* Ordering the pack in your hand.
+
+   The pack arrives in the order it was opened and that is the honest default -
+   a real pack has no order, and seeing it shuffled into a ranking every time
+   would answer the question the tab exists to ask. Every other ordering is a
+   way of reading the same fifteen cards: what the numbers would take, what
+   fits what you already have, and the plain ones a person sorts by at a table.
+   Sorting only ever reorders the RENDER; P1_PACK keeps the order it was dealt
+   in, so "as dealt" always comes back. */
+const CI_ORDER = 'WUBRG';
+const ciRank = c => {
+  const ci = c.color_identity || '';
+  if (!ci) return 99;                       // colourless last
+  if (ci.length > 1) return 90;             // gold after the mono colours
+  return CI_ORDER.indexOf(ci[0]);
+};
+
+const P1_HAND_SORTS = {
+  deal: {label: 'as dealt', by: null},
+  score: {label: 'pick score', by: (a, b) => b.score - a.score},
+  fit: {label: 'fit with your picks', by: (a, b) => p1DeckFit(b) - p1DeckFit(a)
+        || b.score - a.score},
+  colour: {label: 'colour', by: (a, b) => ciRank(a) - ciRank(b)
+           || (a.cmc || 0) - (b.cmc || 0)},
+  mv: {label: 'mana value', by: (a, b) => (a.cmc || 0) - (b.cmc || 0)},
+  name: {label: 'name', by: (a, b) => a.name.localeCompare(b.name)},
+  role: {label: 'what it does', by: (a, b) =>
+         (a.role || 'Other').localeCompare(b.role || 'Other') || b.score - a.score},
+};
+let P1_HAND_SORT = 'deal';
+
+function p1SortedPack() {
+  const s = P1_HAND_SORTS[P1_HAND_SORT];
+  if (!s || !s.by) return P1_PACK.slice();
+  // ties fall back to the dealt order rather than whatever sort() feels like
+  const at = new Map(P1_PACK.map((c, i) => [c.oracle_id, i]));
+  return P1_PACK.slice().sort((a, b) => s.by(a, b)
+    || at.get(a.oracle_id) - at.get(b.oracle_id));
+}
+
 function p1DrawHand() {
   const hand = $('#p1Hand');
+  const sortWrap = $('#p1SortWrap');
+  if (sortWrap) sortWrap.hidden = !P1_PACK.length;
   if (!P1_PACK.length) {
     const left = 3 - P1_CHOSEN.length;
     hand.innerHTML = `<span class="dim">${
@@ -461,7 +508,7 @@ function p1DrawHand() {
     return;
   }
   hand.className = 'hand fan';
-  hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
+  hand.innerHTML = p1SortedPack().map(c => cardFace(c)).join('');
   p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
