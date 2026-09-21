@@ -333,6 +333,29 @@ def test_ui_glossary():
     check("composition rows carry an explainer", "tipInline(f.label, functionBlurb(f))" in src)
     check("the EDHREC theme table is gone", "Tactics this cube supports" not in src)
     cube_js = open(os.path.join(ui, "cube.js")).read()
+    # Every column on the cube page must resolve to a glossary entry. Without
+    # this, a new table ships with bare headers - or worse, a header whose label
+    # collides with an unrelated entry and shows the wrong explanation, which is
+    # how "Score" on Pack 1 Pick 1 came to describe the brewer's cut picker.
+    glossary = {}
+    for m in re.finditer(r"^\s{2}'([^']+)':", open(os.path.join(ui, "shared.js")).read(), re.M):
+        glossary[m.group(1)] = True
+
+    def resolves(label):
+        key = label.strip().lower().replace("\n", " ")
+        key = re.sub(r"\s+", " ", key)
+        key = re.sub(r"\s*\(.*$", "", key).rstrip(":*")
+        if key in glossary:
+            return True
+        # explain() also matches on a glossary key the header starts with
+        return any(key.startswith(k) for k in glossary if len(k) > 3)
+
+    cube_js_src = open(os.path.join(ui, "cube.js")).read()
+    headers = [h for h in re.findall(r"<th[^>]*>([^<$]+)</th>", cube_js_src)
+               if h.strip() and h.strip() not in ("#",)]
+    unexplained = sorted({h.strip() for h in headers if not resolves(h)})
+    check("every cube-page column has an explainer", not unexplained, str(unexplained))
+
     check("the cube page shows no prices",
           "money(" not in cube_js and "price_usd" not in cube_js)
     check("EDHREC play rate is not a displayed signal",

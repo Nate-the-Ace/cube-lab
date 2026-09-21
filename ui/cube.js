@@ -481,8 +481,8 @@ function p1Render() {
       ${P1_REVEALED ? '<th class="num">#</th>' : ''}
       <th>Card</th><th>CI</th><th class="num">MV</th>
       ${P1_REVEALED
-        ? `<th class="num">Score</th><th class="num">Lane</th><th class="num">Open</th>
-           <th class="num">Synergy</th>`
+        ? `<th class="num">Pick score</th><th class="num">Lane record</th>
+           <th class="num">Keeps options open</th><th class="num">Cube pull</th>`
         : '<th data-nosort></th>'}
     </tr></thead><tbody>${rows}</tbody></table>`
     + (P1_REVEALED ? `<p class="note"><b>Lane</b> is the colours' record at your table against the
@@ -675,8 +675,8 @@ async function swapRun(params) {
       (${esc(d.slot.colors || 'colourless')}, mana value ${d.slot.cmc}, ${esc(d.slot.type)}) in
       means taking one of these out. ${d.considered} cards in the cube fill that same slot,
       least-connected first.</p>
-      <table><thead><tr><th data-filter="text">Cut this</th><th class="num">MV</th>
-        <th class="num" data-filter="min">Connected</th><th class="num">Others doing its job</th>
+      <table><thead><tr><th data-filter="text">Least missed</th><th class="num">MV</th>
+        <th class="num" data-filter="min">Cube connection</th><th class="num">Others doing its job</th>
         <th data-filter="text">Why it is least missed</th><th>Effect on the cube</th>
       </tr></thead><tbody>${d.candidates.map(c => `<tr>
         <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
@@ -694,7 +694,7 @@ async function swapRun(params) {
                      : `These are the ${esc(d.format)}-legal cards filling that slot that`}
       the rest of the cube pulls toward hardest.</p>
       <table><thead><tr><th data-filter="text">Put this in</th><th class="num">MV</th>
-        <th class="num" data-filter="min">Pull</th><th class="num">Completes</th>
+        <th class="num" data-filter="min">Cube pull</th><th class="num">Completes</th>
         <th data-filter="text">Because it pairs with</th><th>Effect on the cube</th>
       </tr></thead><tbody>${d.candidates.map(c => `<tr>
         <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>

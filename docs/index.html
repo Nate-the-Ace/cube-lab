@@ -1253,6 +1253,24 @@ const GLOSSARY = {
   'overlap': ['Overlap', "How strongly two cards share commanders: for every commander running your card, its other staples score by how often they're played."],
   // ─ cut picker ─
   'measured': ['Measured here', 'How this lane has actually performed at your table, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from your own cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
+  // pack 1 pick 1, and proposing a change
+  'pick score': ['Pick score', 'The components to the right, weighted. It contains NO measure of raw card power \u2014 nothing on this page measures that \u2014 so a dull card in a winning lane will outrank a bomb in a losing one. Treat it as an argument, not a verdict.'],
+  'lane record': ['Lane record', 'How this card\u2019s colours have actually performed at your table, against the average of all ten lanes. The only measured component, and the smallest sample: a few dozen matches per lane.'],
+  'keeps options open': ['Keeps options open', 'How little the card commits you. Colourless closes nothing, mono-colour closes little, gold closes most of the ten lanes. This matters for a first pick and is meaningless by the third. Lands score low here: a land is the fixing, not a way of keeping your spells\u2019 options open.'],
+  'cube pull': ['Cube pull', 'How hard the rest of the cube wants to be in a deck with this card, summed over its above-chance lift pairs. Summed rather than averaged, because a card six cube cards want is a better bet than one wanted intensely by a single card that may never reach you.'],
+  'then look for': ['Then look for', 'The cards the cube most wants beside the one you just took, by lift. None are guaranteed to reach you \u2014 that is what the draft odds are for.'],
+  'keep a look out for': ['Keep a look out for', 'The running answer to \u201cwhat should I take next\u201d: the union of the lift partners of everything you have taken so far, minus what you already have. It sharpens as the draft goes on.'],
+  'why it pairs': ['Why it pairs', 'What kind of pair this is, which decides how much it counts. Kinds that only mean \u201cthe same sort of card\u201d (instants, creatures, creature removal, card draw) are pushed down: decks that play one cheap burn spell play the others, which is true and is not a reason to draft both. Kinds that describe an interaction (engine, archetype, typal, tokens) rank above them.'],
+  'pulled by': ['Pulled by', 'How many of the cards you have already taken point at this one. Several picks agreeing is a far stronger signal than any single pair.'],
+  'fits your colours': ['Fits your colours', 'Whether the card is castable in the two colours you have most of so far. The only thing on this list that knows what deck you are actually building.'],
+  'because of': ['Because of', 'Which of your picks put this card on the list.'],
+  'least missed': ['Least missed', 'Ranked by how little the rest of the cube is connected to the card, NOT by how weak it is \u2014 nothing here measures card power. It will happily suggest cutting something that is simply good on its own. Lowest connection first.'],
+  'cube connection': ['Cube connection', 'How much the rest of the cube wants to be in a deck with this card, summed over its above-chance lift pairs. A low number means losing it costs the cube few interactions; it does not mean the card is bad.'],
+  'others doing its job': ['Others doing its job', 'How many other cards in the cube serve the same function, read from card text and Scryfall tags. A high number means the cube would not notice the loss.'],
+  'why it is least missed': ['Why it is least missed', 'The reasons behind the ranking, in plain terms. \u201cNothing stands out\u201d means the card is a normal member of a crowded slot.'],
+  'effect on the cube': ['Effect on the cube', 'What the swap does to colour, curve and type counts. Usually nothing: both directions hold the slot \u2014 same colours, same card type, within a mana value \u2014 so the proposal is a swap and not a quiet change to the cube\u2019s shape.'],
+  'put this in': ['Put this in', 'Format-legal cards outside the cube that fill the slot being emptied, ranked by how hard the rest of the cube pulls toward them.'],
+  'because it pairs with': ['Because it pairs with', 'The cards already in your cube that most want this one, with the lift between them.'],
   // game-night tracker
   'w': ['Wins', 'Matches won.'],
   'l': ['Losses', 'Matches lost.'],
@@ -2134,8 +2152,8 @@ function p1Render() {
       ${P1_REVEALED ? '<th class="num">#</th>' : ''}
       <th>Card</th><th>CI</th><th class="num">MV</th>
       ${P1_REVEALED
-        ? `<th class="num">Score</th><th class="num">Lane</th><th class="num">Open</th>
-           <th class="num">Synergy</th>`
+        ? `<th class="num">Pick score</th><th class="num">Lane record</th>
+           <th class="num">Keeps options open</th><th class="num">Cube pull</th>`
         : '<th data-nosort></th>'}
     </tr></thead><tbody>${rows}</tbody></table>`
     + (P1_REVEALED ? `<p class="note"><b>Lane</b> is the colours' record at your table against the
@@ -2328,8 +2346,8 @@ async function swapRun(params) {
       (${esc(d.slot.colors || 'colourless')}, mana value ${d.slot.cmc}, ${esc(d.slot.type)}) in
       means taking one of these out. ${d.considered} cards in the cube fill that same slot,
       least-connected first.</p>
-      <table><thead><tr><th data-filter="text">Cut this</th><th class="num">MV</th>
-        <th class="num" data-filter="min">Connected</th><th class="num">Others doing its job</th>
+      <table><thead><tr><th data-filter="text">Least missed</th><th class="num">MV</th>
+        <th class="num" data-filter="min">Cube connection</th><th class="num">Others doing its job</th>
         <th data-filter="text">Why it is least missed</th><th>Effect on the cube</th>
       </tr></thead><tbody>${d.candidates.map(c => `<tr>
         <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
@@ -2347,7 +2365,7 @@ async function swapRun(params) {
                      : `These are the ${esc(d.format)}-legal cards filling that slot that`}
       the rest of the cube pulls toward hardest.</p>
       <table><thead><tr><th data-filter="text">Put this in</th><th class="num">MV</th>
-        <th class="num" data-filter="min">Pull</th><th class="num">Completes</th>
+        <th class="num" data-filter="min">Cube pull</th><th class="num">Completes</th>
         <th data-filter="text">Because it pairs with</th><th>Effect on the cube</th>
       </tr></thead><tbody>${d.candidates.map(c => `<tr>
         <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
