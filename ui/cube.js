@@ -449,6 +449,7 @@ function p1DrawHand() {
   }
   hand.className = 'hand fan';
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
+  p1LayoutHand();
   const dir = passDir();
   $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
   $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
@@ -508,6 +509,47 @@ function p1Take(oid, el) {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   setTimeout(settle, reduced ? 20 : 520);
 }
+
+/* Lay the pack out as ONE row whatever the pack size and screen width.
+
+   A fixed overlap cannot do this: 15 cards at 132px need 1336px unoverlapped,
+   so on any normal screen a wrapping fan breaks into three rows and stops
+   looking like a hand. The step between cards is solved from the space actually
+   available instead, and the cards narrow before the step goes below a third of
+   a card - past that the art is unreadable and you are picking blind. */
+function p1LayoutHand() {
+  const hand = $('#p1Hand');
+  const cards = [...hand.querySelectorAll('.dcard')];
+  const n = cards.length;
+  if (!n) return;
+
+  const pad = 24;
+  const room = Math.max(240, hand.clientWidth - pad);
+  let cw = 132;
+  let step = n > 1 ? (room - cw) / (n - 1) : cw;
+  if (step < cw * 0.34) {
+    // shrink the cards until a third of each stays visible, then accept it
+    cw = Math.max(74, room / (1 + (n - 1) * 0.34));
+    step = n > 1 ? (room - cw) / (n - 1) : cw;
+  }
+  step = Math.min(step, cw + 8);
+
+  const mid = (n - 1) / 2;
+  cards.forEach((el, i) => {
+    const d = mid ? (i - mid) / mid : 0;        // -1 at the left edge, +1 at the right
+    el.style.setProperty('--cw', cw.toFixed(1) + 'px');
+    el.style.setProperty('--overlap', (i ? step - cw : 0).toFixed(1) + 'px');
+    el.style.setProperty('--tilt', (d * 7).toFixed(2) + 'deg');
+    el.style.setProperty('--lift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
+    el.style.zIndex = String(i + 1);
+  });
+}
+
+let p1LayoutTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(p1LayoutTimer);
+  p1LayoutTimer = setTimeout(p1LayoutHand, 120);
+});
 
 function p1TitleFace() {
   const t = $('#p1Title');

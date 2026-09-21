@@ -286,14 +286,16 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    Cards overlap the way they do in a real hand. Hovering lifts one clear of its
    neighbours; the stack below it stays put, so the fan never reflows under the
    pointer and the card you meant to click is still the card under the cursor. */
-.hand.fan{display:flex;flex-wrap:wrap;justify-content:center;gap:0;
-  padding:34px 70px 18px;row-gap:26px}
-.hand.fan .dcard{margin-left:-46px;transform-origin:50% 100%;
+.hand.fan{display:flex;flex-wrap:nowrap;justify-content:center;gap:0;
+  padding:52px 12px 30px;min-height:250px;align-items:flex-start}
+.hand.fan .dcard{flex:0 0 auto;width:var(--cw,132px);
+  margin-left:var(--overlap,-46px);transform-origin:50% 120%;
+  transform:translateY(var(--lift,0px)) rotate(var(--tilt,0deg));
   box-shadow:-6px 4px 14px rgba(0,0,0,.45)}
 .hand.fan .dcard:first-child{margin-left:0}
 .hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
-  transform:translateY(-26px) scale(1.08);z-index:5;
-  box-shadow:0 20px 40px rgba(0,0,0,.6)}
+  transform:translateY(calc(var(--lift,0px) - 30px)) rotate(0deg) scale(1.1);
+  z-index:5;box-shadow:0 20px 44px rgba(0,0,0,.62)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
