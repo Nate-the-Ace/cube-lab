@@ -927,7 +927,24 @@ function p1StartRound(which) {
 
    Before you have chosen, that is the whole cube - 36 sealed packs, pick any
    three. After that it is only your three, in the order you reach for them. */
+/* The seat count is not a view option: it decides how many of the 36 packs the
+   other players take, which of your cards wheel, and where the ring of chairs
+   is. All of that is fixed the moment you claim your first pack, so the control
+   locks then and only a restart re-opens it. */
+function p1SeatsLock() {
+  const sel = $('#p1Players');
+  if (!sel) return;
+  const locked = P1_CHOSEN.length > 0;
+  sel.disabled = locked;
+  const label = sel.closest('.seats');
+  if (label) label.classList.toggle('locked', locked);
+  sel.title = locked
+    ? 'Seats are set for this draft — restart to change them'
+    : '';
+}
+
 function p1Boosters() {
+  p1SeatsLock();
   const box = $('#p1Boosters');
   if (!box) return;
   if (!P1_ALL.length) { box.innerHTML = ''; return; }

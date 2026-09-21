@@ -539,6 +539,10 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 /* a pack leaving the table: a throwaway copy, so the real ones are already right */
 .packghost{position:fixed;z-index:110;pointer-events:none;border-radius:3px;opacity:1}
 
+/* a seat count that is no longer yours to change */
+.seats.locked { opacity: .45; }
+.seats.locked select { cursor: not-allowed; }
+
 </style>
 <style>
   header .sub{color:var(--ink-dim);font-size:12px}
@@ -2948,7 +2952,24 @@ function p1StartRound(which) {
 
    Before you have chosen, that is the whole cube - 36 sealed packs, pick any
    three. After that it is only your three, in the order you reach for them. */
+/* The seat count is not a view option: it decides how many of the 36 packs the
+   other players take, which of your cards wheel, and where the ring of chairs
+   is. All of that is fixed the moment you claim your first pack, so the control
+   locks then and only a restart re-opens it. */
+function p1SeatsLock() {
+  const sel = $('#p1Players');
+  if (!sel) return;
+  const locked = P1_CHOSEN.length > 0;
+  sel.disabled = locked;
+  const label = sel.closest('.seats');
+  if (label) label.classList.toggle('locked', locked);
+  sel.title = locked
+    ? 'Seats are set for this draft — restart to change them'
+    : '';
+}
+
 function p1Boosters() {
+  p1SeatsLock();
   const box = $('#p1Boosters');
   if (!box) return;
   if (!P1_ALL.length) { box.innerHTML = ''; return; }
