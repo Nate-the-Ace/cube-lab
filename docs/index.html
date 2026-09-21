@@ -1143,7 +1143,7 @@ const GLOSSARY = {
   'pair': ['Pair', 'Two cards from your cube. Hover either name to read the card.'],
   'odds': ['Odds of assembling it', 'Chance you draft every piece in one draft at the current contention setting.<span class="warn">Pieces are treated as independent, which slightly overstates it — they compete for your picks. Read it as an upper bound.</span>'],
   'drafts to hit': ['Drafts to hit', 'How many drafts you would expect to need before all the pieces come to you. Simply 1 ÷ odds.'],
-  'how contested': ['Contention', 'How likely another drafter takes the card when they see it. 0 means nobody else wants it; high means the first person to see it takes it. Each drafter ahead of you takes it with probability contention + (1 − contention) ÷ cards left in pack.'],
+  'how contested': ['Contention', 'How likely another drafter takes a card when they see it, which sets how much of the cube actually reaches your seat. It drives every odds number on this page: at 8 players a card you want reaches you 77% of the time if nobody else wants it, 31% at normal, and 14% if everyone does. Each drafter ahead of you takes it with probability contention + (1 − contention) ÷ cards left in pack. Slide it and the whole analysis re-runs.'],
   'odds on any one card': ['Per-card odds', 'Chance you end up with one specific cube card: it has to be opened at all, then survive the drafters between its pack\'s opener and your seat.'],
   'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one.'],
   'pack size': ['Pack size', 'Cards per pack. Bigger packs mean a card has to survive fewer picks before it wheels back to you.'],
@@ -1903,6 +1903,20 @@ $('#secExpand').onclick = () => setAllSections(true);
 $('#secCollapse').onclick = () => setAllSections(false);
 $('#synLands').onchange = runCube;
 $('#cubeGo').onclick = runCube;
+
+// The draft controls re-run the analysis themselves. Only the mana-base
+// checkbox used to, so moving the contention slider changed the word beside it
+// and nothing else, and the slider read as broken. Dragging fires `input`
+// continuously, hence the debounce.
+let draftTimer = null;
+['#cubeCont', '#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
+  const el = $(sel);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(runCube, 350);
+  });
+});
 $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
 
 </script>

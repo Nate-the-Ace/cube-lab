@@ -403,4 +403,18 @@ $('#secExpand').onclick = () => setAllSections(true);
 $('#secCollapse').onclick = () => setAllSections(false);
 $('#synLands').onchange = runCube;
 $('#cubeGo').onclick = runCube;
+
+// The draft controls re-run the analysis themselves. Only the mana-base
+// checkbox used to, so moving the contention slider changed the word beside it
+// and nothing else, and the slider read as broken. Dragging fires `input`
+// continuously, hence the debounce.
+let draftTimer = null;
+['#cubeCont', '#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
+  const el = $(sel);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(runCube, 350);
+  });
+});
 $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
