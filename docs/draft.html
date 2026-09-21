@@ -491,10 +491,15 @@ button.big{font-size:15px;padding:10px 26px}
    condition of the wrapper - sealed and dim, lit and lifting when it is next,
    torn open while you draft it, spent once it is empty. */
 .boosters{display:flex;gap:16px;justify-content:center;padding:16px 0 4px;perspective:700px}
-.boosters:not(.spread){position:absolute;top:34px;left:50%;transform:translateX(-50%);
-  z-index:0;padding:0;pointer-events:none}
+/* Stowed behind the hand, the packs hang from whatever the toolbar's height
+   turns out to be - cube.js measures it - rather than from a number that was
+   true when the toolbar held one control. It holds four now, and on a narrow
+   window it wraps to two lines, which a fixed 34px cannot know about. */
+.boosters:not(.spread){position:absolute;top:calc(var(--tools-h, 34px) + 6px);
+  left:50%;transform:translateX(-50%);z-index:0;padding:0;pointer-events:none}
 .boosters:not(.spread) .booster{pointer-events:auto}
-.tabletop:has(.boosters:not(.spread)) .hand.fan{padding-top:30px;min-height:222px}
+.tabletop:has(.boosters:not(.spread)) .hand.fan{
+  padding-top:calc(var(--tools-h, 34px) - 4px);min-height:222px}
 .booster{position:relative;width:62px;aspect-ratio:1/1.5;border-radius:4px;cursor:default;
   background:
     linear-gradient(115deg,transparent 34%,rgba(255,255,255,.16) 44%,rgba(255,255,255,.04) 52%,transparent 60%),
@@ -559,8 +564,8 @@ button.big{font-size:15px;padding:10px 26px}
   background:rgba(0,0,0,.45);box-shadow:none}
 
 /* the draft's controls, on the table with the things they act on */
-.tabletools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  padding:2px 2px 0;margin-bottom:2px}
+.tabletools{position:relative;z-index:3;display:flex;align-items:center;gap:10px;
+  flex-wrap:wrap;padding:2px 2px 0;margin-bottom:2px}
 .tabletools #p1Title{font-size:13px}
 .tabletools .seats{flex-direction:row;align-items:center;gap:6px;font-size:11px;
   text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim)}
@@ -3286,7 +3291,20 @@ function p1Swipe(el, card) {
   el.addEventListener('touchcancel', release, {passive: true});
 }
 
+function p1MeasureTools() {
+  const table = $('#p1Table'), tools = table && table.querySelector('.tabletools');
+  if (!table || !tools) return;
+  /* Where the toolbar ENDS inside the table, not how tall it is: the packs are
+     positioned against the table's padding box, and the toolbar starts below
+     that padding, so its height alone left the two overlapping by the padding.
+     This changes with the window too - four controls on one line at full width,
+     two lines when narrow. */
+  const t = tools.getBoundingClientRect(), box = table.getBoundingClientRect();
+  table.style.setProperty('--tools-h', Math.round(t.bottom - box.top) + 'px');
+}
+
 function p1LayoutHand() {
+  p1MeasureTools();
   const hand = $('#p1Hand');
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
@@ -4068,6 +4086,7 @@ function p1PlacePackTip(el, box) {
 
 function p1Boosters() {
   p1SeatsLock();
+  p1MeasureTools();
   // innerHTML below replaces every wrapper, and a removed element never fires
   // mouseleave - so the tooltip has to be closed here or it hangs around,
   // pointing at a pack that no longer exists

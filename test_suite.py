@@ -1194,6 +1194,13 @@ def test_hand_sort():
           "at.get(a.oracle_id) - at.get(b.oracle_id)" in js)
     check("the sort control only shows while a pack is in hand",
           "sortWrap.hidden = !P1_PACK.length" in js)
+    # the stowed packs are positioned against the table, and the toolbar above
+    # them grew from one control to four - a fixed offset put them on top of it
+    check("the stowed packs hang off the measured toolbar",
+          "top:calc(var(--tools-h, 34px) + 6px)" in css
+          and "function p1MeasureTools" in js)
+    check("the toolbar is measured by where it ends, not how tall it is",
+          "t.bottom - box.top" in js)
     check("colourless sorts last and gold after the mono colours",
           "if (!ci) return 99;" in js and "if (ci.length > 1) return 90;" in js)
 

@@ -1009,7 +1009,20 @@ function p1Swipe(el, card) {
   el.addEventListener('touchcancel', release, {passive: true});
 }
 
+function p1MeasureTools() {
+  const table = $('#p1Table'), tools = table && table.querySelector('.tabletools');
+  if (!table || !tools) return;
+  /* Where the toolbar ENDS inside the table, not how tall it is: the packs are
+     positioned against the table's padding box, and the toolbar starts below
+     that padding, so its height alone left the two overlapping by the padding.
+     This changes with the window too - four controls on one line at full width,
+     two lines when narrow. */
+  const t = tools.getBoundingClientRect(), box = table.getBoundingClientRect();
+  table.style.setProperty('--tools-h', Math.round(t.bottom - box.top) + 'px');
+}
+
 function p1LayoutHand() {
+  p1MeasureTools();
   const hand = $('#p1Hand');
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
@@ -1791,6 +1804,7 @@ function p1PlacePackTip(el, box) {
 
 function p1Boosters() {
   p1SeatsLock();
+  p1MeasureTools();
   // innerHTML below replaces every wrapper, and a removed element never fires
   // mouseleave - so the tooltip has to be closed here or it hangs around,
   // pointing at a pack that no longer exists
