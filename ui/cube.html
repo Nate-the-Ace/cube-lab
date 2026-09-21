@@ -38,6 +38,7 @@
 <div class="tabs" role="tablist">
   <button class="tab" role="tab" data-tab="cube" aria-selected="true">Cube analysis</button>
   <button class="tab" role="tab" data-tab="p1p1" aria-selected="false">Pack 1 Pick 1</button>
+  <button class="tab" role="tab" data-tab="signal" aria-selected="false">Signal drill</button>
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
@@ -134,10 +135,24 @@
     <div id="p1Tableau"></div>
   </div>
 
-  <details class="panel" id="p1DrillPanel">
-    <summary><strong>Signal drill</strong>
-      <span class="mini dim">read what came round, name the open lane</span></summary>
-    <div class="row" style="margin:8px 0">
+  <div class="panel" id="p1WantPanel">
+    <div class="row"><strong>Most wanted</strong>
+      <span class="mini dim">cards you have not seen yet</span></div>
+    <div id="p1Watch"><span class="dim">Take a card and this fills with what to watch for.</span></div>
+  </div>
+</section>
+
+<section id="tab-signal" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <div>
+        <strong>Signal drill</strong>
+        <p class="note" style="margin:4px 0 0;max-width:60ch">A pack has come round to you.
+          The seats above you have each taken a card, and one lane was taken from by
+          nobody — its cards are still here. Say which lane is open. This is the
+          read a cube night turns on and the one you get eight goes at a year.</p>
+      </div>
+      <span class="spacer"></span>
       <label class="seats">Seats above you
         <select id="p1DrillSeats">
           <option value="2">2 — barely touched</option>
@@ -145,15 +160,9 @@
           <option value="6">6 — picked over</option>
         </select>
       </label>
-      <button id="p1DrillStart" class="mini">Deal a situation</button>
+      <button id="p1DrillStart" class="primary">Deal a situation</button>
     </div>
     <div id="p1Drill"></div>
-  </details>
-
-  <div class="panel" id="p1WantPanel">
-    <div class="row"><strong>Most wanted</strong>
-      <span class="mini dim">cards you have not seen yet</span></div>
-    <div id="p1Watch"><span class="dim">Take a card and this fills with what to watch for.</span></div>
   </div>
 </section>
 

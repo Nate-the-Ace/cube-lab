@@ -391,11 +391,7 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
-$('#p1DrillStart') && ($('#p1DrillStart').onclick = () => {
-  const panel = $('#p1DrillPanel');
-  if (panel) panel.open = true;
-  p1DealDrill();
-});
+$('#p1DrillStart') && ($('#p1DrillStart').onclick = () => p1DealDrill());
 $('#p1DrillSeats') && ($('#p1DrillSeats').onchange = () => { if (P1_DRILL) p1DealDrill(); });
 
 $('#p1Share') && ($('#p1Share').onclick = async () => {
@@ -2694,6 +2690,8 @@ attachTypeahead('#swapRemove', 'card', () => {});
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
-  ['cube', 'p1p1', 'swap'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  ['cube', 'p1p1', 'signal', 'swap'].forEach(t =>
+    $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();
   explain();
 });

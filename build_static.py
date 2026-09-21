@@ -41,6 +41,10 @@ def solo_p1p1(page):
     # not the tool it was cut from, so it links nowhere else.
     page = page.replace('<section id="tab-p1p1" class="hidden">',
                         '<section id="tab-p1p1">', 1)
+    page = page.replace('data-tab="cube" aria-selected="true"',
+                        'data-tab="cube" aria-selected="false"', 1)
+    page = page.replace('data-tab="p1p1" aria-selected="false"',
+                        'data-tab="p1p1" aria-selected="true"', 1)
     # The meta line counts every card Scryfall knows about, which on a page
     # about ONE cube reads as the cube's size and is off by two orders of
     # magnitude. The span goes with it, so nothing tries to fill it.
@@ -48,9 +52,11 @@ def solo_p1p1(page):
     page = re.sub(r"  try \{\n    const s = await \(await fetch\('/api/stats'\)\)\.json\(\);"
                   r".*?\n  \}\n", "", page, count=1, flags=re.S)
     page = page.replace("<style>", """<style>
-  /* draft table only: the analysis and swap tabs are loaded but not shown */
-  .tabs, #tab-cube, #tab-swap { display: none !important; }
-  #tab-p1p1 { display: block !important; }
+  /* draft table only: the analysis and swap tabs are loaded but not shown. The
+     tab strip stays, because the signal drill is its own tab and this page
+     carries it - it is the same practice, for the same night. */
+  .tab[data-tab="cube"], .tab[data-tab="swap"],
+  #tab-cube, #tab-swap { display: none !important; }
 """, 1)
     # boot without the cube analysis: it renders into a section nobody can see
     page = page.replace("  if (cubes.length) runCube();\n"

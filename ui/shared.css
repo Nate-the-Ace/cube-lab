@@ -324,11 +324,6 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 #p1Shared .pile .dcard:hover{transform:translateY(-6px) scale(1.06);z-index:3}
 
 /* the signal drill: a pack to read, and ten lanes to accuse */
-#p1DrillPanel > summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline}
-#p1DrillPanel > summary::-webkit-details-marker{display:none}
-#p1DrillPanel > summary::before{content:"\25B8";color:var(--accent);font-size:10px;
-  transition:transform .12s ease;display:inline-block}
-#p1DrillPanel[open] > summary::before{transform:rotate(90deg)}
 #p1Drill .pile{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px}
 #p1Drill .pile .dcard{width:96px}
 #p1Drill .pile .dcard + .dcard{margin-top:0}

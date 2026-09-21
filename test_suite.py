@@ -911,7 +911,8 @@ def test_pages_and_privacy():
     # the page has tabs again (cube analysis / pack 1 pick 1); what matters is
     # that both are cube tools and neither reaches the personal side
     check("the cube page's tabs are cube tools only",
-          set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)) == {"cube", "p1p1", "swap"},
+          set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page))
+          == {"cube", "p1p1", "signal", "swap"},
           str(sorted(set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)))))
     # The fixed overlays must sit OUTSIDE <header>. The header is sticky with a
     # z-index, which makes it a stacking context, and inside it the card
@@ -1080,8 +1081,16 @@ def test_game_nights():
         d = open(draft, encoding="utf-8").read()
         check("the draft page is published", len(d) > 100_000, "%d bytes" % len(d))
         check("the draft page is titled as a draft", "<title>Cube Draft</title>" in d)
-        check("the draft page hides the other tabs",
-              ".tabs, #tab-cube, #tab-swap { display: none !important; }" in d)
+        # the draft page keeps its tab strip, because the drill is a tab and
+        # this page carries it; only the analysis and swap tabs are hidden
+        check("the draft page hides the tabs it does not carry",
+              '.tab[data-tab="cube"], .tab[data-tab="swap"],' in d
+              and "#tab-cube, #tab-swap { display: none !important; }" in d)
+        check("the draft page opens on the draft, not the hidden analysis",
+              'data-tab="p1p1" aria-selected="true"' in d
+              and 'data-tab="cube" aria-selected="false"' in d)
+        check("the draft page carries the signal drill",
+              'data-tab="signal"' in d and 'id="tab-signal"' in d)
         check("the draft page opens on the table",
               '<section id="tab-p1p1">' in d and '<section id="tab-p1p1" class="hidden">' not in d)
         check("the draft page still carries the draft code",
@@ -1110,8 +1119,10 @@ def test_signal_drill():
     here = os.path.dirname(os.path.abspath(__file__))
     js = open(os.path.join(here, "ui", "cube.js")).read()
     html = open(os.path.join(here, "ui", "cube.html")).read()
-    check("the drill has a panel of its own", 'id="p1DrillPanel"' in html
-          and 'id="p1Drill"' in html)
+    check("the drill has a tab of its own", 'id="tab-signal"' in html
+          and 'data-tab="signal"' in html and 'id="p1Drill"' in html)
+    check("opening the tab deals a situation",
+          "if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();" in js)
     check("difficulty is how many seats picked before you",
           'id="p1DrillSeats"' in html and 'value="6">6' in html)
     # the seats that share a colour with the open lane eat into it by accident
