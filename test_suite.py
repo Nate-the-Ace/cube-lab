@@ -1147,6 +1147,14 @@ def test_hand_sort():
     # five-card run went up as a stack of slivers
     check("a raised run spreads out far enough to read",
           "--gdx" in js and "translate(var(--gdx,0px)" in css)
+    check("a run's name sits under the middle of its cards",
+          ".handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center"
+          in css and "g.style.marginLeft = (step - cw)" in js)
+    check("the rest of the hand dims behind a raised run",
+          ":has(.handgroup:hover) .handgroup:not(:hover) .dcard{" in css
+          and "opacity:.4" in css)
+    check("and cannot steal the pointer from it",
+          "pointer-events:none}" in css.split(":has(.handgroup:hover)")[1])
     # and it has to clear the whole fan, not just the group beside it: every
     # card carries its own z-index, one per card in the pack
     check("a raised run is above every other card",

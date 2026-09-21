@@ -876,6 +876,18 @@ function p1LayoutHand() {
     own.forEach((el, k) => {
       el.style.setProperty('--gdx', ((k - gmid) * spread).toFixed(1) + 'px');
     });
+
+    /* The overlap that pulls a run's first card over the last card of the run
+       before it moves onto the GROUP instead. Left on the card, it made the
+       cards hang outside their own group's box, and the name centred under the
+       box sat off to one side of the cards it names. */
+    const first = own[0];
+    if (cards.indexOf(first) > 0) {
+      g.style.marginLeft = (step - cw).toFixed(1) + 'px';
+      first.style.setProperty('--overlap', '0px');
+    } else {
+      g.style.marginLeft = '0px';
+    }
   });
 }
 

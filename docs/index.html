@@ -335,19 +335,21 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:24px;
   transform:translateY(var(--glift,0px)) rotate(var(--gtilt,0deg));
   transform-origin:50% -60px}
-.handgroup .glabel{position:absolute;left:0;right:0;top:5px;
+.handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center;
   font-size:10px;color:var(--ink-dim);line-height:1.4;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:help}
 .handgroup .glabel b{color:var(--accent);font-weight:600;letter-spacing:.02em}
 .handgroup .glabel > span{font-family:var(--mono);font-size:9px;opacity:.7}
 /* what the group does is there when you ask for it, floated clear of the row
    so revealing it cannot move the cards it sits under */
-.handgroup .glabel em{position:absolute;left:0;top:calc(100% + 4px);z-index:6;
+.handgroup .glabel em{position:absolute;left:50%;translate:-50% 0;
+  top:calc(100% + 4px);z-index:6;
   padding:3px 7px;border:1px solid var(--line);border-radius:5px;
   background:var(--panel);box-shadow:0 6px 16px rgba(0,0,0,.45);
   font-style:normal;white-space:nowrap;opacity:0;pointer-events:none;
   transition:opacity .14s ease}
-.handgroup:last-child .glabel em{left:auto;right:0}
+.handgroup:first-child .glabel em{left:0;translate:none}
+.handgroup:last-child .glabel em{left:auto;right:0;translate:none}
 .handgroup .glabel:hover em,.handgroup .glabel:focus-visible em{opacity:.85}
 /* hovering the name raises that run so you can read it without picking it up
    card by card; the cards keep their own tilt and their place in the fan */
@@ -358,6 +360,14 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .hand.fan.grouped .handgroup:has(.glabel:focus-visible) .dcard{
   transform:translate(var(--gdx,0px),calc(var(--lift,0px) - 26px)) rotate(var(--tilt,0deg));
   box-shadow:-6px 10px 22px rgba(0,0,0,.55)}
+/* While a run is up, the rest of the hand is background: dimmed so the run
+   reads as the thing in front, and made untouchable so that moving the pointer
+   up through the gaps between the spread cards cannot land on a card from
+   another run - which would hover THAT run and drop this one. */
+.hand.fan.grouped:has(.handgroup:hover) .handgroup:not(:hover) .dcard{
+  opacity:.4;filter:saturate(.55) brightness(.8);pointer-events:none}
+.hand.fan.grouped:has(.handgroup:hover) .handgroup:not(:hover) .glabel{opacity:.55}
+
 /* and one card in a raised run still comes forward on its own, from where the
    run put it rather than from where it sits in the fan */
 .hand.fan.grouped .handgroup:hover .dcard:hover,
@@ -3072,6 +3082,18 @@ function p1LayoutHand() {
     own.forEach((el, k) => {
       el.style.setProperty('--gdx', ((k - gmid) * spread).toFixed(1) + 'px');
     });
+
+    /* The overlap that pulls a run's first card over the last card of the run
+       before it moves onto the GROUP instead. Left on the card, it made the
+       cards hang outside their own group's box, and the name centred under the
+       box sat off to one side of the cards it names. */
+    const first = own[0];
+    if (cards.indexOf(first) > 0) {
+      g.style.marginLeft = (step - cw).toFixed(1) + 'px';
+      first.style.setProperty('--overlap', '0px');
+    } else {
+      g.style.marginLeft = '0px';
+    }
   });
 }
 
