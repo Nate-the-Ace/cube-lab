@@ -682,7 +682,7 @@ window.addEventListener('resize', () => {
 function p1TitleFace() {
   const t = $('#p1Title');
   if (!t) return;
-  t.textContent = !P1_PACKNO ? 'Ready to draft'
+  t.textContent = !P1_PACKNO ? ''
     : P1_PACK.length ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO}`
     : P1_PACKNO < 3 ? `Pack ${P1_PACKNO} finished \u2014 ${P1_TAKEN.length} cards so far`
     : `Draft over \u2014 ${P1_TAKEN.length} cards`;

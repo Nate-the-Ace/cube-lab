@@ -446,21 +446,13 @@ button.big{font-size:15px;padding:10px 26px}
 <section id="tab-p1p1" class="hidden">
   <div class="panel">
     <div class="row">
-      <strong id="p1Title">Ready to draft</strong>
+      <strong id="p1Title"></strong>
       <span class="spacer"></span>
       <label>Players <input id="p1Players" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
       <button class="primary" id="p1Deal">Begin draft</button>
       <button id="p1Reveal" disabled>Show the numbers</button>
       <button id="p1Restart">Start over</button>
     </div>
-    <p class="note"><b>Hover</b> a card to read it, <b>click</b> to blow it up,
-      <b>double-click</b> to take it. Pick the card you would actually take, then see what the numbers say and
-      where yours landed. <b>They are not an authority.</b> Nothing here measures raw card
-      power — EDHREC play rate is close to inverted for a cube and has been dropped from the
-      whole page. What is left is the colours' record in recorded games, how little
-      the card commits you, and how much the rest of the cube wants to be beside it. A dull
-      card in a winning lane will outrank a bomb in a losing one; that is the disagreement
-      worth having.</p>
     <div class="tabletop" id="p1Table">
       <span class="passline l" id="p1PassL"></span>
       <span class="passline r" id="p1PassR"></span>
@@ -2528,7 +2520,7 @@ window.addEventListener('resize', () => {
 function p1TitleFace() {
   const t = $('#p1Title');
   if (!t) return;
-  t.textContent = !P1_PACKNO ? 'Ready to draft'
+  t.textContent = !P1_PACKNO ? ''
     : P1_PACK.length ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO}`
     : P1_PACKNO < 3 ? `Pack ${P1_PACKNO} finished \u2014 ${P1_TAKEN.length} cards so far`
     : `Draft over \u2014 ${P1_TAKEN.length} cards`;
