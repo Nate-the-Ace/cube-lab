@@ -391,6 +391,9 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
+$('#p1Players') && $('#p1Players').addEventListener('input', () => {
+  if (P1_PACK.length) p1Render();
+});
 ['#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
   const el = $(sel);
   if (!el) return;
@@ -438,6 +441,20 @@ function p1Deal() {
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
 
+/* The wheel. With P players the pack you pass comes back after P picks, so a
+   pack of N returns with N - P left. That is what makes a first pick hard: the
+   question is not "which is best" but "which will still be here next time".
+
+   The other drafters are modelled as playing PERFECTLY - each takes the best
+   card left by this page's ranking. That is deliberately the worst case for
+   you. Real tables are softer, so a card marked gone may well come back; a card
+   marked "should wheel" is one you can pass with confidence. */
+function p1Wheel() {
+  const players = Math.max(2, Math.min(12, parseInt($('#p1Players').value, 10) || 8));
+  const size = P1_PACK.length;
+  return {players, size, wheels: size > players, left: Math.max(0, size - players)};
+}
+
 function p1Render() {
   if (!P1_PACK.length) return;
   const ranked = P1_PACK.slice().sort((a, b) => b.score - a.score);
@@ -459,6 +476,16 @@ function p1Render() {
     : `<div class="note">${P1_PICK ? 'Picked. Press “Show the numbers”.'
         : 'Click the card you would take.'}</div>`;
 
+  const w = p1Wheel();
+  // worst case: the other seats take the top-ranked cards before it returns
+  const wheelCell = rank => {
+    if (!w.wheels) return '<span class="dim">no wheel</span>';
+    const taken = w.players - 1;
+    if (rank <= taken) return '<span class="badge bad">gone</span>';
+    if (rank <= taken + 2) return '<span class="badge warn">close</span>';
+    return '<span class="badge good">should wheel</span>';
+  };
+
   const rows = (P1_REVEALED ? ranked : P1_PACK).map(c => {
     const picked = c.oracle_id === P1_PICK;
     return `<tr class="${picked ? 'me' : ''}">
@@ -469,6 +496,7 @@ function p1Render() {
       <td>${ciCell(c.color_identity)}</td>
       <td class="num">${c.cmc ?? '—'}</td>
       ${P1_REVEALED ? `
+        <td>${wheelCell(rankOf(c))}</td>
         <td class="num">${c.score.toFixed(1)}</td>
         <td class="num">${p1Sign(c.lane)}</td>
         <td class="num">${c.open.toFixed(0)}</td>
@@ -481,15 +509,21 @@ function p1Render() {
       ${P1_REVEALED ? '<th class="num">#</th>' : ''}
       <th>Card</th><th>CI</th><th class="num">MV</th>
       ${P1_REVEALED
-        ? `<th class="num">Pick score</th><th class="num">Lane record</th>
+        ? `<th>Comes back?</th><th class="num">Pick score</th><th class="num">Lane record</th>
            <th class="num">Keeps options open</th><th class="num">Cube pull</th>`
         : '<th data-nosort></th>'}
     </tr></thead><tbody>${rows}</tbody></table>`
-    + (P1_REVEALED ? `<p class="note"><b>Lane</b> is the colours' record at your table against the
+    + (P1_REVEALED ? `<p class="note">With <b>${w.players}</b> players, this pack comes back to you
+        at pick ${w.players + 1}${w.wheels
+          ? ` with <b>${w.left}</b> cards left in it` : ' — except it does not, because the pack runs out first'}.
+        <b>Comes back?</b> assumes every other seat drafts perfectly — each takes the best card
+        left by this ranking. That is the worst case on purpose: real tables are softer, so a card
+        marked <span class="badge bad">gone</span> may still come back, while one marked
+        <span class="badge good">should wheel</span> is safe to pass.</p>
+      <p class="note"><b>Lane record</b> is the colours' record at your table against the
         ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
-        matches. <b>Open</b> is how little the card commits you, which matters for this pick and
-        no other. <b>Synergy</b> is how much the rest of the cube wants to sit beside it.
-        </p>` : '');
+        matches. <b>Keeps options open</b> matters for this pick and no other.
+        <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '');
 
   if (P1_PICK) {
     const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);

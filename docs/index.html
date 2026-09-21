@@ -323,6 +323,7 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
     <div class="row">
       <strong>Pack 1, pick 1</strong>
       <span class="spacer"></span>
+      <label>Players <input id="p1Players" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
       <label>Pack size <input id="p1Size" type="number" min="3" max="30" value="15" style="min-width:80px"></label>
       <button class="primary" id="p1Deal">Deal a pack</button>
       <button id="p1Reveal" disabled>Show the numbers</button>
@@ -1282,6 +1283,7 @@ const GLOSSARY = {
   // ─ cut picker ─
   'measured': ['Measured here', 'How this lane has actually performed at your table, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from your own cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
   // pack 1 pick 1, and proposing a change
+  'comes back?': ['Comes back on the wheel?', 'With P players, the pack you pass returns after P picks, so a pack of N cards comes back with N \u2212 P left. The question a first pick really asks is not \u201cwhich is best\u201d but \u201cwhich will still be here next time\u201d. This assumes the other drafters take the cards ranked highest on this page \u2014 they do not share that ranking, so read it as which cards are OBVIOUS, which is most of what wheeling turns on.'],
   'pick score': ['Pick score', 'The components to the right, weighted. It contains NO measure of raw card power \u2014 nothing on this page measures that \u2014 so a dull card in a winning lane will outrank a bomb in a losing one. Treat it as an argument, not a verdict.'],
   'lane record': ['Lane record', 'How this card\u2019s colours have actually performed at your table, against the average of all ten lanes. The only measured component, and the smallest sample: a few dozen matches per lane.'],
   'keeps options open': ['Keeps options open', 'How little the card commits you. Colourless closes nothing, mono-colour closes little, gold closes most of the ten lanes. This matters for a first pick and is meaningless by the third. Lands score low here: a land is the fixing, not a way of keeping your spells\u2019 options open.'],
@@ -1344,7 +1346,7 @@ const GLOSSARY = {
   'odds': ['Draft odds', 'The chance you draft every piece in one draft, shown as a headline plus its range. Two things have to happen: the card has to be opened at the table at all (fixed by pod size and pack count), and it has to survive the drafters between its opener and your seat. That second part depends on how much everyone else wants it, so the number is given three ways: the large figure is a normal amount of competition, and the pair beneath it is uncontested (nobody else in your lane) first, then contested (everyone first-picks it).<span class="warn">Pieces are treated as independent, which slightly overstates it — they compete for your own picks and for pack space. Read it as an upper bound.</span>'],
   'p(draft': ['Chance of drafting enough', 'The chance you draft at least the number of cards the tactic needs, shown with its range — the large figure at normal competition, then uncontested and contested beneath. A broad archetype holds up even when contested; a thin one only works when nobody else is in your lane, which is what the spread tells you.'],
   'odds on any one card': ['Per-card odds', 'Chance you end up with one specific cube card: it has to be opened at all, then survive the drafters between its pack\'s opener and your seat.'],
-  'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one.'],
+  'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one \u2014 and on Pack 1 Pick 1 it sets the wheel, since the pack returns to you after this many picks.'],
   'pack size': ['Pack size', 'Cards per pack. Bigger packs mean a card has to survive fewer picks before it wheels back to you.'],
   'packs each': ['Packs per player', 'How many packs each drafter opens over the draft.'],
   'cards in cube': ['Cards in cube', 'How many cards in your list serve this tactic.'],
@@ -2090,6 +2092,9 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
+$('#p1Players') && $('#p1Players').addEventListener('input', () => {
+  if (P1_PACK.length) p1Render();
+});
 ['#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
   const el = $(sel);
   if (!el) return;
@@ -2137,6 +2142,20 @@ function p1Deal() {
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
 
+/* The wheel. With P players the pack you pass comes back after P picks, so a
+   pack of N returns with N - P left. That is what makes a first pick hard: the
+   question is not "which is best" but "which will still be here next time".
+
+   The other drafters are modelled as playing PERFECTLY - each takes the best
+   card left by this page's ranking. That is deliberately the worst case for
+   you. Real tables are softer, so a card marked gone may well come back; a card
+   marked "should wheel" is one you can pass with confidence. */
+function p1Wheel() {
+  const players = Math.max(2, Math.min(12, parseInt($('#p1Players').value, 10) || 8));
+  const size = P1_PACK.length;
+  return {players, size, wheels: size > players, left: Math.max(0, size - players)};
+}
+
 function p1Render() {
   if (!P1_PACK.length) return;
   const ranked = P1_PACK.slice().sort((a, b) => b.score - a.score);
@@ -2158,6 +2177,16 @@ function p1Render() {
     : `<div class="note">${P1_PICK ? 'Picked. Press “Show the numbers”.'
         : 'Click the card you would take.'}</div>`;
 
+  const w = p1Wheel();
+  // worst case: the other seats take the top-ranked cards before it returns
+  const wheelCell = rank => {
+    if (!w.wheels) return '<span class="dim">no wheel</span>';
+    const taken = w.players - 1;
+    if (rank <= taken) return '<span class="badge bad">gone</span>';
+    if (rank <= taken + 2) return '<span class="badge warn">close</span>';
+    return '<span class="badge good">should wheel</span>';
+  };
+
   const rows = (P1_REVEALED ? ranked : P1_PACK).map(c => {
     const picked = c.oracle_id === P1_PICK;
     return `<tr class="${picked ? 'me' : ''}">
@@ -2168,6 +2197,7 @@ function p1Render() {
       <td>${ciCell(c.color_identity)}</td>
       <td class="num">${c.cmc ?? '—'}</td>
       ${P1_REVEALED ? `
+        <td>${wheelCell(rankOf(c))}</td>
         <td class="num">${c.score.toFixed(1)}</td>
         <td class="num">${p1Sign(c.lane)}</td>
         <td class="num">${c.open.toFixed(0)}</td>
@@ -2180,15 +2210,21 @@ function p1Render() {
       ${P1_REVEALED ? '<th class="num">#</th>' : ''}
       <th>Card</th><th>CI</th><th class="num">MV</th>
       ${P1_REVEALED
-        ? `<th class="num">Pick score</th><th class="num">Lane record</th>
+        ? `<th>Comes back?</th><th class="num">Pick score</th><th class="num">Lane record</th>
            <th class="num">Keeps options open</th><th class="num">Cube pull</th>`
         : '<th data-nosort></th>'}
     </tr></thead><tbody>${rows}</tbody></table>`
-    + (P1_REVEALED ? `<p class="note"><b>Lane</b> is the colours' record at your table against the
+    + (P1_REVEALED ? `<p class="note">With <b>${w.players}</b> players, this pack comes back to you
+        at pick ${w.players + 1}${w.wheels
+          ? ` with <b>${w.left}</b> cards left in it` : ' — except it does not, because the pack runs out first'}.
+        <b>Comes back?</b> assumes every other seat drafts perfectly — each takes the best card
+        left by this ranking. That is the worst case on purpose: real tables are softer, so a card
+        marked <span class="badge bad">gone</span> may still come back, while one marked
+        <span class="badge good">should wheel</span> is safe to pass.</p>
+      <p class="note"><b>Lane record</b> is the colours' record at your table against the
         ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
-        matches. <b>Open</b> is how little the card commits you, which matters for this pick and
-        no other. <b>Synergy</b> is how much the rest of the cube wants to sit beside it.
-        </p>` : '');
+        matches. <b>Keeps options open</b> matters for this pick and no other.
+        <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '');
 
   if (P1_PICK) {
     const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);
