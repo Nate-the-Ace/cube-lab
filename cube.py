@@ -1499,8 +1499,9 @@ def pick_scores(con, cube_id):
     marks = ",".join("?" * len(ids))
     rows = [dict(r) for r in con.execute("""
         select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
-               c.mana_cost, c.price_usd, c.is_land
-        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+               c.mana_cost, c.price_usd, c.is_land, p.image_uri
+        from cards c left join printings p on p.id = c.cheap_printing_id
+        where c.oracle_id in (%s)""" % marks, list(ids))]
 
     lanes = lane_pcts()
     baseline = (sum(lanes.values()) / len(lanes)) if lanes else 50.0
@@ -1566,7 +1567,7 @@ def pick_scores(con, cube_id):
             "oracle_id": r["oracle_id"], "name": r["name"],
             "color_identity": ci, "cmc": r["cmc"], "type_line": r["type_line"],
             "mana_cost": r["mana_cost"], "price_usd": r["price_usd"],
-            "is_land": r["is_land"],
+            "is_land": r["is_land"], "image": r["image_uri"],
             "lane": round(lane, 1),
             "open": round(openness, 1), "synergy": round(synergy, 1),
             "score": round(score, 1),

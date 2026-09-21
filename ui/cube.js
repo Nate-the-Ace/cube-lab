@@ -413,6 +413,7 @@ let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
 // what you have taken across the whole session, so the watchlist can grow with
 // the draft instead of resetting every pack
 let P1_TAKEN = [];
+let P1_PACKNO = 0, P1_ANIMATING = false;
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
 async function p1Data() {
@@ -420,6 +421,107 @@ async function p1Data() {
   const cube_id = $('#cubeSel').value || (LOADED_CUBES[0] || {}).id;
   P1 = await (await fetch('/api/cube/p1p1?' + new URLSearchParams({cube_id}))).json();
   return P1;
+}
+
+/* ── the table ──
+   A pack is a hand of real cards; picks go face down into a deck; the rest slide
+   off toward whoever we pass to. Three packs, passed left, right, left, which is
+   how the table actually runs. */
+const PASS = ['left', 'right', 'left'];
+const passDir = () => PASS[(P1_PACKNO - 1) % PASS.length];
+
+function cardFace(c, extra) {
+  const cls = 'dcard' + (c.image ? '' : ' noimg') + (extra ? ' ' + extra : '');
+  const face = c.image
+    ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">
+       <span class="nm">${esc(c.name)}</span>`
+    : `<span>${esc(c.name)}</span>`;
+  return `<div class="${cls}" data-oracle="${esc(c.oracle_id)}"
+    data-pick="${esc(c.oracle_id)}" role="button" tabindex="0"
+    aria-label="${esc(c.name)}">${face}</div>`;
+}
+
+function p1DrawHand() {
+  const hand = $('#p1Hand');
+  if (!P1_PACK.length) {
+    hand.innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
+    return;
+  }
+  hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
+  const dir = passDir();
+  $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
+  $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
+  hand.querySelectorAll('[data-pick]').forEach(el => {
+    const take = () => p1Take(el.dataset.pick, el);
+    el.onclick = take;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); take(); } };
+  });
+}
+
+/* Taking a card: it flies to the deck, the rest of the pack leaves toward the
+   seat we pass to, and only then does the table settle. The numbers are left
+   alone until "Show the numbers" - the point of the tab is to pick first. */
+function p1Take(oid, el) {
+  if (P1_ANIMATING) return;
+  const card = p1Card(oid);
+  if (!card) return;
+  P1_ANIMATING = true;
+  P1_PICK = oid;
+  if (!P1_TAKEN.some(c => c.oracle_id === oid)) P1_TAKEN.push(card);
+
+  const deck = $('#p1Deck').getBoundingClientRect();
+  const me = el.getBoundingClientRect();
+  el.style.setProperty('--dx', (deck.left + deck.width / 2 - me.left - me.width / 2) + 'px');
+  el.style.setProperty('--dy', (deck.top + deck.height / 2 - me.top - me.height / 2) + 'px');
+  el.classList.add('flying');
+
+  const cls = passDir() === 'left' ? 'passing-l' : 'passing-r';
+  $('#p1Hand').querySelectorAll('.dcard').forEach(other => {
+    if (other !== el) other.classList.add(cls);
+  });
+
+  const settle = () => {
+    P1_ANIMATING = false;
+    p1DeckFace();
+    p1Tableau();                 // keep an open tableau in step with the deck
+    p1Watchlist();
+    $('#p1Reveal').disabled = false;
+    $('#p1Hand').innerHTML =
+      `<span class="dim">Took <b>${esc(card.name)}</b>. Deal the next pack, `
+      + `or press \u201cShow the numbers\u201d to see what the pack was worth.</span>`;
+  };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(settle, reduced ? 20 : 520);
+}
+
+function p1TitleFace() {
+  const t = $('#p1Title');
+  if (!t) return;
+  t.textContent = P1_PACKNO
+    ? `Pack ${P1_PACKNO}, pick 1 \u2014 passing ${passDir()}`
+    : 'Pack 1, pick 1';
+}
+
+function p1DeckFace() {
+  const d = $('#p1Deck');
+  d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
+  $('#p1DeckHint').textContent = P1_TAKEN.length
+    ? 'Click the deck to look through what you have taken.'
+    : 'Cards you take go here, face down.';
+}
+
+function p1Tableau(toggle) {
+  const box = $('#p1Tableau');
+  if (!P1_TAKEN.length) { box.innerHTML = ''; box.dataset.open = '0'; return; }
+  if (toggle) {
+    if (box.dataset.open === '1') { box.dataset.open = '0'; box.innerHTML = ''; return; }
+    box.dataset.open = '1';
+  } else if (box.dataset.open !== '1') {
+    return;                      // closed stays closed; this is just a refresh
+  }
+  box.innerHTML = `<h3 class="sec">Your picks so far</h3>
+    <div class="tableau">${P1_TAKEN.map(c => cardFace(c)).join('')}</div>`;
+  box.querySelectorAll('[data-pick]').forEach(el => el.removeAttribute('data-pick'));
 }
 
 function p1Deal() {
@@ -434,8 +536,12 @@ function p1Deal() {
   P1_PACK = pack;
   P1_PICK = null;
   P1_REVEALED = false;
+  P1_PACKNO += 1;
+  p1TitleFace();
   $('#p1Reveal').disabled = true;
-  p1Render();
+  $('#p1Out').innerHTML = '';
+  p1DrawHand();
+  p1DeckFace();
   p1Watchlist();
 }
 
@@ -495,16 +601,17 @@ function p1Render() {
         <div class="mini dim">${esc((c.type_line || '').split(' —')[0])}</div></td>
       <td>${ciCell(c.color_identity)}</td>
       <td class="num">${c.cmc ?? '—'}</td>
-      ${P1_REVEALED ? `
+      ${true ? `
         <td>${wheelCell(rankOf(c))}</td>
         <td class="num">${c.score.toFixed(1)}</td>
         <td class="num">${p1Sign(c.lane)}</td>
         <td class="num">${c.open.toFixed(0)}</td>
         <td class="num">${c.synergy.toFixed(0)}</td>`
-      : `<td><button class="pickbtn" data-pick="${esc(c.oracle_id)}">${picked ? 'picked' : 'take it'}</button></td>`}
+      : ''}
     </tr>`;
   }).join('');
 
+  if (!P1_REVEALED) { $('#p1Out').innerHTML = ''; return; }
   $('#p1Out').innerHTML = head + `<table><thead><tr>
       ${P1_REVEALED ? '<th class="num">#</th>' : ''}
       <th>Card</th><th>CI</th><th class="num">MV</th>
@@ -530,16 +637,6 @@ function p1Render() {
     $('#p1Out').insertAdjacentHTML('beforeend', p1Partners(mine));
   }
 
-  $('#p1Out').querySelectorAll('[data-pick]').forEach(b => {
-    b.onclick = () => {
-      P1_PICK = b.dataset.pick;
-      const card = p1Card(P1_PICK);
-      if (card && !P1_TAKEN.some(c => c.oracle_id === card.oracle_id)) P1_TAKEN.push(card);
-      $('#p1Reveal').disabled = false;
-      p1Render();
-      p1Watchlist();
-    };
-  });
   sortable('#p1Out');
 }
 
@@ -673,7 +770,13 @@ $('#p1Restart').onclick = () => {
   P1_PICK = null;
   P1_REVEALED = false;
   $('#p1Reveal').disabled = true;
-  $('#p1Out').innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
+  P1_PACKNO = 0;
+  p1TitleFace();
+  $('#p1Out').innerHTML = '';
+  $('#p1Tableau').innerHTML = '';
+  $('#p1Tableau').dataset.open = '0';
+  p1DrawHand();
+  p1DeckFace();
   p1Watchlist();
 };
 
@@ -684,6 +787,10 @@ $('#p1Deal').onclick = async () => {
   p1Deal();
 };
 $('#p1Reveal').onclick = () => { P1_REVEALED = true; p1Render(); };
+$('#p1Deck').onclick = () => p1Tableau(true);
+$('#p1Deck').onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p1Tableau(true); }
+};
 
 /* ── propose a change ──
    Every add is a cut, so the tab answers whichever half you supply. Both

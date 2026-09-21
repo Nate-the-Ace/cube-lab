@@ -90,7 +90,7 @@
 <section id="tab-p1p1" class="hidden">
   <div class="panel">
     <div class="row">
-      <strong>Pack 1, pick 1</strong>
+      <strong id="p1Title">Pack 1, pick 1</strong>
       <span class="spacer"></span>
       <label>Players <input id="p1Players" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
       <label>Pack size <input id="p1Size" type="number" min="3" max="30" value="15" style="min-width:80px"></label>
@@ -105,7 +105,18 @@
       the card commits you, and how much the rest of the cube wants to be beside it. A dull
       card in a winning lane will outrank a bomb in a losing one; that is the disagreement
       worth having.</p>
-    <div id="p1Out"><span class="dim">Press “Deal a pack”.</span></div>
+    <div class="tabletop" id="p1Table">
+      <span class="passline l" id="p1PassL"></span>
+      <span class="passline r" id="p1PassR"></span>
+      <div class="hand" id="p1Hand"><span class="dim">Press “Deal a pack”.</span></div>
+    </div>
+    <div class="deckrow">
+      <div class="deckpile" id="p1Deck" role="button" tabindex="0"
+           title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
+      <span class="hint" id="p1DeckHint">Cards you take go here, face down.</span>
+    </div>
+    <div id="p1Tableau"></div>
+    <div id="p1Out"></div>
   </div>
 
   <div class="panel">
