@@ -281,6 +281,18 @@ def p_single_card(n_cube, players=8, pack_size=15, rounds=3, contention=0.35):
             "p_you_get_it": p_opened * p_reaches}
 
 
+# The three readings every odds number is reported at. Contention was a slider,
+# which made the reader supply a parameter before the page would answer; the
+# answer is more useful as a range. LOW is "nobody else is in my lane", MID is
+# the working default, HIGH is "everyone wants it".
+BAND = {"low": 0.0, "mid": 0.35, "high": 0.8}
+
+
+def band(fn):
+    """Run an odds function at each contention level. `fn` takes contention."""
+    return {k: fn(v) for k, v in BAND.items()}
+
+
 def p_combo(n_cube, n_pieces, players=8, pack_size=15, rounds=3, contention=0.35):
     """Chance of assembling every piece of an n-piece combo in one draft.
 
@@ -355,6 +367,8 @@ def cube_combos(con, cube_id, limit=200, include_candidates=True, contention=0.3
             "self_contained": (r["n_extra"] or 0) == 0,
             "description": r["description"] or "",
             "p_draft": round(odds["p_all_pieces"], 5),
+            "p_draft_band": band(lambda c, k=len(key): round(p_combo(
+                n, k, players, pack_size, rounds, c)["p_all_pieces"], 5)),
             "drafts_to_hit": (round(odds["expected_drafts_to_hit"], 1)
                               if odds["expected_drafts_to_hit"] else None),
         })
@@ -379,6 +393,8 @@ def cube_combos(con, cube_id, limit=200, include_candidates=True, contention=0.3
                     "produces": [c["produces"]], "why": c["why"],
                     "n_cards": len(oids), "novel": c["novel"],
                     "p_draft": round(odds["p_all_pieces"], 5),
+                    "p_draft_band": band(lambda c, k=len(oids): round(p_combo(
+                        n, k, players, pack_size, rounds, c)["p_all_pieces"], 5)),
                     "drafts_to_hit": (round(odds["expected_drafts_to_hit"], 1)
                                       if odds["expected_drafts_to_hit"] else None),
                 })
@@ -388,6 +404,8 @@ def cube_combos(con, cube_id, limit=200, include_candidates=True, contention=0.3
         "cube_id": cube_id, "cube_size": n,
         "shape": draft_shape(n, players, pack_size, rounds),
         "single_card": p_single_card(n, players, pack_size, rounds, contention),
+        "single_card_band": band(lambda c: round(p_single_card(
+            n, players, pack_size, rounds, c)["p_you_get_it"], 5)),
         "known": known[:limit],
         "known_total": len(known),
         "known_self_contained": sum(1 for c in known if c["self_contained"]),
@@ -547,6 +565,8 @@ def cube_tactics(con, cube_id, min_cards=6, limit=40, contention=0.35,
             "theme": r["theme"], "name": r["name"],
             "cards_in_cube": r["n_in_cube"],
             "avg_synergy": round(r["avg_syn"] or 0, 3),
+            "p_enough_band": band(lambda c: round(p_at_least_k(
+                n, r["n_in_cube"], need, players, pack_size, rounds, c), 4)),
             "p_draft_enough": round(p_at_least_k(n, r["n_in_cube"], need, players,
                                                  pack_size, rounds, contention), 4),
             # the interpretable number: how many of this tactic's cards you should
@@ -798,6 +818,8 @@ def cube_synergies(con, cube_id, limit=60, min_together=6, max_popularity=None,
                 "fame": fame,
                 "kind": kind, "hint": why,
                 "p_draft_both": round(per_card ** 2, 4),
+                "p_both_band": band(lambda c: round(p_single_card(
+                    n, players, pack_size, rounds, c)["p_you_get_it"] ** 2, 4)),
                 "total_price": round((ca["price_usd"] or 0) + (cb["price_usd"] or 0), 2),
             })
 

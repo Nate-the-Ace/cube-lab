@@ -19,11 +19,6 @@ async function loadCubes(selectId) {
 }
 
 $('#cubePasteToggle').onclick = () => $('#cubePasteBox').classList.toggle('hidden');
-$('#cubeContVal') && $('#cubeCont').addEventListener('input', () => {
-  const v = parseFloat($('#cubeCont').value);
-  $('#cubeContVal').textContent = v < 0.15 ? 'uncontested' : v < 0.3 ? 'mild'
-    : v < 0.5 ? 'normal' : v < 0.7 ? 'contested' : 'everyone wants it';
-});
 
 async function importCube(payload) {
   $('#cubeImportOut').textContent = 'importing…';
@@ -66,6 +61,15 @@ const cardName = (n, oid) => n
 const cardNames = (list, sep) => (list || []).filter(Boolean)
   .map(n => cardName(n)).join(sep === undefined ? ', ' : sep);
 
+// An odds number reads as a headline plus the range around it. Contention used
+// to be a slider, which asked the reader to supply a parameter before the page
+// would answer; the range says more and asks nothing.
+function bandCell(b, mid, fmt) {
+  const f = fmt || (v => pct(v));
+  if (!b) return f(mid);
+  return `${f(b.mid)}<div class="mini dim">${f(b.low)} if uncontested · ${f(b.high)} if everyone wants it</div>`;
+}
+
 function tacticBlurb(x) {
   const ex = (x.examples || []).slice(0, 6);   // the dropdown carries the full list
   if (!ex.length) return 'No representative cards for this tactic in your cube.';
@@ -103,7 +107,7 @@ async function runCube() {
   if (!cube_id) return;
   const p = new URLSearchParams({cube_id, players: $('#cubePlayers').value,
     pack_size: $('#cubePack').value, rounds: $('#cubeRounds').value,
-    contention: $('#cubeCont').value});
+    });
   $('#cubeOut').innerHTML = '<span class="dim">reading the cube…</span>';
   const [combos, tactics, syn, opp, bal, near] = await Promise.all([
     (await fetch('/api/cube/combos?' + p)).json(),
@@ -116,12 +120,15 @@ async function runCube() {
   ]);
   if (combos.error) return $('#cubeOut').innerHTML = `<span class="badge bad">${esc(combos.error)}</span>`;
   const s = combos.shape, one = combos.single_card;
+  const band = combos.single_card_band;
   $('#cubeShape').innerHTML = `A ${s.players}-player draft with ${s.rounds}×${s.pack_size} packs
     uses <b>${s.cards_used}</b> of the cube's ${s.cube_size} cards and gives you
-    <b>${s.picks_each}</b> picks. Any one card you want has a
-    <b>${pct(one.p_opened)}</b> chance of being opened and, once opened, a
-    <b>${pct(one.p_reaches_you)}</b> chance of reaching your seat before someone takes it —
-    <b>${pct(one.p_you_get_it)}</b> overall.
+    <b>${s.picks_each}</b> picks, so any one card has a <b>${pct(one.p_opened)}</b> chance of
+    being opened at all. Whether it then reaches your seat depends on how many other
+    drafters want it: overall you end up with it
+    <b>${band ? pct(band.low) : pct(one.p_you_get_it)}</b> of the time if nobody else is in your
+    lane, <b>${pct(one.p_you_get_it)}</b> at normal competition, and
+    <b>${band ? pct(band.high) : '—'}</b> if everyone first-picks it.
     ${s.oversubscribed ? '<span class="badge bad">more cards needed than the cube holds</span>' : ''}`;
 
   // What a combo needs beyond the cards it names, and whether the cube has it.
@@ -144,7 +151,7 @@ async function runCube() {
       <td class="name">${(c.cards || []).map(n => cardName(n)).join(' <span class="dim">+</span> ')}
         ${isCand ? `<div class="dim">${esc(c.why || '')}</div>` : ''}</td>
       <td class="num" data-sort="${c.n_cards}">${c.n_cards}</td>
-      <td class="num" data-sort="${c.p_draft}">${pct(c.p_draft)}</td>
+      <td class="num" data-sort="${c.p_draft}">${bandCell(c.p_draft_band, c.p_draft)}</td>
       <td class="num" data-sort="${c.drafts_to_hit ?? ''}">${c.drafts_to_hit ?? '—'}</td>
       <td class="dim">${esc((c.produces || []).filter(Boolean).join(', '))}</td>
       ${isCand ? `<td data-sort="${c.novel ? 0 : 1}">${c.novel
@@ -270,7 +277,7 @@ async function runCube() {
         <td class="num" data-sort="${x.cards_in_cube}">${x.cards_in_cube}</td>
         <td class="num" data-sort="${x.expected_drafted}">${x.expected_drafted}</td>
         <td class="num" data-sort="${x.support}">${x.support}</td>
-        <td class="num" data-sort="${x.p_draft_enough}">${pct(x.p_draft_enough)}</td>
+        <td class="num" data-sort="${x.p_draft_enough}">${bandCell(x.p_enough_band, x.p_draft_enough)}</td>
       </tr>`).join('')}</tbody></table>
 
     <h3 class="sec">Balance</h3>
@@ -404,12 +411,10 @@ $('#secCollapse').onclick = () => setAllSections(false);
 $('#synLands').onchange = runCube;
 $('#cubeGo').onclick = runCube;
 
-// The draft controls re-run the analysis themselves. Only the mana-base
-// checkbox used to, so moving the contention slider changed the word beside it
-// and nothing else, and the slider read as broken. Dragging fires `input`
-// continuously, hence the debounce.
+// The draft controls re-run the analysis themselves; typing in them fires
+// `input` per keystroke, hence the debounce.
 let draftTimer = null;
-['#cubeCont', '#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
+['#cubePlayers', '#cubePack', '#cubeRounds'].forEach(sel => {
   const el = $(sel);
   if (!el) return;
   el.addEventListener('input', () => {

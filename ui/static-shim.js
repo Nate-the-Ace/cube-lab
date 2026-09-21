@@ -51,6 +51,15 @@
     return Math.min(1, tot);
   }
 
+  // Mirrors cube.py's BAND: every odds number is reported at three contention
+  // levels rather than one the reader has to choose.
+  const BAND = {low: 0.0, mid: 0.35, high: 0.8};
+  const bandOf = fn => {
+    const out = {};
+    for (const k in BAND) out[k] = fn(BAND[k]);
+    return out;
+  };
+
   const num = (qs, k, dflt) => {
     const v = parseFloat(qs.get(k));
     return Number.isFinite(v) ? v : dflt;
@@ -84,7 +93,11 @@
       const s = settings(qs), o = draftOdds(D.synergies.cube_size, s.players, s.pack, s.rounds, s.contention);
       const out = clone(D.synergies);
       out.per_card_odds = round4(o.p_you_get_it);
-      out.pairs.forEach(p => { p.p_draft_both = round4(Math.pow(o.p_you_get_it, 2)); });
+      out.pairs.forEach(p => {
+        p.p_draft_both = round4(Math.pow(o.p_you_get_it, 2));
+        p.p_both_band = bandOf(c => round4(Math.pow(
+          draftOdds(D.synergies.cube_size, s.players, s.pack, s.rounds, c).p_you_get_it, 2)));
+      });
       return out;
     },
 
@@ -98,6 +111,8 @@
       out.tactics.forEach(t => {
         t.expected_drafted = round1(t.cards_in_cube * o.p_you_get_it);
         t.p_draft_enough = round4(atLeastK(t.cards_in_cube, need, o.p_you_get_it));
+        t.p_enough_band = bandOf(c => round4(atLeastK(t.cards_in_cube, need,
+          draftOdds(D.tactics.cube_size, s.players, s.pack, s.rounds, c).p_you_get_it)));
       });
       (out.lanes || []).forEach(l => {
         l.expected_drafted = round1(l.cards_in_cube * o.p_you_get_it);
@@ -110,12 +125,17 @@
       const out = clone(D.combos);
       out.single_card = {p_opened: o.p_opened, p_reaches_you: o.p_reaches_you,
                          p_you_get_it: o.p_you_get_it};
+      out.single_card_band = bandOf(c => round4(
+        draftOdds(D.combos.cube_size, s.players, s.pack, s.rounds, c).p_you_get_it));
       out.shape = o.shape;
       out.contention = s.contention;
       [].concat(out.known || [], out.candidates || []).forEach(c => {
-        const p = Math.pow(o.p_you_get_it, c.n_cards || (c.cards || []).length || 2);
+        const pieces = c.n_cards || (c.cards || []).length || 2;
+        const p = Math.pow(o.p_you_get_it, pieces);
         c.p_draft = round4(p);
         c.drafts_to_hit = p > 0 ? round1(1 / p) : null;
+        c.p_draft_band = bandOf(x => round4(Math.pow(
+          draftOdds(D.combos.cube_size, s.players, s.pack, s.rounds, x).p_you_get_it, pieces)));
       });
       return out;
     },
