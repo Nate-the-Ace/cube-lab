@@ -57,6 +57,15 @@ $('#cubeImportPaste').onclick = () => {
 // honest explanation is the cube's own cards: the ones whose synergy with this
 // tactic is highest. It also exposes a bad match - if the list is all duals, the
 // "tactic" is really just lands.
+// Every card name on the page goes through here. A name rendered as bare text
+// looks identical and silently has no preview, which is exactly how the near-miss
+// and combo-template columns lost theirs.
+const cardName = (n, oid) => n
+  ? `<span ${oid ? `data-oracle="${esc(oid)}"` : `data-card="${esc(n)}"`}>${esc(n)}</span>`
+  : '';
+const cardNames = (list, sep) => (list || []).filter(Boolean)
+  .map(n => cardName(n)).join(sep === undefined ? ', ' : sep);
+
 function tacticBlurb(x) {
   const ex = (x.examples || []).slice(0, 6);   // the dropdown carries the full list
   if (!ex.length) return 'No representative cards for this tactic in your cube.';
@@ -123,7 +132,7 @@ async function runCube() {
       if (!tp.checkable) {
         bits.push(`<div class="mini">• a ${esc(tp.template)} <span class="dim">(can't check automatically)</span></div>`);
       } else if (tp.found) {
-        bits.push(`<div class="mini">• a ${esc(tp.template)} — <span class="badge good">cube has ${tp.found}</span> ${esc(tp.examples.join(', '))}</div>`);
+        bits.push(`<div class="mini">• a ${esc(tp.template)} — <span class="badge good">cube has ${tp.found}</span> ${cardNames(tp.examples)}</div>`);
       } else {
         bits.push(`<div class="mini">• a ${esc(tp.template)} — <span class="badge bad">none in your cube</span></div>`);
       }
@@ -132,7 +141,7 @@ async function runCube() {
   };
 
   const comboRows = (list, isCand) => list.map(c => `<tr>
-      <td class="name">${c.cards.map(n => `<span data-card="${esc(n)}">${esc(n)}</span>`).join(' <span class="dim">+</span> ')}
+      <td class="name">${(c.cards || []).map(n => cardName(n)).join(' <span class="dim">+</span> ')}
         ${isCand ? `<div class="dim">${esc(c.why || '')}</div>` : ''}</td>
       <td class="num" data-sort="${c.n_cards}">${c.n_cards}</td>
       <td class="num" data-sort="${c.p_draft}">${pct(c.p_draft)}</td>
@@ -232,7 +241,7 @@ async function runCube() {
       <th class="num">Decks together</th><th class="num">$</th>
       <th>Why it might work</th></tr></thead><tbody>
       ${((syn && syn.pairs) || []).map(x => `<tr>
-        <td class="name">${x.cards.map(c => `<span data-oracle="${c.oracle_id}">${esc(c.name)}</span>`).join(' <span class="dim">+</span> ')}
+        <td class="name">${x.cards.map(c => cardName(c.name, c.oracle_id)).join(' <span class="dim">+</span> ')}
           <div class="dim">${manaDisc(x.colors, 14)} ${x.cards.map(c => esc((c.type_line||'').split(' —')[0])).join(' · ')}</div></td>
         <td data-sort="${esc(x.kind)}"><span class="badge kind-${esc(x.kind.replace(/[^a-z]+/g,''))}">${esc(x.kind)}</span></td>
         <td class="num" data-sort="${x.lift}">${x.lift}×</td>
@@ -316,7 +325,7 @@ async function runCube() {
       <em>complete</em> a combo whose every other piece you already have. Restricted to cards legal
       in ${esc(near.format || 'the format')}, since one you can't add isn't a suggestion${
         near.excluded_illegal ? ` — ${near.excluded_illegal} were dropped for that reason, including
-        ${near.illegal_examples.map(esc).join(', ')}` : ''}.
+        ${cardNames(near.illegal_examples)}` : ''}.
       Combos that also need something unnamed are left out, because adding a card wouldn't finish them.</p>
     ${(near.cards || []).length ? `<table><thead><tr><th>Add this</th><th>Type</th>
       <th class="num">$</th><th class="num">Completes</th><th>What it finishes</th></tr></thead><tbody>
@@ -326,7 +335,7 @@ async function runCube() {
         <td class="num" data-sort="${c.price_usd ?? ''}">${money(c.price_usd)}</td>
         <td class="num" data-sort="${c.unlocks}">${c.unlocks}</td>
         <td class="dim">${c.combos.map(k => `<div class="mini">${k.n_cards}-card:
-          ${k.cards.map(n => esc(n)).join(' + ')} <span class="dim">→ ${esc((k.produces || []).slice(0, 2).join(', '))}</span></div>`).join('')}</td>
+          ${cardNames(k.cards, ' + ')} <span class="dim">→ ${esc((k.produces || []).slice(0, 2).join(', '))}</span></div>`).join('')}</td>
       </tr>`).join('')}</tbody></table>`
       : '<span class="dim">nothing in the format would complete a combo here</span>'}
 `;

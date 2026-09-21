@@ -139,37 +139,110 @@
   // page shows the message in the same place it shows a server error.
   const READ_ONLY = {'/api/cube/import': 1, '/api/cube/refresh': 1, '/api/cube/delete': 1};
 
-  /* ---- Scryfall answers the three lookups that aren't cube data -------- */
+  /* ---- Scryfall answers the lookups that aren't cube data -------------- */
+  // Formats the local tool reports, in its order, so the hover card reads the
+  // same here as it does locally.
+  const FORMATS = [
+    ['alchemy', 'Alchemy'], ['brawl', 'Brawl'], ['commander', 'Commander'],
+    ['duel', 'Duel Commander'], ['explorer', 'Explorer'], ['future', 'Future Standard'],
+    ['gladiator', 'Gladiator'], ['historic', 'Historic'], ['legacy', 'Legacy'],
+    ['modern', 'Modern'], ['oathbreaker', 'Oathbreaker'], ['oldschool', 'Old School'],
+    ['pauper', 'Pauper'], ['paupercommander', 'Pauper Commander'], ['penny', 'Penny Dreadful'],
+    ['pioneer', 'Pioneer'], ['predh', 'Pre-EDH'], ['premodern', 'Premodern'],
+    ['standard', 'Standard'], ['standardbrawl', 'Standard Brawl'], ['timeless', 'Timeless'],
+    ['vintage', 'Vintage'],
+  ];
+  const STATUS_LABEL = {legal: 'Legal', not_legal: 'Not legal',
+                        banned: 'Banned', restricted: 'Restricted'};
+
+  function legalityOf(card) {
+    const L = card.legalities || {};
+    const formats = FORMATS.map(([key, label]) => {
+      const status = L[key] || 'not_legal';
+      return {format: key, label, status, status_label: STATUS_LABEL[status] || status};
+    });
+    const legal = formats.filter(f => f.status === 'legal').length;
+    const restricted = formats.filter(f => f.status === 'banned' || f.status === 'restricted');
+    return {
+      headline: restricted.length
+        ? `${restricted[0].status_label} in ${restricted.map(f => f.label).join(', ')}`
+        : `Legal in ${legal} format${legal === 1 ? '' : 's'}`,
+      any_restriction: restricted.length > 0,
+      formats,
+    };
+  }
+
+  const big = u => (u || '').replace('/normal/', '/large/');
+
+  function asCard(c) {
+    const faces = (c.card_faces || [])
+      .map(f => big((f.image_uris || {}).large || (f.image_uris || {}).normal))
+      .filter(Boolean);
+    const own = c.image_uris || {};
+    const prices = c.prices || {};
+    const usd = prices.usd || prices.usd_foil || prices.usd_etched;
+    return {
+      name: c.name, oracle_id: c.oracle_id,
+      image: big(own.large || own.normal) || faces[0] || null,
+      faces: faces.length > 1 ? faces : null,
+      legality: legalityOf(c),
+      type_line: c.type_line, mana_cost: c.mana_cost,
+      color_identity: (c.color_identity || []).join(''),
+      is_funny: c.set_type === 'funny' ? 1 : 0,
+      tournament_legal: Object.values(c.legalities || {})
+        .some(v => v === 'legal' || v === 'restricted') ? 1 : 0,
+      oracle_text: c.oracle_text
+        || (c.card_faces || []).map(f => f.oracle_text).filter(Boolean).join('\n//\n'),
+      price_usd: usd ? parseFloat(usd) : null,
+      set_code: c.set, rarity: c.rarity,
+      scryfall_uri: c.scryfall_uri,
+      tcgplayer_id: c.tcgplayer_id || null,
+    };
+  }
+
+  async function sfJson(url) {
+    const r = await realFetch(url);
+    return r.ok ? r.json() : null;
+  }
+
   async function scryfall(path, qs) {
     if (path === '/api/card-image') {
-      const name = qs.get('name') || '';
-      const r = await realFetch('https://api.scryfall.com/cards/named?fuzzy='
-                                + encodeURIComponent(name));
-      if (!r.ok) return {error: 'not found'};
-      const c = await r.json();
-      const face = (c.image_uris ? c : (c.card_faces || [])[0]) || {};
-      const img = (face.image_uris || {});
-      return {name: c.name, image: img.normal || img.large || img.small,
-              scryfall_uri: c.scryfall_uri, type_line: c.type_line,
-              mana_cost: c.mana_cost, oracle_text: c.oracle_text};
+      // The page looks cards up by oracle_id wherever it has one, which is most
+      // of the time - a name-only shim silently showed nothing.
+      const oid = qs.get('oracle_id'), name = qs.get('name') || '';
+      let c = null;
+      if (oid) {
+        const j = await sfJson('https://api.scryfall.com/cards/search?order=usd&dir=asc&q='
+                               + encodeURIComponent('oracleid:' + oid));
+        c = j && (j.data || [])[0];
+      }
+      if (!c && name) {
+        c = await sfJson('https://api.scryfall.com/cards/named?fuzzy='
+                         + encodeURIComponent(name));
+      }
+      return c ? asCard(c) : {error: 'not found'};
+    }
+    if (path === '/api/legality') {
+      const oid = qs.get('oracle_id');
+      const j = oid && await sfJson('https://api.scryfall.com/cards/search?q='
+                                    + encodeURIComponent('oracleid:' + oid));
+      const c = j && (j.data || [])[0];
+      return c ? legalityOf(c) : {error: 'not found'};
     }
     if (path === '/api/set') {
       const code = (qs.get('code') || '').toLowerCase();
-      const r = await realFetch('https://api.scryfall.com/sets/' + encodeURIComponent(code));
-      if (!r.ok) return {error: 'unknown set code'};
-      const s = await r.json();
+      const s = await sfJson('https://api.scryfall.com/sets/' + encodeURIComponent(code));
+      if (!s) return {error: 'unknown set code'};
       return {code: s.code, name: s.name, set_type: s.set_type,
               released_at: s.released_at, icon_svg_uri: s.icon_svg_uri,
-              card_count: s.card_count};
+              icon: s.icon_svg_uri, card_count: s.card_count};
     }
     if (path === '/api/suggest') {
       const q = qs.get('q') || '';
       if (q.length < 2) return [];
-      const r = await realFetch('https://api.scryfall.com/cards/autocomplete?q='
-                                + encodeURIComponent(q));
-      if (!r.ok) return [];
-      const j = await r.json();
-      return (j.data || []).map(name => ({name}));
+      const j = await sfJson('https://api.scryfall.com/cards/autocomplete?q='
+                             + encodeURIComponent(q));
+      return ((j || {}).data || []).map(name => ({name}));
     }
     return null;
   }
