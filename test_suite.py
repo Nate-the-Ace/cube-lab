@@ -1160,9 +1160,16 @@ def test_hand_sort():
     # five-card run went up as a stack of slivers
     check("a raised run spreads out far enough to read",
           "--gdx" in js and "translate(var(--gdx,0px)" in css)
-    check("a run's name sits under the middle of its cards",
-          ".handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center"
-          in css and "g.style.marginLeft = (step - cw)" in js)
+    # a group's box is a whole card wide but the cards overlap, so all you see
+    # of a run is `step` per card; two one-card runs printed their names on top
+    # of each other until the name was centred on the visible part instead
+    check("a run's name sits under the part of it you can see",
+          "function p1PlaceRunNames" in js
+          and "const visRight = i + 1 < gs.length ? box[i + 1].left : box[i].right;" in js
+          and "g.style.marginLeft = (step - cw)" in js)
+    check("names that would still collide drop to a second line",
+          "label.classList.toggle('lower', row === 1)" in js
+          and ".handgroup .glabel.lower{top:19px}" in css)
     check("the rest of the hand dims behind a raised run",
           ":has(.handgroup.up) .handgroup:not(.up) .dcard{" in css
           and "opacity:.4" in css)

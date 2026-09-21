@@ -956,6 +956,49 @@ function p1LayoutHand() {
       g.style.marginLeft = '0px';
     }
   });
+
+  p1PlaceRunNames(hand);
+}
+
+/* Where a run's name goes.
+
+   A group's BOX is a whole card wide, but the cards overlap, so all you can see
+   of a run before the next one covers it is `step` per card. Centring the name
+   on the box put it over the run to the right, and two one-card runs - a box
+   each, overlapping by cw - step - printed their names on top of each other:
+   "Enchantment" straight through "Instant".
+
+   So each name is centred on the part of its run you can actually SEE, and then
+   any that still collide drop to a second line. Two lines is the limit: below
+   that is the table. */
+function p1PlaceRunNames(hand) {
+  const gs = [...hand.querySelectorAll('.handgroup')];
+  if (!gs.length) return;
+  const box = gs.map(g => g.getBoundingClientRect());
+
+  const placed = [];
+  gs.forEach((g, i) => {
+    const label = g.querySelector('.glabel');
+    if (!label) return;
+    // visible from this run's left edge to wherever the next run starts
+    const visLeft = box[i].left;
+    const visRight = i + 1 < gs.length ? box[i + 1].left : box[i].right;
+    const centre = (visLeft + visRight) / 2 - box[i].left;
+
+    label.style.left = '0px';
+    label.style.right = 'auto';
+    label.style.width = 'max-content';
+    label.style.maxWidth = 'none';
+    const w = label.getBoundingClientRect().width;
+    label.style.left = (centre - w / 2).toFixed(1) + 'px';
+
+    // two lines, and a name only drops to the second if the first is taken
+    const left = box[i].left + centre - w / 2;
+    const row = placed.some(p => p.row === 0 && left < p.right + 6
+                                 && left + w > p.left - 6) ? 1 : 0;
+    label.classList.toggle('lower', row === 1);
+    placed.push({row, left, right: left + w});
+  });
 }
 
 let p1LayoutTimer = null;

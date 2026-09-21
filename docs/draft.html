@@ -332,16 +332,20 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .hand.fan.grouped{gap:0;align-items:flex-end}
 /* The group is exactly as wide as its cards - the name is lifted out of the
    flow so a long word cannot push the next group along and split the fan. */
-.handgroup{position:relative;display:flex;min-width:0;padding-bottom:26px}
+.handgroup{position:relative;display:flex;min-width:0;padding-bottom:40px}
 .handgroup .gcards{display:flex;align-items:flex-end;min-width:0}
 /* the name follows the curve the cards sit on - no rule under it; the run of
    names is enough to show where one group ends and the next starts */
-.handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:24px;
+.handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:38px;
   transform:translateY(var(--glift,0px)) rotate(var(--gtilt,0deg));
   transform-origin:50% -60px}
-.handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center;
+/* left and width are set in cube.js: a name is centred on the part of its run
+   that is not covered by the next one, and drops to a second line if the first
+   is already taken there */
+.handgroup .glabel{position:absolute;top:5px;text-align:center;
   font-size:10px;color:var(--ink-dim);line-height:1.4;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:help}
+  pointer-events:auto;cursor:help}
+.handgroup .glabel.lower{top:19px}
 .handgroup .glabel b{color:var(--accent);font-weight:600;letter-spacing:.02em}
 .handgroup .glabel > span{font-family:var(--mono);font-size:9px;opacity:.7}
 /* what the group does is there when you ask for it, floated clear of the row
@@ -3161,6 +3165,49 @@ function p1LayoutHand() {
     } else {
       g.style.marginLeft = '0px';
     }
+  });
+
+  p1PlaceRunNames(hand);
+}
+
+/* Where a run's name goes.
+
+   A group's BOX is a whole card wide, but the cards overlap, so all you can see
+   of a run before the next one covers it is `step` per card. Centring the name
+   on the box put it over the run to the right, and two one-card runs - a box
+   each, overlapping by cw - step - printed their names on top of each other:
+   "Enchantment" straight through "Instant".
+
+   So each name is centred on the part of its run you can actually SEE, and then
+   any that still collide drop to a second line. Two lines is the limit: below
+   that is the table. */
+function p1PlaceRunNames(hand) {
+  const gs = [...hand.querySelectorAll('.handgroup')];
+  if (!gs.length) return;
+  const box = gs.map(g => g.getBoundingClientRect());
+
+  const placed = [];
+  gs.forEach((g, i) => {
+    const label = g.querySelector('.glabel');
+    if (!label) return;
+    // visible from this run's left edge to wherever the next run starts
+    const visLeft = box[i].left;
+    const visRight = i + 1 < gs.length ? box[i + 1].left : box[i].right;
+    const centre = (visLeft + visRight) / 2 - box[i].left;
+
+    label.style.left = '0px';
+    label.style.right = 'auto';
+    label.style.width = 'max-content';
+    label.style.maxWidth = 'none';
+    const w = label.getBoundingClientRect().width;
+    label.style.left = (centre - w / 2).toFixed(1) + 'px';
+
+    // two lines, and a name only drops to the second if the first is taken
+    const left = box[i].left + centre - w / 2;
+    const row = placed.some(p => p.row === 0 && left < p.right + 6
+                                 && left + w > p.left - 6) ? 1 : 0;
+    label.classList.toggle('lower', row === 1);
+    placed.push({row, left, right: left + w});
   });
 }
 

@@ -313,16 +313,20 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .hand.fan.grouped{gap:0;align-items:flex-end}
 /* The group is exactly as wide as its cards - the name is lifted out of the
    flow so a long word cannot push the next group along and split the fan. */
-.handgroup{position:relative;display:flex;min-width:0;padding-bottom:26px}
+.handgroup{position:relative;display:flex;min-width:0;padding-bottom:40px}
 .handgroup .gcards{display:flex;align-items:flex-end;min-width:0}
 /* the name follows the curve the cards sit on - no rule under it; the run of
    names is enough to show where one group ends and the next starts */
-.handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:24px;
+.handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:38px;
   transform:translateY(var(--glift,0px)) rotate(var(--gtilt,0deg));
   transform-origin:50% -60px}
-.handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center;
+/* left and width are set in cube.js: a name is centred on the part of its run
+   that is not covered by the next one, and drops to a second line if the first
+   is already taken there */
+.handgroup .glabel{position:absolute;top:5px;text-align:center;
   font-size:10px;color:var(--ink-dim);line-height:1.4;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:help}
+  pointer-events:auto;cursor:help}
+.handgroup .glabel.lower{top:19px}
 .handgroup .glabel b{color:var(--accent);font-weight:600;letter-spacing:.02em}
 .handgroup .glabel > span{font-family:var(--mono);font-size:9px;opacity:.7}
 /* what the group does is there when you ask for it, floated clear of the row
