@@ -464,6 +464,7 @@ function p1DrawHand() {
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
   p1LayoutHand();
   p1MarkBest();
+  p1MarkWanted();
   $('#p1PassL').textContent = '';
   $('#p1PassR').textContent = '';
   hand.querySelectorAll('[data-pick]').forEach(el => {
@@ -554,6 +555,37 @@ function p1DeckFit(card) {
 }
 
 const p1Total = c => c.score + 0.35 * p1DeckFit(c);
+
+/* A card off the want list has just been dealt to you. The star already says
+   what the numbers would take; this says "and this is the one you were waiting
+   for", which is a different claim and often a different card. It bounces once
+   on arrival because the whole point is that you were not looking for it. */
+function p1MarkWanted() {
+  const hand = $('#p1Hand');
+  if (!hand) return;
+  const {rows} = p1Wanted();
+  if (!rows.length) return;
+  const rank = {};
+  rows.forEach((w, i) => { rank[w.oracle_id] = {n: i + 1, w}; });
+  hand.querySelectorAll('.dcard').forEach(el => {
+    const hit = rank[el.dataset.oracle];
+    if (!hit) return;
+    el.classList.add('wanted');
+    el.insertAdjacentHTML('beforeend',
+      `<span class="wantmark" title="${esc('No. ' + hit.n + ' on your want list \u2014 '
+        + hit.w.lift.toFixed(0) + '\u00d7 with ' + hit.w.from.slice(0, 2).join(', ')
+        + (hit.w.castable ? '' : ', but you would have to splash for it'))}">\u25c6</span>`);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    el.animate([
+      {transform: 'translateY(0)'},
+      {transform: 'translateY(-14px)', offset: .3},
+      {transform: 'translateY(0)', offset: .55},
+      {transform: 'translateY(-6px)', offset: .75},
+      {transform: 'translateY(0)'},
+    ], {duration: 820, delay: 260 + (hit.n - 1) * 90, easing: 'cubic-bezier(.3,.6,.4,1)',
+        composite: 'add'});
+  });
+}
 
 function p1MarkBest() {
   const hand = $('#p1Hand');
@@ -1627,13 +1659,15 @@ const PAIR_WEIGHT = {
 };
 const pairWeight = k => (k in PAIR_WEIGHT ? PAIR_WEIGHT[k] : 0.5);
 
-function p1Watchlist() {
-  const box = $('#p1Watch');
-  if (!box) return;
-  if (!P1_TAKEN.length) {
-    box.innerHTML = '<span class="dim">Take a card and this fills with what to watch for.</span>';
-    return;
-  }
+/* The ranked want list, shared by the "Most wanted" panel and the hand.
+
+   It is NOT the same question the pack ranking answers. A pack's top card is
+   the best card in it on its own merits; this is the card the rest of the cube
+   most wants beside what you have already taken. They coincide only by luck,
+   which is exactly why a wanted card turning up in a pack is worth pointing at
+   rather than leaving for you to spot. */
+function p1Wanted() {
+  if (!P1_TAKEN.length) return {rows: [], main: ''};
   const taken = new Set(P1_TAKEN.map(c => c.oracle_id));
   const want = {};
   P1_TAKEN.forEach(mine => {
@@ -1668,6 +1702,17 @@ function p1Watchlist() {
     return w;
   }).sort((a, b) => b.desire - a.desire).slice(0, 5);
 
+  return {rows, main};
+}
+
+function p1Watchlist() {
+  const box = $('#p1Watch');
+  if (!box) return;
+  const {rows, main} = p1Wanted();
+  if (!rows.length) {
+    box.innerHTML = '<span class="dim">Take a card and this fills with what to watch for.</span>';
+    return;
+  }
   const top = rows[0] ? rows[0].desire : 1;
   box.innerHTML = `<div class="wants">${rows.map((w, i) => `
       <figure class="want${w.castable ? '' : ' offcolour'}">
