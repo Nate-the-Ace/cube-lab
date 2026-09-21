@@ -2737,6 +2737,30 @@ const P1_HAND_SORTS = {
 };
 let P1_HAND_SORT = 'deal';
 
+/* Sorting by painter is only worth offering when it would actually gather
+   something. Most packs are fifteen cards by fifteen different artists, and
+   grouping gives you fifteen runs of one - the same fan, with names under it.
+   So the option appears only when some painter has more than one card in the
+   pack in your hand, and a pack that loses its last pair drops back to the
+   order it was dealt in rather than staying on a sort that no longer groups. */
+function p1ArtistPairs(pack) {
+  const n = {};
+  (pack || []).forEach(c => { if (c.artist) n[c.artist] = (n[c.artist] || 0) + 1; });
+  return Object.values(n).some(v => v > 1);
+}
+
+function p1SyncSortOptions() {
+  const sel = $('#p1HandSort');
+  if (!sel) return;
+  const opt = [...sel.options].find(o => o.value === 'artist');
+  if (!opt) return;
+  const worth = p1ArtistPairs(P1_PACK);
+  opt.hidden = !worth;
+  opt.disabled = !worth;
+  if (!worth && P1_HAND_SORT === 'artist') P1_HAND_SORT = 'deal';
+  sel.value = P1_HAND_SORT;
+}
+
 function p1SortedPack() {
   const s = P1_HAND_SORTS[P1_HAND_SORT];
   if (!s || !s.by) return P1_PACK.slice();
@@ -2824,6 +2848,7 @@ function p1DrawHand() {
         : ''}</span>`;
     return;
   }
+  p1SyncSortOptions();
   const sorter = P1_HAND_SORTS[P1_HAND_SORT] || {};
   const grouped = !!sorter.groupBy;
   p1DropRun();                   // the groups it pointed at are about to go

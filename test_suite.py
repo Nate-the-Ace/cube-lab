@@ -1135,6 +1135,14 @@ def test_hand_sort():
           "const grouped = !!sorter.groupBy;" in js and "sorter.does(g.key)" in js)
     check("the artist sort groups by painter",
           "groupBy: c => c.artist || 'Unknown'" in js and "in this cube" in js)
+    # a pack of fifteen different painters would group into fifteen runs of one,
+    # which is the same fan with names under it
+    check("the artist sort is offered only when it would gather something",
+          "function p1ArtistPairs" in js
+          and "Object.values(n).some(v => v > 1)" in js
+          and "opt.hidden = !worth;" in js)
+    check("a pack that loses its last pair drops back to the dealt order",
+          "if (!worth && P1_HAND_SORT === 'artist') P1_HAND_SORT = 'deal';" in js)
     # the fan opens up to fit the names before any of them stack
     check("the fan widens to fit the run names",
           "const want = Math.max(step, ...need);" in js and "READABLE_CW = 112" in js)
