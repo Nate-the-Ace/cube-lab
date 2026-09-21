@@ -279,8 +279,6 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .deckpile:hover{transform:translateY(-3px)}
 .deckpile b{font-size:15px;color:var(--accent);line-height:1}
 .deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
-.deckhint{position:absolute;left:14px;bottom:2px;font-size:9px;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink-dim);opacity:.75;pointer-events:none}
 
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
@@ -355,6 +353,10 @@ button.big{font-size:15px;padding:10px 26px}
    condition of the wrapper - sealed and dim, lit and lifting when it is next,
    torn open while you draft it, spent once it is empty. */
 .boosters{display:flex;gap:16px;justify-content:center;padding:16px 0 4px;perspective:700px}
+.boosters:not(.spread){position:absolute;top:34px;left:50%;transform:translateX(-50%);
+  z-index:0;padding:0;pointer-events:none}
+.boosters:not(.spread) .booster{pointer-events:auto}
+.tabletop:has(.boosters:not(.spread)) .hand.fan{padding-top:30px;min-height:222px}
 .booster{position:relative;width:62px;aspect-ratio:1/1.5;border-radius:4px;cursor:default;
   background:
     linear-gradient(115deg,transparent 34%,rgba(255,255,255,.16) 44%,rgba(255,255,255,.04) 52%,transparent 60%),

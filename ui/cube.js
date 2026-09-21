@@ -733,7 +733,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); 
 function p1DeckFace() {
   const d = $('#p1Deck');
   d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
-  $('#p1DeckHint').textContent = P1_TAKEN.length ? 'click to look' : 'picks go here';
 }
 
 function p1Tableau(toggle) {
