@@ -1026,6 +1026,62 @@ function p1SeatsLock() {
     : '';
 }
 
+/* Hovering a wrapper shows the painting whole, with the set it came from.
+
+   The wrapper only shows a strip of the crop, and a set code is not a set, so
+   the tooltip is where both get said properly: the full art, the card and its
+   painter, then the set's own symbol, name and year - the last of which comes
+   from the set lookup shared.js already caches, so hovering the same set twice
+   costs one request in total. */
+const PACK_HOVER_DELAY = 200;
+let packTimer = null, packToken = 0;
+
+function p1HidePackTip() {
+  clearTimeout(packTimer);
+  packToken++;
+  const box = $('#packpop');
+  if (box) box.classList.add('hidden');
+}
+
+function p1ShowPackTip(el) {
+  const a = P1_ART[el.dataset.pack];
+  const box = $('#packpop');
+  if (!a || !box) return;
+  clearTimeout(packTimer);
+  const my = ++packToken;
+  packTimer = setTimeout(async () => {
+    if (my !== packToken) return;
+    const code = (a.set || '').toLowerCase();
+    box.innerHTML = `<img class="packart-full" src="${esc(a.url)}" alt="">
+      <div class="packmeta">
+        <b>${esc(a.name)}</b>
+        ${a.artist ? `<span class="by">art by ${esc(a.artist)}</span>` : ''}
+        <span class="setline" data-code="${esc(code)}">${esc(a.set || '')}</span>
+      </div>`;
+    box.classList.remove('hidden');
+    p1PlacePackTip(el, box);
+
+    const d = code && await setData(code);
+    if (my !== packToken || !d || d.error) return;
+    const line = box.querySelector('.setline');
+    if (!line) return;
+    line.innerHTML = `${d.icon_svg_uri ? `<img src="${esc(d.icon_svg_uri)}" alt="">` : ''}
+      ${esc(d.name)} <span class="code">${esc(d.code.toUpperCase())}</span>
+      ${d.released_at ? `<span class="code">${esc(String(d.released_at).slice(0, 4))}</span>` : ''}`;
+    p1PlacePackTip(el, box);
+  }, PACK_HOVER_DELAY);
+}
+
+function p1PlacePackTip(el, box) {
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+  let left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2),
+                      window.innerWidth - b.width - 8);
+  let top = r.bottom + 8;
+  if (top + b.height > window.innerHeight - 8) top = Math.max(8, r.top - b.height - 8);
+  box.style.left = left + 'px';
+  box.style.top = top + 'px';
+}
+
 function p1Boosters() {
   p1SeatsLock();
   const box = $('#p1Boosters');
@@ -1053,9 +1109,16 @@ function p1Boosters() {
     const what = choosing ? 'A sealed pack' : 'Pack';
     return `<div class="booster ${state}" data-pack="${i}"
       ${state === 'ready' ? 'role="button" tabindex="0"' : 'aria-hidden="true"'}
-      title="${what} \u2014 ${label}${face.credit ? '\n' + esc(face.credit) : ''}"
+      title="${what} \u2014 ${label}"
       aria-label="${what}, ${label}">${face.html}</div>`;
   }).join('');
+
+  box.querySelectorAll('.booster').forEach(el => {
+    el.onmouseenter = () => p1ShowPackTip(el);
+    el.onmouseleave = p1HidePackTip;
+    el.onfocus = () => p1ShowPackTip(el);
+    el.onblur = p1HidePackTip;
+  });
 
   box.querySelectorAll('.booster.ready').forEach(el => {
     const i = parseInt(el.dataset.pack, 10);
@@ -1063,6 +1126,7 @@ function p1Boosters() {
       if (choosing) {
         if (P1_CHOSEN.length >= 3 || P1_CHOSEN.includes(i)) return;
         P1_CHOSEN.push(i);
+        p1HidePackTip();
         // the third choice breaks up the cube, so remember where every pack was
         const was = P1_CHOSEN.length === 3 ? p1PackRects() : null;
         p1Boosters();
@@ -1071,6 +1135,7 @@ function p1Boosters() {
         return;
       }
       if (P1_PACK.length) return;              // finish the pack in hand first
+      p1HidePackTip();
       await p1Data();
       if (P1 && P1.error) {
         $('#p1Hand').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;

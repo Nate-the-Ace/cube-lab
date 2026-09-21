@@ -1117,8 +1117,12 @@ def test_pack_art():
     check("no two wrappers wear the same painting",
           "drawn without replacement" in js)
     check("the art is recut with the cube", "p1CutArt();" in js)
-    check("the wrapper credits the painting and its artist",
-          "art by" in js and "face.credit" in js)
+    # the credit moved out of the native title and into the hover tooltip,
+    # which shows the crop whole alongside the set it came from
+    check("hovering a wrapper shows the painting and its artist",
+          "art by ${esc(a.artist)}" in js and "packart-full" in js)
+    check("the tooltip names the set, not just its code",
+          "setData(code)" in js and "icon_svg_uri" in js.split("function p1ShowPackTip")[1])
     # stacking your picks by painter is not in the menu until you go looking
     check("the artist stacking is hidden until it is found",
           "artist: {label: 'Artist', egg: true" in js
