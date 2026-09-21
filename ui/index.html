@@ -14,11 +14,17 @@
   <a href="/nights" class="badge">Game Nights</a>
   <a href="/cube" class="badge">Cube Lab</a>
   <button id="themeBtn" title="Toggle theme">◐</button>
+</header>
+
+<!-- These are position:fixed overlays, so they sit at the top level on purpose.
+     Inside <header> they were trapped in its stacking context - the header is
+     sticky with z-index 5 - and a card preview with z-index 210 still rendered
+     UNDER the typeahead menu's z-index 40, because 210 only ranked it among the
+     header's own children. -->
 <div id="tipbox" class="hidden" role="tooltip"></div>
 <div id="cardpop" class="hidden" aria-hidden="true"></div>
 <div id="setpop" class="hidden" aria-hidden="true"></div>
 <div id="manapop" class="hidden" aria-hidden="true"></div>
-</header>
 
 <div class="tabs" role="tablist">
   <button class="tab" role="tab" data-tab="search" aria-selected="true">Search</button>

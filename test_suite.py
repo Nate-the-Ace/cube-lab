@@ -886,6 +886,16 @@ def test_pages_and_privacy():
     check("the cube page's tabs are cube tools only",
           set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)) == {"cube", "p1p1", "swap"},
           str(sorted(set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)))))
+    # The fixed overlays must sit OUTSIDE <header>. The header is sticky with a
+    # z-index, which makes it a stacking context, and inside it the card
+    # preview's z-index only ranks it among the header's own children - so it
+    # rendered under the typeahead menu.
+    for name in ("cube.html", "index.html", "nights.html"):
+        body = open(os.path.join(ui, name)).read()
+        head = body[body.index("<header"):body.index("</header>")]
+        check("%s keeps the popup hosts out of the header" % name,
+              not any(i in head for i in ("cardpop", "tipbox", "setpop", "manapop")))
+
     check("the cube page carries the popup hosts",
           all(i in cube_page for i in ("tipbox", "cardpop", "setpop", "manapop")))
 
