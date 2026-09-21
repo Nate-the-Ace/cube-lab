@@ -265,18 +265,20 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 }
 
 /* the face-down pile you have drafted into */
-.deckpile{position:relative;width:96px;aspect-ratio:1/1.396;border-radius:8px;cursor:pointer;
+.deckpile{position:absolute;left:14px;bottom:14px;z-index:4;
+  width:48px;aspect-ratio:1/1.396;border-radius:5px;cursor:pointer;
   background:repeating-linear-gradient(45deg,#2a2118,#2a2118 6px,#332819 6px,#332819 12px);
   border:1px solid var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.5),
     3px 3px 0 -1px var(--panel),4px 4px 0 -1px var(--line),
     7px 7px 0 -2px var(--panel),8px 8px 0 -2px var(--line);
-  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;
   transition:transform .14s ease}
-.deckpile:hover{transform:translateY(-4px)}
-.deckpile b{font-size:26px;color:var(--accent);line-height:1}
-.deckpile span{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim)}
-.deckrow{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
-.deckrow .hint{font-size:12px;color:var(--ink-dim)}
+.deckpile:hover{transform:translateY(-3px)}
+.deckpile b{font-size:15px;color:var(--accent);line-height:1}
+.deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
+.deckhint{position:absolute;left:14px;bottom:2px;font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-dim);opacity:.75;pointer-events:none}
+
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
@@ -287,7 +289,7 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    neighbours; the stack below it stays put, so the fan never reflows under the
    pointer and the card you meant to click is still the card under the cursor. */
 .hand.fan{display:flex;flex-wrap:nowrap;justify-content:center;gap:0;
-  padding:52px 12px 30px;min-height:250px;align-items:flex-start}
+  padding:52px 12px 30px 76px;min-height:250px;align-items:flex-start}
 .hand.fan .dcard{flex:0 0 auto;width:var(--cw,132px);
   margin-left:var(--overlap,-46px);transform-origin:50% 120%;
   transform:translateY(var(--lift,0px)) rotate(var(--tilt,0deg));
@@ -296,6 +298,12 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
   transform:translateY(calc(var(--lift,0px) - 30px)) rotate(0deg) scale(1.1);
   z-index:5;box-shadow:0 20px 44px rgba(0,0,0,.62)}
+.dcard.best{outline:2px solid var(--accent);outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(207,169,78,.18),0 12px 30px rgba(0,0,0,.5)}
+.dcard .crown{position:absolute;top:4px;right:4px;z-index:2;width:18px;height:18px;
+  border-radius:50%;background:var(--accent);color:#1a1205;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */

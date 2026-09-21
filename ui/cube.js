@@ -450,6 +450,7 @@ function p1DrawHand() {
   hand.className = 'hand fan';
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
   p1LayoutHand();
+  p1MarkBest();
   const dir = passDir();
   $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
   $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
@@ -517,14 +518,60 @@ function p1Take(oid, el) {
    looking like a hand. The step between cards is solved from the space actually
    available instead, and the cards narrow before the step goes below a third of
    a card - past that the art is unreadable and you are picking blind. */
+/* Which card the numbers would take, GIVEN what is already in the deck.
+
+   The pick score on its own is deck-blind: it ranks a card against the cube, not
+   against the eleven cards you have drafted. So the pull toward what you already
+   own is added on top, from the same lift pairs the watchlist uses. On an empty
+   deck that term is zero and this is just the pick score - which is the right
+   answer for a genuine pack 1 pick 1. */
+function p1DeckFit(card) {
+  if (!P1_TAKEN.length) return 0;
+  const mine = new Set(P1_TAKEN.map(c => c.oracle_id));
+  let pull = 0;
+  (card.partners || []).forEach(p => { if (mine.has(p.oracle_id)) pull += p.lift || 0; });
+  P1_TAKEN.forEach(t => {
+    (t.partners || []).forEach(p => { if (p.oracle_id === card.oracle_id) pull += p.lift || 0; });
+  });
+  return pull;
+}
+
+const p1Total = c => c.score + 0.35 * p1DeckFit(c);
+
+function p1MarkBest() {
+  const hand = $('#p1Hand');
+  const cards = [...hand.querySelectorAll('.dcard')];
+  if (cards.length < 2) return;
+  let bestEl = null, bestScore = -Infinity;
+  cards.forEach(el => {
+    const c = p1Card(el.dataset.oracle);
+    if (!c) return;
+    const t = p1Total(c);
+    if (t > bestScore) { bestScore = t; bestEl = el; }
+  });
+  if (!bestEl) return;
+  bestEl.classList.add('best');
+  const fit = p1DeckFit(p1Card(bestEl.dataset.oracle));
+  bestEl.insertAdjacentHTML('beforeend',
+    `<span class="crown" title="${esc(P1_TAKEN.length
+      ? 'What the numbers would take, counting how it pairs with your ' + P1_TAKEN.length
+        + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
+        + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
+      : 'What the numbers would take')}">\u2605</span>`);
+}
+
 function p1LayoutHand() {
   const hand = $('#p1Hand');
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
   if (!n) return;
 
-  const pad = 24;
-  const room = Math.max(240, hand.clientWidth - pad);
+  const cs = getComputedStyle(hand);
+  const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const TILT = 7;
+  const rad = TILT * Math.PI / 180;
+  const tiltRoom = 2 * (132 * (1 - Math.cos(rad)) + 184 * Math.sin(rad));
+  const room = Math.max(240, hand.clientWidth - pad - tiltRoom);
   let cw = 132;
   let step = n > 1 ? (room - cw) / (n - 1) : cw;
   if (step < cw * 0.34) {
@@ -600,9 +647,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); 
 function p1DeckFace() {
   const d = $('#p1Deck');
   d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
-  $('#p1DeckHint').textContent = P1_TAKEN.length
-    ? 'Click the deck to look through what you have taken.'
-    : 'Cards you take go here, face down.';
+  $('#p1DeckHint').textContent = P1_TAKEN.length ? 'click to look' : 'picks go here';
 }
 
 function p1Tableau(toggle) {

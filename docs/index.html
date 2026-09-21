@@ -276,18 +276,20 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 }
 
 /* the face-down pile you have drafted into */
-.deckpile{position:relative;width:96px;aspect-ratio:1/1.396;border-radius:8px;cursor:pointer;
+.deckpile{position:absolute;left:14px;bottom:14px;z-index:4;
+  width:48px;aspect-ratio:1/1.396;border-radius:5px;cursor:pointer;
   background:repeating-linear-gradient(45deg,#2a2118,#2a2118 6px,#332819 6px,#332819 12px);
   border:1px solid var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.5),
     3px 3px 0 -1px var(--panel),4px 4px 0 -1px var(--line),
     7px 7px 0 -2px var(--panel),8px 8px 0 -2px var(--line);
-  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;
   transition:transform .14s ease}
-.deckpile:hover{transform:translateY(-4px)}
-.deckpile b{font-size:26px;color:var(--accent);line-height:1}
-.deckpile span{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim)}
-.deckrow{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
-.deckrow .hint{font-size:12px;color:var(--ink-dim)}
+.deckpile:hover{transform:translateY(-3px)}
+.deckpile b{font-size:15px;color:var(--accent);line-height:1}
+.deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
+.deckhint{position:absolute;left:14px;bottom:2px;font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-dim);opacity:.75;pointer-events:none}
+
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
@@ -298,7 +300,7 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    neighbours; the stack below it stays put, so the fan never reflows under the
    pointer and the card you meant to click is still the card under the cursor. */
 .hand.fan{display:flex;flex-wrap:nowrap;justify-content:center;gap:0;
-  padding:52px 12px 30px;min-height:250px;align-items:flex-start}
+  padding:52px 12px 30px 76px;min-height:250px;align-items:flex-start}
 .hand.fan .dcard{flex:0 0 auto;width:var(--cw,132px);
   margin-left:var(--overlap,-46px);transform-origin:50% 120%;
   transform:translateY(var(--lift,0px)) rotate(var(--tilt,0deg));
@@ -307,6 +309,12 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
   transform:translateY(calc(var(--lift,0px) - 30px)) rotate(0deg) scale(1.1);
   z-index:5;box-shadow:0 20px 44px rgba(0,0,0,.62)}
+.dcard.best{outline:2px solid var(--accent);outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(207,169,78,.18),0 12px 30px rgba(0,0,0,.5)}
+.dcard .crown{position:absolute;top:4px;right:4px;z-index:2;width:18px;height:18px;
+  border-radius:50%;background:var(--accent);color:#1a1205;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
@@ -430,13 +438,11 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
       <span class="passline l" id="p1PassL"></span>
       <span class="passline r" id="p1PassR"></span>
       <div class="hand" id="p1Hand"><span class="dim">Press “Deal a pack”.</span></div>
-    </div>
-    <div id="p1Out"></div>
-    <div class="deckrow">
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
-      <span class="hint" id="p1DeckHint">Cards you take go here, face down.</span>
+      <span class="deckhint" id="p1DeckHint">picks go here</span>
     </div>
+    <div id="p1Out"></div>
     <div id="p1Tableau"></div>
   </div>
 
@@ -2252,6 +2258,7 @@ function p1DrawHand() {
   hand.className = 'hand fan';
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
   p1LayoutHand();
+  p1MarkBest();
   const dir = passDir();
   $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
   $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
@@ -2319,14 +2326,60 @@ function p1Take(oid, el) {
    looking like a hand. The step between cards is solved from the space actually
    available instead, and the cards narrow before the step goes below a third of
    a card - past that the art is unreadable and you are picking blind. */
+/* Which card the numbers would take, GIVEN what is already in the deck.
+
+   The pick score on its own is deck-blind: it ranks a card against the cube, not
+   against the eleven cards you have drafted. So the pull toward what you already
+   own is added on top, from the same lift pairs the watchlist uses. On an empty
+   deck that term is zero and this is just the pick score - which is the right
+   answer for a genuine pack 1 pick 1. */
+function p1DeckFit(card) {
+  if (!P1_TAKEN.length) return 0;
+  const mine = new Set(P1_TAKEN.map(c => c.oracle_id));
+  let pull = 0;
+  (card.partners || []).forEach(p => { if (mine.has(p.oracle_id)) pull += p.lift || 0; });
+  P1_TAKEN.forEach(t => {
+    (t.partners || []).forEach(p => { if (p.oracle_id === card.oracle_id) pull += p.lift || 0; });
+  });
+  return pull;
+}
+
+const p1Total = c => c.score + 0.35 * p1DeckFit(c);
+
+function p1MarkBest() {
+  const hand = $('#p1Hand');
+  const cards = [...hand.querySelectorAll('.dcard')];
+  if (cards.length < 2) return;
+  let bestEl = null, bestScore = -Infinity;
+  cards.forEach(el => {
+    const c = p1Card(el.dataset.oracle);
+    if (!c) return;
+    const t = p1Total(c);
+    if (t > bestScore) { bestScore = t; bestEl = el; }
+  });
+  if (!bestEl) return;
+  bestEl.classList.add('best');
+  const fit = p1DeckFit(p1Card(bestEl.dataset.oracle));
+  bestEl.insertAdjacentHTML('beforeend',
+    `<span class="crown" title="${esc(P1_TAKEN.length
+      ? 'What the numbers would take, counting how it pairs with your ' + P1_TAKEN.length
+        + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
+        + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
+      : 'What the numbers would take')}">\u2605</span>`);
+}
+
 function p1LayoutHand() {
   const hand = $('#p1Hand');
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
   if (!n) return;
 
-  const pad = 24;
-  const room = Math.max(240, hand.clientWidth - pad);
+  const cs = getComputedStyle(hand);
+  const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const TILT = 7;
+  const rad = TILT * Math.PI / 180;
+  const tiltRoom = 2 * (132 * (1 - Math.cos(rad)) + 184 * Math.sin(rad));
+  const room = Math.max(240, hand.clientWidth - pad - tiltRoom);
   let cw = 132;
   let step = n > 1 ? (room - cw) / (n - 1) : cw;
   if (step < cw * 0.34) {
@@ -2402,9 +2455,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); 
 function p1DeckFace() {
   const d = $('#p1Deck');
   d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
-  $('#p1DeckHint').textContent = P1_TAKEN.length
-    ? 'Click the deck to look through what you have taken.'
-    : 'Cards you take go here, face down.';
+  $('#p1DeckHint').textContent = P1_TAKEN.length ? 'click to look' : 'picks go here';
 }
 
 function p1Tableau(toggle) {
