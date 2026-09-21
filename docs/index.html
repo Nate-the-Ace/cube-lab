@@ -464,7 +464,7 @@ button.big{font-size:15px;padding:10px 26px}
     <div class="tabletop" id="p1Table">
       <span class="passline l" id="p1PassL"></span>
       <span class="passline r" id="p1PassR"></span>
-      <div class="hand" id="p1Hand"><span class="dim">Press “Deal a pack”.</span></div>
+      <div class="hand" id="p1Hand"><span class="dim">Press “Begin draft”.</span></div>
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
       <span class="deckhint" id="p1DeckHint">picks go here</span>
@@ -2251,7 +2251,7 @@ $('#p1Players') && $('#p1Players').addEventListener('input', () => {
 $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
 
 /* ── pack 1 pick 1 ──
-   Deal a pack from the cube, take your pick, then see what the numbers say.
+   Draft the cube: take a card, the other seats take theirs, the packs move on.
    The point is the disagreement: the score deliberately contains no measure of
    raw card power (see pick_scores in cube.py), so where it is wrong it should
    be obviously wrong, and you should be able to see which component did it. */
@@ -2294,7 +2294,7 @@ function cardFace(c, extra) {
 function p1DrawHand() {
   const hand = $('#p1Hand');
   if (!P1_PACK.length) {
-    hand.innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
+    hand.innerHTML = '<span class="dim">Press \u201cBegin draft\u201d.</span>';
     return;
   }
   hand.className = 'hand fan';

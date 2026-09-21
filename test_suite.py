@@ -365,6 +365,14 @@ def test_ui_glossary():
     check("the numeric test runs on the stripped value",
           "/^[-+]?\\d*\\.?\\d+$/.test(bare)" in shared_js)
 
+    page_html = open(os.path.join(ui, "cube.html")).read()
+    page_js = open(os.path.join(ui, "cube.js")).read()
+    labels = dict(re.findall(r'id="(p1Deal|p1Reveal|p1Restart)"[^>]*>([^<]+)<', page_html))
+    prompts = re.findall(r'Press \u201c([^\u201d]+)\u201d', page_html + page_js)
+    check("prompts name buttons that exist",
+          all(p in labels.values() for p in prompts),
+          "prompts %s vs buttons %s" % (prompts, sorted(labels.values())))
+
     check("the cube page shows no prices",
           "money(" not in cube_js and "price_usd" not in cube_js)
     check("EDHREC play rate is not a displayed signal",

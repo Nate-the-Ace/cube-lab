@@ -405,7 +405,7 @@ $('#p1Players') && $('#p1Players').addEventListener('input', () => {
 $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
 
 /* ── pack 1 pick 1 ──
-   Deal a pack from the cube, take your pick, then see what the numbers say.
+   Draft the cube: take a card, the other seats take theirs, the packs move on.
    The point is the disagreement: the score deliberately contains no measure of
    raw card power (see pick_scores in cube.py), so where it is wrong it should
    be obviously wrong, and you should be able to see which component did it. */
@@ -448,7 +448,7 @@ function cardFace(c, extra) {
 function p1DrawHand() {
   const hand = $('#p1Hand');
   if (!P1_PACK.length) {
-    hand.innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
+    hand.innerHTML = '<span class="dim">Press \u201cBegin draft\u201d.</span>';
     return;
   }
   hand.className = 'hand fan';
