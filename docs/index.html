@@ -452,8 +452,9 @@ details.numbers>summary:hover{color:var(--accent)}
   background:linear-gradient(135deg,rgba(207,169,78,.65),rgba(207,169,78,.15))}
 
 /* the whole cube on the table while you choose your three */
-.boosters.spread{flex-wrap:wrap;gap:8px;max-width:760px;margin:0 auto;padding:12px 0 6px}
-.boosters.spread .booster{width:40px;border-radius:3px}
+.boosters.spread{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;
+  max-width:660px;margin:0 auto;padding:12px 0 6px;justify-items:center}
+.boosters.spread .booster{width:100%;max-width:44px;border-radius:3px}
 .boosters.spread .booster::before{top:3px;height:4px}
 .boosters.spread .booster::after{width:12px;height:12px}
 .booster.picked{filter:none;opacity:1;cursor:default;
@@ -475,6 +476,10 @@ details.numbers>summary:hover{color:var(--accent)}
 .pile .dcard:hover{transform:translateY(-4px) scale(1.03);z-index:6;
   box-shadow:0 14px 30px rgba(0,0,0,.6)}
 .pile .dcard .nm{display:none}                    /* the printed title is visible */
+/* a phone cannot hold twelve across; six by six keeps the shape rectangular */
+@media (max-width:560px){
+  .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
+}
 @media (max-width:560px){
   .stack{min-width:96px}
   .pile .dcard{width:96px}
