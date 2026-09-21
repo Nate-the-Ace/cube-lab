@@ -258,9 +258,6 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease;
   transform-style:preserve-3d}
 .dcard img{width:100%;height:100%;object-fit:cover;display:block}
-.dcard .nm{position:absolute;inset:auto 0 0 0;padding:4px 6px;font-size:10.5px;
-  background:linear-gradient(transparent,rgba(0,0,0,.82));color:#fff;
-  text-shadow:0 1px 2px #000}
 .dcard:hover{transform:translateY(-10px) scale(1.04);box-shadow:0 14px 30px rgba(0,0,0,.55);z-index:3}
 .dcard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dcard.taken{outline:2px solid var(--accent);outline-offset:1px}
@@ -476,7 +473,6 @@ details.numbers>summary:hover{color:var(--accent)}
 .pile .dcard + .dcard{margin-top:-128px}          /* leave the title bar showing */
 .pile .dcard:hover{transform:translateY(-4px) scale(1.03);z-index:6;
   box-shadow:0 14px 30px rgba(0,0,0,.6)}
-.pile .dcard .nm{display:none}                    /* the printed title is visible */
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
@@ -2457,8 +2453,7 @@ const passDir = () => PASS[(P1_PACKNO - 1) % PASS.length];
 function cardFace(c, extra) {
   const cls = 'dcard' + (c.image ? '' : ' noimg') + (extra ? ' ' + extra : '');
   const face = c.image
-    ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">
-       <span class="nm">${esc(c.name)}</span>`
+    ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">`
     : `<span>${esc(c.name)}</span>`;
   return `<div class="${cls}" data-oracle="${esc(c.oracle_id)}"
     data-pick="${esc(c.oracle_id)}" role="button" tabindex="0"
@@ -2771,7 +2766,7 @@ function p1Zoom(card) {
       <div class="zfaces">${card.image
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
         : `<div class="zname">${esc(card.name)}</div>`}</div>
-      <div class="zname">${esc(card.name)}</div>
+      ${card.image ? '' : `<div class="zname">${esc(card.name)}</div>`}
       <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
         `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
       ${P1_PACK.some(c => c.oracle_id === card.oracle_id)
@@ -3562,7 +3557,7 @@ function p1Watchlist() {
         <div class="wantcard">${cardFace(w.card.oracle_id ? w.card : {name: w.name})}
           <span class="rank">${i + 1}</span></div>
         <figcaption>
-          <b>${esc(w.name)}</b>
+          ${w.card.image ? '' : `<b>${esc(w.name)}</b>`}
           <span class="bar"><i style="width:${Math.round(100 * w.desire / top)}%"></i></span>
           <span class="why">${esc(w.kind || 'general')} \u00b7 ${w.lift.toFixed(0)}\u00d7
             with ${w.from.slice(0, 2).map(esc).join(', ')}${w.from.length > 2

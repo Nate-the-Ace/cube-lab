@@ -442,8 +442,7 @@ const passDir = () => PASS[(P1_PACKNO - 1) % PASS.length];
 function cardFace(c, extra) {
   const cls = 'dcard' + (c.image ? '' : ' noimg') + (extra ? ' ' + extra : '');
   const face = c.image
-    ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">
-       <span class="nm">${esc(c.name)}</span>`
+    ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">`
     : `<span>${esc(c.name)}</span>`;
   return `<div class="${cls}" data-oracle="${esc(c.oracle_id)}"
     data-pick="${esc(c.oracle_id)}" role="button" tabindex="0"
@@ -756,7 +755,7 @@ function p1Zoom(card) {
       <div class="zfaces">${card.image
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
         : `<div class="zname">${esc(card.name)}</div>`}</div>
-      <div class="zname">${esc(card.name)}</div>
+      ${card.image ? '' : `<div class="zname">${esc(card.name)}</div>`}
       <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
         `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
       ${P1_PACK.some(c => c.oracle_id === card.oracle_id)
@@ -1547,7 +1546,7 @@ function p1Watchlist() {
         <div class="wantcard">${cardFace(w.card.oracle_id ? w.card : {name: w.name})}
           <span class="rank">${i + 1}</span></div>
         <figcaption>
-          <b>${esc(w.name)}</b>
+          ${w.card.image ? '' : `<b>${esc(w.name)}</b>`}
           <span class="bar"><i style="width:${Math.round(100 * w.desire / top)}%"></i></span>
           <span class="why">${esc(w.kind || 'general')} \u00b7 ${w.lift.toFixed(0)}\u00d7
             with ${w.from.slice(0, 2).map(esc).join(', ')}${w.from.length > 2
