@@ -20,6 +20,26 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LANES = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"]
 
 
+def _replacements(con, cid, per_card=5):
+    """Top format-legal swaps for each card in the cube, slimmed to what the page
+    renders: the card, its pull, and the two cube cards that most want it."""
+    ids = sorted(C.cube_card_ids(con, cid))
+    marks = ",".join("?" * len(ids))
+    names = {r["oracle_id"]: r["name"] for r in con.execute(
+        "select oracle_id, name from cards where oracle_id in (%s)" % marks, ids)}
+    out = {}
+    for i, oid in enumerate(ids, 1):
+        d = C.propose_swap(con, cid, remove=names[oid], limit=per_card)
+        out[oid] = [{"o": c["oracle_id"], "n": c["name"], "c": c["cmc"],
+                     "t": (c["type_line"] or "").split(" \u2014")[0],
+                     "p": round(c["pull"]), "k": c["completes_combos"],
+                     "w": [x["name"] for x in c["partners"][:2] if x.get("name")]}
+                    for c in d.get("candidates", [])]
+        if i % 100 == 0:
+            print("   replacements %d/%d" % (i, len(ids)), flush=True)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("cube", nargs="?", default=None)
@@ -54,6 +74,12 @@ def main():
         # every cube card scored as a first pick, so the published page can deal
         # packs itself - it has no server to ask for a fresh one
         "p1p1": C.pick_scores(con, cid),
+        # replacements for every card in the list. The add-a-card direction can
+        # be computed in the page from p1p1's per-card numbers; this direction
+        # needs the whole Pioneer pool and the deck data behind lift, so it is
+        # precomputed here. ~140s and ~300KB, which is the price of the feature
+        # working for people who only have the published page.
+        "replacements": _replacements(con, cid),
     }
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)

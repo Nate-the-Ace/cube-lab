@@ -1,7 +1,8 @@
 # Rebuild and publish Cube Lab.
 #
-# What this workflow can refresh on its own: prices, and the page itself, so an
-# edit to anything under ui/ goes live without anyone running a build. The
+# What this workflow can refresh on its own: the page, so an edit to anything
+# under ui/ goes live without anyone running a build. It no longer refreshes
+# prices - the cube page does not show them, so there was nothing to refresh. The
 # published page IS ui/cube.html, baked with its assets and a shim that answers
 # its API calls from docs/ui_data.json.
 #
@@ -18,7 +19,7 @@ on:
     branches: [main]
     paths: ['ui/**', 'docs/ui_data.json', 'build_static.py', '.github/workflows/pages.yml']
   schedule:
-    - cron: '17 9 * * 1'      # Mondays, a little after Scryfall's daily price roll
+    - cron: '17 9 * * 1'      # Mondays: a heartbeat that catches drift in the build
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -43,12 +44,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      # Only on the schedule: a push is someone editing the page, and re-reading
-      # 500 MB of bulk data to confirm prices haven't moved is a waste of it.
-      - name: Refresh prices from Scryfall
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: python3 refresh_prices.py
 
       - name: Bake the page
         run: python3 build_static.py --from-data

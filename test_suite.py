@@ -332,6 +332,9 @@ def test_ui_glossary():
     check("inline tooltips exist alongside the glossary", "function tipInline(" in src)
     check("composition rows carry an explainer", "tipInline(f.label, functionBlurb(f))" in src)
     check("the EDHREC theme table is gone", "Tactics this cube supports" not in src)
+    cube_js = open(os.path.join(ui, "cube.js")).read()
+    check("the cube page shows no prices",
+          "money(" not in cube_js and "price_usd" not in cube_js)
     check("EDHREC play rate is not a displayed signal",
           "top20_power" not in src and "median_power" not in src)
     check("composition rows carry an explainer", "tipInline(f.label, functionBlurb(f))" in src)
@@ -858,7 +861,7 @@ def test_pages_and_privacy():
     # the page has tabs again (cube analysis / pack 1 pick 1); what matters is
     # that both are cube tools and neither reaches the personal side
     check("the cube page's tabs are cube tools only",
-          set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)) == {"cube", "p1p1"},
+          set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)) == {"cube", "p1p1", "swap"},
           str(sorted(set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)))))
     check("the cube page carries the popup hosts",
           all(i in cube_page for i in ("tipbox", "cardpop", "setpop", "manapop")))

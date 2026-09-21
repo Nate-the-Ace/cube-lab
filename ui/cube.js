@@ -247,7 +247,7 @@ async function runCube() {
     <p class="note">${Object.entries((syn && syn.by_kind) || {}).map(([k, v]) =>
       `<span class="badge">${esc(k)} ${v.toLocaleString()}</span>`).join(' ')}</p>
     <table><thead><tr><th data-filter="text">Pair</th><th data-filter="pick">Type</th><th class="num" data-filter="min">Lift</th>
-      <th class="num" data-filter="min">Decks together</th><th class="num" data-filter="max">$</th>
+      <th class="num" data-filter="min">Decks together</th>
       <th data-filter="text">Why it might work</th></tr></thead><tbody>
       ${((syn && syn.pairs) || []).map(x => `<tr>
         <td class="name">${x.cards.map(c => cardName(c.name, c.oracle_id)).join(' <span class="dim">+</span> ')}
@@ -255,7 +255,6 @@ async function runCube() {
         <td data-sort="${esc(x.kind)}"><span class="badge kind-${esc(x.kind.replace(/[^a-z]+/g,''))}">${esc(x.kind)}</span></td>
         <td class="num" data-sort="${x.lift}">${x.lift}×</td>
         <td class="num" data-sort="${x.played_together}">${x.played_together.toLocaleString()}</td>
-        <td class="num" data-sort="${x.total_price}">${money(x.total_price)}</td>
         <td class="dim">${x.hint ? esc(x.hint) : '<span class="dim">—</span>'}</td>
       </tr>`).join('')}</tbody></table>
 
@@ -314,11 +313,10 @@ async function runCube() {
         ${cardNames(near.illegal_examples)}` : ''}.
       Combos that also need something unnamed are left out, because adding a card wouldn't finish them.</p>
     ${(near.cards || []).length ? `<table><thead><tr><th data-filter="text">Add this</th><th data-filter="text">Type</th>
-      <th class="num" data-filter="max">$</th><th class="num" data-filter="min">Completes</th><th data-filter="text">What it finishes</th></tr></thead><tbody>
+      <th class="num" data-filter="min">Completes</th><th data-filter="text">What it finishes</th></tr></thead><tbody>
       ${near.cards.map(c => `<tr>
         <td class="name" data-card="${esc(c.name)}">${esc(c.name)}</td>
         <td class="dim">${manaDisc(c.color_identity, 14)} ${esc((c.type_line || '').split(' —')[0])}</td>
-        <td class="num" data-sort="${c.price_usd ?? ''}">${money(c.price_usd)}</td>
         <td class="num" data-sort="${c.unlocks}">${c.unlocks}</td>
         <td class="dim">${c.combos.map(k => `<div class="mini">${k.n_cards}-card:
           ${cardNames(k.cards, ' + ')} <span class="dim">→ ${esc((k.produces || []).slice(0, 2).join(', '))}</span></div>`).join('')}</td>
@@ -653,8 +651,84 @@ $('#p1Deal').onclick = async () => {
 };
 $('#p1Reveal').onclick = () => { P1_REVEALED = true; p1Render(); };
 
+/* ── propose a change ──
+   Every add is a cut, so the tab answers whichever half you supply. Both
+   directions hold the slot, which is what makes the answer a swap. */
+const swapDelta = d => {
+  const groups = Object.entries(d || {});
+  if (!groups.length) return '<span class="badge good">changes nothing</span>';
+  return groups.map(([g, moved]) => `<span class="mini">${esc(
+    {by_colour: 'colours', curve: 'curve', by_type: 'types'}[g] || g)}: ${
+    Object.entries(moved).map(([k, v]) => `${esc(k)} ${v > 0 ? '+' : ''}${v}`).join(', ')
+  }</span>`).join('<br>');
+};
+
+async function swapRun(params) {
+  $('#swapOut').innerHTML = '<span class="dim">thinking…</span>';
+  const cube_id = $('#cubeSel').value || (LOADED_CUBES[0] || {}).id;
+  const d = await (await fetch('/api/cube/propose?'
+    + new URLSearchParams(Object.assign({cube_id}, params)))).json();
+  if (d.error) return $('#swapOut').innerHTML = `<span class="badge bad">${esc(d.error)}</span>`;
+
+  if (d.mode === 'cut') {
+    $('#swapOut').innerHTML = `<p class="note">Putting <b>${esc(d.adding.name)}</b>
+      (${esc(d.slot.colors || 'colourless')}, mana value ${d.slot.cmc}, ${esc(d.slot.type)}) in
+      means taking one of these out. ${d.considered} cards in the cube fill that same slot,
+      least-connected first.</p>
+      <table><thead><tr><th data-filter="text">Cut this</th><th class="num">MV</th>
+        <th class="num" data-filter="min">Connected</th><th class="num">Others doing its job</th>
+        <th data-filter="text">Why it is least missed</th><th>Effect on the cube</th>
+      </tr></thead><tbody>${d.candidates.map(c => `<tr>
+        <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
+          <div class="mini dim">${esc((c.type_line || '').split(' —')[0])}</div></td>
+        <td class="num">${c.cmc ?? '—'}</td>
+        <td class="num">${c.connected}</td>
+        <td class="num">${c.others_doing_its_job || '—'}</td>
+        <td class="dim">${c.why.length ? esc(c.why.join('; ')) : 'nothing stands out'}</td>
+        <td>${swapDelta(c.delta)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  } else {
+    $('#swapOut').innerHTML = `<p class="note">Taking <b>${esc(d.removing.name)}</b> out leaves a
+      ${esc(d.slot.colors || 'colourless')} slot at mana value ${d.slot.cmc}.
+      ${d.considered ? `${d.considered} ${esc(d.format)}-legal cards fit it; these are the ones`
+                     : `These are the ${esc(d.format)}-legal cards filling that slot that`}
+      the rest of the cube pulls toward hardest.</p>
+      <table><thead><tr><th data-filter="text">Put this in</th><th class="num">MV</th>
+        <th class="num" data-filter="min">Pull</th><th class="num">Completes</th>
+        <th data-filter="text">Because it pairs with</th><th>Effect on the cube</th>
+      </tr></thead><tbody>${d.candidates.map(c => `<tr>
+        <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
+          <div class="mini dim">${esc((c.type_line || '').split(' —')[0])}</div></td>
+        <td class="num">${c.cmc ?? '—'}</td>
+        <td class="num">${c.pull}</td>
+        <td class="num">${c.completes_combos || '—'}</td>
+        <td class="dim mini">${(c.partners || []).filter(p => p.name)
+          .map(p => (p.oracle_id ? `<span data-oracle="${esc(p.oracle_id)}">${esc(p.name)}</span>`
+                                 : `<span data-card="${esc(p.name)}">${esc(p.name)}</span>`)
+                    + (p.lift ? ` ${p.lift}×` : ''))
+          .join(', ') || '—'}</td>
+        <td>${swapDelta(c.delta)}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+  sortable('#swapOut');
+  filterable('#swapOut');
+}
+
+$('#swapAddGo').onclick = () => {
+  const v = $('#swapAdd').value.trim();
+  if (v) swapRun({add: v});
+};
+$('#swapRemoveGo').onclick = () => {
+  const v = $('#swapRemove').value.trim();
+  if (v) swapRun({remove: v});
+};
+$('#swapAdd').onkeydown = e => { if (e.key === 'Enter') $('#swapAddGo').click(); };
+$('#swapRemove').onkeydown = e => { if (e.key === 'Enter') $('#swapRemoveGo').click(); };
+attachTypeahead('#swapAdd', 'card', () => {});
+attachTypeahead('#swapRemove', 'card', () => {});
+
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
-  ['cube', 'p1p1'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  ['cube', 'p1p1', 'swap'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
   explain();
 });

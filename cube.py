@@ -1529,6 +1529,18 @@ def pick_scores(con, cube_id):
         lst.sort(key=lambda x: -(x["lift"] or 0))
         del lst[6:]
 
+    # how much the cube as a whole is connected to each card, and how many other
+    # cards already do its job - the two things the cut proposal ranks on, so the
+    # published page can answer that half without a database
+    connected = {oid: round(v, 1) for oid, v in pair_lift.items()}
+    functions, served = {}, {}
+    for r in con.execute("""select oracle_id, kind from card_functions
+                            where oracle_id in (%s)""" % marks, list(ids)):
+        functions.setdefault(r["oracle_id"], set()).add(r["kind"])
+    for kinds in functions.values():
+        for k in kinds:
+            served[k] = served.get(k, 0) + 1
+
     arch = archetype_records()
 
     out = []
@@ -1559,8 +1571,276 @@ def pick_scores(con, cube_id):
             "open": round(openness, 1), "synergy": round(synergy, 1),
             "score": round(score, 1),
             "partners": partners.get(r["oracle_id"], []),
+            "connected": connected.get(r["oracle_id"], 0.0),
+            "redundancy": max([served.get(k, 0)
+                               for k in functions.get(r["oracle_id"], ())] or [0]),
         })
     out.sort(key=lambda c: -c["score"])
     return {"cube_id": cube_id, "cube_size": len(ids), "cards": out,
             "lane_pct": lanes, "lane_baseline": round(baseline, 1),
             "archetypes": arch, "has_local": bool(lanes)}
+
+
+# ───────────────────────────── proposing changes ─────────────────────────────
+
+def _slot(card):
+    """The shape of a card's place in the cube: colours, roughly where on the
+    curve, and what kind of card it is. A swap that keeps the slot keeps the
+    cube's composition; one that doesn't is a change of plan, not a swap."""
+    return {
+        "colors": "".join(c for c in "WUBRG" if c in (card.get("color_identity") or "")),
+        "cmc": card.get("cmc") or 0,
+        "type": _broad_type(card.get("type_line") or ""),
+    }
+
+
+def _deck_sets(con, oracle_ids):
+    """Which commander decks play each card. The raw material for lift."""
+    out = {}
+    if not oracle_ids:
+        return out
+    marks = ",".join("?" * len(oracle_ids))
+    for r in con.execute("""select oracle_id, slug from edh_inclusions
+                            where oracle_id in (%s)""" % marks, list(oracle_ids)):
+        out.setdefault(r["oracle_id"], set()).add(r["slug"])
+    return out
+
+
+def _lift_against(cand_decks, cube_decks, total, min_together=6):
+    """How hard the cube as a whole pulls toward one card: the lift it has with
+    each cube card, summed over the pairs that clear the noise floor. Summed and
+    not averaged, because a card wanted by six cube cards is a better add than
+    one wanted intensely by a single card that may never reach you."""
+    total_lift, partners = 0.0, []
+    for oid, dset in cube_decks.items():
+        together = len(cand_decks & dset)
+        if together < min_together:
+            continue
+        expected = len(cand_decks) * len(dset) / float(total)
+        if expected <= 0:
+            continue
+        lift = together / expected
+        if lift <= 1.0:
+            continue
+        total_lift += lift
+        partners.append({"oracle_id": oid, "lift": round(lift, 1),
+                         "played_together": together})
+    partners.sort(key=lambda p: -p["lift"])
+    return total_lift, partners[:6]
+
+
+def propose_swap(con, cube_id, add=None, remove=None, limit=12, fmt="pioneer"):
+    """Answer one half of a swap when you supply the other.
+
+    Give it a card to ADD and it proposes what to cut; give it a card to REMOVE
+    and it proposes format-legal cards to put in the empty slot. Either way it
+    reports what the change does to the cube's composition, because a 540-card
+    cube has no spare slots - every add is a cut.
+
+    WHAT RANKS A CUT: a card is easy to lose when nothing in the cube wants to be
+    in a deck with it, when the cube already has plenty of cards doing its job,
+    and when its colours are not carrying their weight at your table. Note what
+    is NOT here: any measure of raw card power. This will never tell you a bomb
+    is safe to cut, and it will happily suggest cutting a card that is simply
+    good on its own. Read it as "least connected", not "worst".
+
+    WHAT RANKS AN ADD: how hard the rest of the cube pulls toward the card, by
+    the same lift the pairs table uses, plus a bonus for completing a combo whose
+    other pieces are already in the list.
+    """
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+    cube_cards = {r["oracle_id"]: dict(r) for r in con.execute("""
+        select oracle_id, name, color_identity, cmc, type_line, is_land
+        from cards where oracle_id in (%s)""" % marks, list(ids))}
+
+    total = con.execute("select count(*) from edh_commanders").fetchone()[0] or 1
+    lanes = lane_pcts()
+    baseline = (sum(lanes.values()) / len(lanes)) if lanes else 50.0
+
+    def lane_of(ci):
+        fits = [pct for pair, pct in lanes.items() if set(ci) <= set(pair)]
+        return (max(fits) - baseline) if fits else 0.0
+
+    if add:
+        return _propose_cut(con, cube_id, add, cube_cards, ids, total, lane_of, limit)
+    if remove:
+        return _propose_add(con, cube_id, remove, cube_cards, ids, total, lane_of, limit, fmt)
+    return {"error": "name a card to add or a card to remove"}
+
+
+def _composition(cube_cards, drop=None, gain=None):
+    """Colour, curve and type counts, so a proposal can be read as a change to
+    the cube rather than as an opinion about two cards."""
+    colour, curve, types = {}, {}, {}
+    rows = [c for c in cube_cards.values() if not drop or c["oracle_id"] != drop["oracle_id"]]
+    if gain:
+        rows = rows + [gain]
+    for c in rows:
+        ci = "".join(x for x in "WUBRG" if x in (c.get("color_identity") or ""))
+        key = "multicolour" if len(ci) > 1 else (ci or "C")
+        colour[key] = colour.get(key, 0) + 1
+        mv = int(c.get("cmc") or 0)
+        curve[str(min(mv, 7))] = curve.get(str(min(mv, 7)), 0) + 1
+        t = _broad_type(c.get("type_line") or "")
+        types[t] = types.get(t, 0) + 1
+    return {"by_colour": colour, "curve": curve, "by_type": types}
+
+
+def _delta(before, after):
+    """Only the counts that moved, so the reader is not made to diff two tables."""
+    out = {}
+    for group in ("by_colour", "curve", "by_type"):
+        moved = {}
+        for k in set(before[group]) | set(after[group]):
+            d = after[group].get(k, 0) - before[group].get(k, 0)
+            if d:
+                moved[k] = d
+        if moved:
+            out[group] = moved
+    return out
+
+
+def _propose_cut(con, cube_id, add_name, cube_cards, ids, total, lane_of, limit):
+    incoming = mtgdb.by_name(con, add_name)
+    if not incoming:
+        return {"error": "no card called %r" % add_name}
+    if incoming["oracle_id"] in cube_cards:
+        return {"error": "%s is already in the cube" % incoming["name"]}
+
+    slot = _slot(incoming)
+    functions = {}
+    marks = ",".join("?" * len(ids))
+    for r in con.execute("""select oracle_id, kind from card_functions
+                            where oracle_id in (%s)""" % marks, list(ids)):
+        functions.setdefault(r["oracle_id"], set()).add(r["kind"])
+    served = {}
+    for kinds in functions.values():
+        for k in kinds:
+            served[k] = served.get(k, 0) + 1
+
+    cube_decks = _deck_sets(con, list(ids))
+    lift_sum = {}
+    for oid, dset in cube_decks.items():
+        s, _ = _lift_against(dset, {k: v for k, v in cube_decks.items() if k != oid}, total)
+        lift_sum[oid] = s
+
+    cands = []
+    for oid, c in cube_cards.items():
+        ci = "".join(x for x in "WUBRG" if x in (c["color_identity"] or ""))
+        # a swap holds the cube's shape: same colours, same sort of card, and
+        # within a mana value of the newcomer
+        if ci != slot["colors"]:
+            continue
+        if _broad_type(c["type_line"] or "") != slot["type"]:
+            continue
+        if abs((c["cmc"] or 0) - slot["cmc"]) > 1:
+            continue
+        redundancy = max([served.get(k, 0) for k in functions.get(oid, ())] or [0])
+        cands.append({
+            "oracle_id": oid, "name": c["name"], "color_identity": ci,
+            "cmc": c["cmc"], "type_line": c["type_line"],
+            "connected": round(lift_sum.get(oid, 0.0), 1),
+            "others_doing_its_job": redundancy,
+            "lane": round(lane_of(ci), 1),
+            "why": [],
+        })
+    # least connected first; ties broken by how well covered its job already is
+    cands.sort(key=lambda c: (c["connected"], -c["others_doing_its_job"]))
+    for c in cands:
+        if c["connected"] == 0:
+            c["why"].append("nothing in the cube pairs with it above chance")
+        elif c["connected"] < 20:
+            c["why"].append("only loosely connected to the rest of the cube")
+        if c["others_doing_its_job"] >= 20:
+            c["why"].append("%d other cards already do its job" % c["others_doing_its_job"])
+        if c["lane"] < -3:
+            c["why"].append("its colours are underperforming at your table")
+
+    before = _composition(cube_cards)
+    out = cands[:limit]
+    incoming_row = {"oracle_id": incoming["oracle_id"], "name": incoming["name"],
+                    "color_identity": incoming["color_identity"], "cmc": incoming["cmc"],
+                    "type_line": incoming["type_line"]}
+    for c in out:
+        after = _composition(cube_cards, drop=c, gain=incoming_row)
+        c["delta"] = _delta(before, after)
+    return {"mode": "cut", "adding": incoming_row, "slot": slot,
+            "candidates": out, "considered": len(cands),
+            "exact_slot": True}
+
+
+def _propose_add(con, cube_id, remove_name, cube_cards, ids, total, lane_of, limit, fmt):
+    outgoing = mtgdb.by_name(con, remove_name)
+    if not outgoing:
+        return {"error": "no card called %r" % remove_name}
+    if outgoing["oracle_id"] not in cube_cards:
+        return {"error": "%s is not in the cube" % outgoing["name"]}
+
+    slot = _slot(outgoing)
+    ci = slot["colors"]
+    # Candidates fill the same slot, so the proposal is a swap and not a redesign.
+    # Colour identity has to match exactly: a cube's colour balance is the one
+    # thing a 540-card list cannot absorb drift in.
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line, c.is_land
+        from cards c
+        join legalities l on l.oracle_id = c.oracle_id
+        where l.format = ? and l.status in ('legal','restricted')
+          and c.kind = 'card' and c.color_identity = ?
+          and abs(coalesce(c.cmc,0) - ?) <= 1
+          and c.edh_decks >= 500""", (fmt, outgoing["color_identity"] or "", slot["cmc"]))]
+    pool = [r for r in rows
+            if r["oracle_id"] not in cube_cards
+            and _broad_type(r["type_line"] or "") == slot["type"]]
+    if not pool:
+        return {"error": "no %s-legal %s in %s near mana value %s outside the cube"
+                         % (fmt, slot["type"].lower(), ci or "colourless", int(slot["cmc"]))}
+
+    # the cube minus the card being removed: what the newcomer has to pair with
+    rest = {k: v for k, v in _deck_sets(con, list(ids)).items()
+            if k != outgoing["oracle_id"]}
+    cand_decks = _deck_sets(con, [r["oracle_id"] for r in pool])
+
+    # cards that would complete a combo already almost present get a bonus, since
+    # that is the one kind of add whose value does not rest on lift at all
+    finishers = {}
+    try:
+        for c in cube_near_misses(con, cube_id, limit=200, fmt=fmt)["cards"]:
+            finishers[c["oracle_id"]] = c["unlocks"]
+    except Exception:
+        pass
+
+    out = []
+    for r in pool:
+        decks = cand_decks.get(r["oracle_id"])
+        if not decks:
+            continue
+        pull, partners = _lift_against(decks, rest, total)
+        if not partners and r["oracle_id"] not in finishers:
+            continue
+        for p in partners:
+            p["name"] = (cube_cards.get(p["oracle_id"]) or {}).get("name")
+        unlocks = finishers.get(r["oracle_id"], 0)
+        out.append({
+            "oracle_id": r["oracle_id"], "name": r["name"],
+            "color_identity": r["color_identity"], "cmc": r["cmc"],
+            "type_line": r["type_line"],
+            "pull": round(pull, 1), "partners": partners,
+            "completes_combos": unlocks,
+            "score": round(pull + 40.0 * unlocks, 1),
+        })
+    out.sort(key=lambda c: -c["score"])
+
+    before = _composition(cube_cards)
+    out = out[:limit]
+    outgoing_row = {"oracle_id": outgoing["oracle_id"], "name": outgoing["name"],
+                    "color_identity": outgoing["color_identity"], "cmc": outgoing["cmc"],
+                    "type_line": outgoing["type_line"]}
+    for c in out:
+        after = _composition(cube_cards, drop=outgoing_row, gain=c)
+        c["delta"] = _delta(before, after)
+    return {"mode": "add", "removing": outgoing_row, "slot": slot,
+            "candidates": out, "considered": len(pool), "format": fmt}

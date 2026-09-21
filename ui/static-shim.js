@@ -80,6 +80,32 @@
 
     '/api/cube/balance': () => D.balance,
     '/api/cube/p1p1': () => D.p1p1,
+
+    // Remove-a-card was precomputed at export time: it needs the whole Pioneer
+    // pool and the deck data behind lift, neither of which is in the page.
+    // Add-a-card is computed here instead, because it only needs the incoming
+    // card's slot - and that comes from Scryfall - plus numbers each cube card
+    // already carries.
+    '/api/cube/propose': qs => {
+      const remove = (qs.get('remove') || '').trim();
+      if (remove) {
+        const me = findCard(remove);
+        if (!me) return {error: 'no card called "' + remove + '"'};
+        const list = (D.replacements || {})[me.oracle_id];
+        if (!list) return {error: me.name + ' is not in the cube'};
+        return {
+          mode: 'add', format: 'pioneer',
+          removing: cardRow(me), slot: slotOf(me), considered: null,
+          candidates: list.map(c => ({
+            oracle_id: c.o, name: c.n, cmc: c.c, type_line: c.t,
+            pull: c.p, completes_combos: c.k,
+            partners: (c.w || []).map(n => ({name: n})),
+            delta: {},          // every precomputed swap holds the slot
+          })),
+        };
+      }
+      return null;             // the add direction is async; handled below
+    },
     '/api/cube/near-misses': () => D.near_misses,
 
     '/api/cube/opportunities': qs => {
@@ -150,6 +176,57 @@
       return rows;
     },
   };
+
+  const BROAD = t => {
+    t = (t || '').split(' \u2014')[0];
+    for (const k of ['Land', 'Creature', 'Artifact', 'Enchantment', 'Planeswalker',
+                     'Instant', 'Sorcery', 'Battle'])
+      if (t.includes(k)) return k;
+    return 'Other';
+  };
+  const ciOf = c => [...((c.color_identity) || '')]
+    .filter(x => 'WUBRG'.includes(x)).join('');
+  const slotOf = c => ({colors: ciOf(c), cmc: c.cmc || 0, type: BROAD(c.type_line)});
+  const cardRow = c => ({oracle_id: c.oracle_id, name: c.name,
+                         color_identity: ciOf(c), cmc: c.cmc, type_line: c.type_line});
+  const findCard = name => (D.p1p1.cards || []).find(
+    c => c.name.toLowerCase() === name.toLowerCase())
+    || (D.p1p1.cards || []).find(c => c.name.toLowerCase().startsWith(name.toLowerCase()));
+
+  // Add-a-card: look the newcomer up on Scryfall for its slot, then rank the
+  // cube cards that fill the same slot by how little the cube is connected to
+  // them - the same ordering cube.py uses.
+  async function proposeCut(name) {
+    const inCube = findCard(name);
+    if (inCube) return {error: inCube.name + ' is already in the cube'};
+    const c = await sfJson('https://api.scryfall.com/cards/named?fuzzy='
+                           + encodeURIComponent(name));
+    if (!c) return {error: 'no card called "' + name + '"'};
+    const incoming = {oracle_id: c.oracle_id, name: c.name, cmc: c.cmc,
+                      type_line: c.type_line,
+                      color_identity: (c.color_identity || []).join('')};
+    const slot = slotOf(incoming);
+    const cands = (D.p1p1.cards || []).filter(x =>
+      ciOf(x) === slot.colors && BROAD(x.type_line) === slot.type
+      && Math.abs((x.cmc || 0) - slot.cmc) <= 1);
+    cands.sort((a, b) => (a.connected || 0) - (b.connected || 0)
+                      || (b.redundancy || 0) - (a.redundancy || 0));
+    return {
+      mode: 'cut', adding: cardRow(incoming), slot, considered: cands.length,
+      candidates: cands.slice(0, 12).map(x => ({
+        oracle_id: x.oracle_id, name: x.name, cmc: x.cmc, type_line: x.type_line,
+        connected: x.connected || 0, others_doing_its_job: x.redundancy || 0,
+        why: [
+          !x.connected ? 'nothing in the cube pairs with it above chance'
+            : x.connected < 20 ? 'only loosely connected to the rest of the cube' : null,
+          (x.redundancy || 0) >= 20
+            ? x.redundancy + ' other cards already do its job' : null,
+          (x.lane || 0) < -3 ? 'its colours are underperforming at your table' : null,
+        ].filter(Boolean),
+        delta: {},             // same colours, same type, within a mana value
+      })),
+    };
+  }
 
   const round1 = v => Math.round(v * 10) / 10;
   const round4 = v => Math.round(v * 10000) / 10000;
@@ -282,7 +359,13 @@
       return reply({error: 'This is a published snapshot of the cube — importing, '
                          + 'refreshing and deleting need the full tool running locally.'});
     }
-    if (ROUTES[path]) return reply(ROUTES[path](qs));
+    if (path === '/api/cube/propose' && (qs.get('add') || '').trim()) {
+      return reply(await proposeCut(qs.get('add').trim()));
+    }
+    if (ROUTES[path]) {
+      const r = ROUTES[path](qs);
+      if (r !== null) return reply(r);
+    }
     const live = await scryfall(path, qs);
     if (live) return reply(live);
     return reply({error: 'not available in the published page: ' + path});

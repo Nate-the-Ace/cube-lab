@@ -27,6 +27,7 @@
 <div class="tabs" role="tablist">
   <button class="tab" role="tab" data-tab="cube" aria-selected="true">Cube analysis</button>
   <button class="tab" role="tab" data-tab="p1p1" aria-selected="false">Pack 1 Pick 1</button>
+  <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
 <section id="tab-cube">
@@ -103,6 +104,26 @@
   <div class="panel">
     <div class="row"><strong>Keep a look out for</strong></div>
     <div id="p1Watch"><span class="dim">Take a card and this fills with what to watch for.</span></div>
+  </div>
+</section>
+
+<section id="tab-swap" class="hidden">
+  <div class="panel">
+    <div class="row">
+      <label>Card to add <input id="swapAdd" placeholder="a card not in the cube" style="min-width:230px"></label>
+      <button class="primary" id="swapAddGo">What should come out?</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label>Card to remove <input id="swapRemove" placeholder="a card in the cube" style="min-width:230px"></label>
+      <button class="primary" id="swapRemoveGo">What should go in?</button>
+    </div>
+    <p class="note">A 540-card cube has no spare slots, so every add is a cut. Both directions
+      hold the slot — same colours, same kind of card, within a mana value — so the proposal is a
+      swap rather than a redesign, and the composition change is reported either way.
+      <b>Nothing here measures raw card power.</b> A cut is ranked by how little the rest of the
+      cube is connected to it, not by how weak it is, so it will happily suggest cutting something
+      that is simply good on its own. Read it as “least missed”, and overrule it.</p>
+    <div id="swapOut"><span class="dim">Name a card in either box.</span></div>
   </div>
 </section>
 
