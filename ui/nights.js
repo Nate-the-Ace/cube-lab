@@ -28,14 +28,14 @@ function renderStandings() {
   const best = Math.max(1, ...rows.map(r => r.score_pct || 0));
   $('#standings').innerHTML = `<table><thead><tr>
       <th>Player</th><th class="num">Nights</th><th class="num">W</th><th class="num">L</th>
-      <th class="num">D</th><th class="num">Byes</th><th class="num">Games</th>
+      <th class="num">D</th><th class="num">Byes</th><th class="num">Matches</th>
       <th class="num">Win%</th><th class="num">Score%</th><th data-nosort></th>
     </tr></thead><tbody>${rows.map(r => `<tr>
       <td class="name">${esc(r.name)}</td>
       <td class="num">${r.nights}</td>
       <td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num">${r.d}</td>
       <td class="num">${r.byes || '<span class="dim">—</span>'}</td>
-      <td class="num">${r.games}</td>
+      <td class="num">${r.matches}</td>
       <td class="num">${pctCell(r.win_pct)}</td>
       <td class="num">${pctCell(r.score_pct)}</td>
       <td><span class="bar" style="width:${Math.round(90 * (r.score_pct || 0) / best)}px"></span></td>
@@ -49,9 +49,9 @@ function renderStandings() {
 
 function renderPlayers() {
   $('#players').innerHTML = DOC.players.length
-    ? `<table><thead><tr><th>Player</th><th class="num">Games</th><th data-nosort></th></tr></thead>
+    ? `<table><thead><tr><th>Player</th><th class="num">Matches</th><th data-nosort></th></tr></thead>
        <tbody>${DOC.players.map(p => `<tr>
-         <td class="name">${esc(p.name)}</td><td class="num">${p.games}</td>
+         <td class="name">${esc(p.name)}</td><td class="num">${p.matches}</td>
          <td><button data-rename="${esc(p.id)}">Rename</button>
              <button data-merge="${esc(p.id)}">Merge into…</button>
              <button data-drop="${esc(p.id)}">Remove</button></td></tr>`).join('')}</tbody></table>`

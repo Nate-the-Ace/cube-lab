@@ -6,9 +6,14 @@ data/, which is gitignored, so the names of real people never reach the repo -
 the same reason the scraped Discord records were deleted. Nothing here is
 exported to Cube Lab.
 
+The unit is the MATCH, not the game. A night runs three rounds and each round is
+a best-of-three, so "2-1" means two matches won and one lost - not games. A line
+posted in games ("0-6" for three matches each lost 0-2) has to be converted
+before it goes in, or that player carries twice everyone else's rounds.
+
 A bye is recorded but never counted. Nathan caught this reading an earlier
 analysis: byes were inflating everything they touched, because a bye is not a
-game anyone played. Rates here divide by games actually played.
+match anyone played. Rates here divide by matches actually played.
 """
 import json, os, re, time
 
@@ -141,7 +146,7 @@ def remove_night(doc, nid):
 
 def standings(doc):
     """Per-player totals. Byes are reported and then kept out of every rate:
-    a bye is not a game, so counting it would quietly reward not playing."""
+    a bye is not a match, so counting it would quietly reward not playing."""
     rows = []
     for p in doc["players"]:
         t = {"w": 0, "l": 0, "d": 0, "b": 0, "nights": 0}
@@ -157,22 +162,22 @@ def standings(doc):
         rows.append({
             "id": p["id"], "name": p["name"], "nights": t["nights"],
             "w": t["w"], "l": t["l"], "d": t["d"], "byes": t["b"],
-            "games": played,
+            "matches": played,
             # a draw is half a win, the usual Swiss convention
             "points": t["w"] + 0.5 * t["d"],
             "win_pct": round(100.0 * t["w"] / played, 1) if played else None,
             "score_pct": round(100.0 * (t["w"] + 0.5 * t["d"]) / played, 1) if played else None,
         })
     rows.sort(key=lambda r: (-(r["score_pct"] if r["score_pct"] is not None else -1),
-                             -r["games"], r["name"].lower()))
+                             -r["matches"], r["name"].lower()))
     return rows
 
 
 def summary(doc):
     st = standings(doc)
-    games = sum(r["games"] for r in st)
+    played = sum(r["matches"] for r in st)
     return {"players": st, "nights": doc["nights"],
             "totals": {"players": len(st), "nights": len(doc["nights"]),
-                       # each game has two sides in the totals above
-                       "results_recorded": games,
+                       # each match has two sides in the totals above
+                       "results_recorded": played,
                        "byes": sum(r["byes"] for r in st)}}

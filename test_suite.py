@@ -903,7 +903,7 @@ def test_game_nights():
                       "results": {"ada": {"w": 2, "l": 1}, "bo": {"w": 1, "l": 2, "b": 1}}})
     st = {r["name"]: r for r in N.standings(doc)}
     check("byes are recorded", st["Bo"]["byes"] == 1)
-    check("byes are not games", st["Bo"]["games"] == 3, str(st["Bo"]["games"]))
+    check("byes are not matches", st["Bo"]["matches"] == 3, str(st["Bo"]["matches"]))
     check("byes don't move the rate", st["Bo"]["win_pct"] == 33.3, str(st["Bo"]["win_pct"]))
 
     # a draw is half a win in the score and no win at all in the win rate
