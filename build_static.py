@@ -37,9 +37,8 @@ def solo_p1p1(page):
     page = page.replace("<title>Cube Lab</title>", "<title>Cube Draft</title>", 1)
     page = page.replace("<h1>Cube <span>Lab</span></h1>",
                         "<h1>Cube <span>Draft</span></h1>", 1)
-    page = page.replace('<button id="themeBtn"',
-                        '<a href="./" class="badge">Cube analysis</a>\n  '
-                        '<button id="themeBtn"', 1)
+    # This page stands alone: it goes to people who were handed the draft table,
+    # not the tool it was cut from, so it links nowhere else.
     page = page.replace('<section id="tab-p1p1" class="hidden">',
                         '<section id="tab-p1p1">', 1)
     # The meta line counts every card Scryfall knows about, which on a page

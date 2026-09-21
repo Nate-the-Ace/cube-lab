@@ -1092,8 +1092,8 @@ def test_game_nights():
         # about one cube reads as the cube's size and is wrong by 100x
         check("the draft page carries no whole-database card count",
               'id="meta"' not in d and "$('#meta').textContent" not in d.split("</script>")[-2])
-        check("the draft page links back to the full page",
-              '<a href="./" class="badge">Cube analysis</a>' in d)
+        check("the draft page links nowhere else",
+              '<a href="./" class="badge">' not in d and 'href="/nights"' not in d)
         who = [p["name"] for p in N.load()["players"]]
         check("no player name reaches the draft page",
               not [w for w in who if w in d])
