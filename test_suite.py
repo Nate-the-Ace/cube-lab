@@ -1114,6 +1114,30 @@ def test_game_nights():
                   '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
 
 
+def test_deck_build():
+    print("building the forty")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    check("a deck is 23 spells and 17 lands",
+          "const DECK_LANDS = 17;" in js and "DECK_SPELLS = 23" in js)
+    # a pile of the 23 best cards in two colours curves out at four and has
+    # nothing to do on turn two, so the curve fills before the ranking does
+    check("spells are filled against a curve, not by score alone",
+          "CURVE_WANT = {1: 2, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2}" in js
+          and "if (want[r] > 0) { want[r]--; deck.push(c); }" in js)
+    check("what did not make it says why",
+          "the ${r}${r === 6 ? '+' : ''}-drops were full" in js)
+    check("basics are split by the pips the deck actually casts",
+          "if (pair.includes(ch)) pips[ch] = (pips[ch] || 0) + 1;" in js)
+    # rounding three ways does not have to add up, and the deck plays 17 either way
+    check("rounding lands on the right number of lands",
+          "drift = basicsNeeded - Object.values(basics).reduce" in js)
+    check("the build is judged, not just printed",
+          "'no removal at all'" in js and "slow: fewer than five cards cost one or two" in js)
+    check("the list can be copied out",
+          "p1DeckCopy" in js and "BASIC = {W: 'Plains'" in js)
+
+
 def test_signal_drill():
     print("signal drill")
     here = os.path.dirname(os.path.abspath(__file__))
@@ -1549,6 +1573,7 @@ def main():
     test_pack_art()
     test_hand_sort()
     test_shared_drafts()
+    test_deck_build()
     test_signal_drill()
     test_color_names()
     test_draft_math()

@@ -2270,6 +2270,138 @@ function p1PoolView() {
   });
 }
 
+/* ── building the forty ──
+
+   Rating a pair tells you it could be a deck. This makes the deck: 23 spells,
+   17 lands, chosen the way you would choose them at the table rather than by
+   score alone, because a pile of the 23 best cards in two colours is usually a
+   bad deck - it curves out at four and has nothing to do on turn two.
+
+   So the spells are filled against a curve first and a ranking second. The
+   shape is the ordinary limited one - a couple of one-drops, a fat middle,
+   almost nothing above five - and a slot only goes to a worse card if the
+   better one would overfill its rung. Whatever is left over is named as the
+   cut, with why. */
+const DECK_LANDS = 17;
+const CURVE_WANT = {1: 2, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2};   // 22, plus one spare
+
+function p1Build(pair) {
+  const fits = P1_TAKEN.filter(c =>
+    [...(c.color_identity || '')].every(x => pair.includes(x)));
+  const lands = fits.filter(c => c.is_land);
+  const spells = fits.filter(c => !c.is_land)
+    .sort((a, b) => p1Total(b) - p1Total(a));
+
+  const rung = c => Math.min(6, Math.max(1, Math.round(c.cmc || 0)));
+  const want = Object.assign({}, CURVE_WANT);
+  const deck = [], bench = [];
+
+  // best card on each rung first, so nothing cheap is crowded out by a bomb
+  spells.forEach(c => {
+    if (deck.length >= DECK_SPELLS) { bench.push({card: c, why: 'no room'}); return; }
+    const r = rung(c);
+    if (want[r] > 0) { want[r]--; deck.push(c); }
+    else bench.push({card: c, why: `the ${r}${r === 6 ? '+' : ''}-drops were full`});
+  });
+  // then fill whatever the curve left empty with the best still on the bench
+  for (let i = 0; i < bench.length && deck.length < DECK_SPELLS; i++) {
+    deck.push(bench[i].card);
+    bench[i].taken = true;
+  }
+  const cuts = bench.filter(b => !b.taken);
+
+  // lands: the ones you drafted, then basics in the proportion the deck asks for
+  const pips = {};
+  deck.forEach(c => [...(c.mana_cost || '')].forEach(ch => {
+    if (pair.includes(ch)) pips[ch] = (pips[ch] || 0) + 1;
+  }));
+  const basicsNeeded = Math.max(0, DECK_LANDS - lands.length);
+  const total = Object.values(pips).reduce((a, b) => a + b, 0) || 1;
+  const basics = {};
+  [...pair].forEach(x => { basics[x] = Math.round(basicsNeeded * (pips[x] || 0) / total); });
+  // rounding has to land exactly on the number of lands the deck plays
+  let drift = basicsNeeded - Object.values(basics).reduce((a, b) => a + b, 0);
+  const order = [...pair].sort((a, b) => (pips[b] || 0) - (pips[a] || 0));
+  for (let i = 0; drift !== 0 && order.length; i++) {
+    const x = order[i % order.length];
+    basics[x] += drift > 0 ? 1 : -1;
+    if (basics[x] < 0) basics[x] = 0;
+    drift = basicsNeeded - Object.values(basics).reduce((a, b) => a + b, 0);
+    if (i > 40) break;
+  }
+
+  const curve = {};
+  deck.forEach(c => { const r = rung(c); curve[r] = (curve[r] || 0) + 1; });
+  const roles = {};
+  deck.forEach(c => { const k = c.role || 'Other'; roles[k] = (roles[k] || 0) + 1; });
+
+  return {pair, deck, cuts, lands, basics, curve, roles,
+          short: Math.max(0, DECK_SPELLS - deck.length),
+          avg: deck.length ? deck.reduce((t, c) => t + p1Total(c), 0) / deck.length : 0};
+}
+
+function p1BuildView(pair) {
+  const box = $('#p1Deck40');
+  if (!box) return;
+  const b = p1Build(pair);
+  const bad = [];
+  if (b.short) bad.push(`${b.short} short of ${DECK_SPELLS} playables`);
+  if ((b.curve[1] || 0) + (b.curve[2] || 0) < 5)
+    bad.push('slow: fewer than five cards cost one or two');
+  if (!b.roles.Removal) bad.push('no removal at all');
+  else if (b.roles.Removal < 3) bad.push(`only ${b.roles.Removal} removal`);
+  if ((b.roles.Creature || 0) < 10) bad.push(`${b.roles.Creature || 0} creatures, which is thin`);
+
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="row"><strong>${esc(ciName(pair))}, built</strong>
+      <span class="mini dim">${b.deck.length} spells \u00b7 ${b.lands.length} drafted land${
+        b.lands.length === 1 ? '' : 's'} \u00b7 ${Object.entries(b.basics)
+        .filter(([, n]) => n > 0).map(([x, n]) => n + ' ' + BASIC[x]).join(', ') || 'no basics'}</span>
+      <span class="spacer"></span>
+      <button id="p1DeckCopy" class="mini">copy the list</button>
+    </div>
+
+    <div class="row" style="gap:16px;margin:2px 0 8px">
+      <span class="mini dim">CURVE ${[1, 2, 3, 4, 5, 6].map(mv =>
+        `<b style="color:var(--accent)">${b.curve[mv] || 0}</b>`).join(' \u00b7 ')}</span>
+      <span class="mini dim">${Object.entries(b.roles).sort((x, y) => y[1] - x[1])
+        .map(([k, n]) => `${n} ${esc(k.toLowerCase())}`).join(' \u00b7 ')}</span>
+    </div>
+    ${bad.length ? `<p class="note bad">${bad.map(esc).join(' \u00b7 ')}</p>`
+      : '<p class="note good">Curve, removal and creature count all where they should be.</p>'}
+
+    <div class="stacks"><div class="stack"><div class="pile">${
+      b.deck.concat(b.lands).map(c => cardFace(c)).join('')}</div></div></div>
+
+    ${b.cuts.length ? `<div class="row" style="margin-top:10px"><strong>Cut</strong>
+        <span class="mini dim">${b.cuts.length} card${b.cuts.length === 1 ? '' : 's'} that did not make it</span></div>
+      <div class="cutlist">${b.cuts.slice(0, 12).map(c =>
+        `<span class="cut" data-oracle="${esc(c.card.oracle_id)}">${esc(c.card.name)}
+          <em>${esc(c.why)}</em></span>`).join('')}</div>` : ''}`;
+
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.oracle);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
+  box.querySelectorAll('.cut').forEach(el => {
+    el.onclick = () => p1Zoom(p1Card(el.dataset.oracle));
+    cardHost(el, {oracle_id: el.dataset.oracle});
+  });
+  $('#p1DeckCopy').onclick = async () => {
+    const list = b.deck.concat(b.lands).map(c => '1 ' + c.name)
+      .concat(Object.entries(b.basics).filter(([, n]) => n > 0)
+        .map(([x, n]) => n + ' ' + BASIC[x])).join('\n');
+    try { await navigator.clipboard.writeText(list); $('#p1DeckCopy').textContent = 'copied'; }
+    catch (e) { $('#p1DeckCopy').textContent = 'could not copy'; }
+    setTimeout(() => { if ($('#p1DeckCopy')) $('#p1DeckCopy').textContent = 'copy the list'; }, 1400);
+  };
+  box.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+const BASIC = {W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest'};
+
 /* What the pool is actually close to being, in words before numbers. */
 function p1Guidance(decks) {
   const real = decks.filter(d => !d.short);
@@ -2316,6 +2448,8 @@ function p1DraftOver() {
     <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>
     <div id="p1Pool"></div>
 
+    <div id="p1Deck40" class="panel inner" hidden></div>
+
     <h3 class="sec">What you could build</h3>
     <p class="note">${p1Guidance(decks)}</p>
     <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is
@@ -2340,8 +2474,8 @@ function p1DraftOver() {
   p1PoolView();
   sortable('#p1Out');
 
-  // clicking a deck asks the pool to show exactly what that deck could play:
-  // its two colours plus colourless, which any deck can cast
+  // clicking a deck filters the pool to what it could play - its two colours
+  // plus colourless, which anything can cast - and builds the 40 outright
   $('#p1Out').querySelectorAll('.deckrow').forEach(row => {
     const show = () => {
       P1_FILTER.colours = new Set([...row.dataset.pair, 'C']);
@@ -2350,7 +2484,7 @@ function p1DraftOver() {
       p1PoolView();
       $('#p1Out').querySelectorAll('.deckrow').forEach(r => r.classList.remove('picked'));
       row.classList.add('picked');
-      $('#p1Pool').scrollIntoView({behavior: 'smooth', block: 'start'});
+      p1BuildView(row.dataset.pair);
     };
     row.onclick = show;
     row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } };
