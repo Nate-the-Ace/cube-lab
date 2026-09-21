@@ -6,7 +6,7 @@ comment on each says which one, because the tests look arbitrary otherwise.
 """
 import sys
 
-import os, subprocess
+import json, os, subprocess
 
 import combo_finder
 import cube
@@ -979,8 +979,22 @@ def test_game_nights():
                              cwd=here, capture_output=True)
     check("neither the results nor the seed are tracked by git",
           tracked.returncode != 0, tracked.stdout.decode()[:80])
-    check("the published page carries no tracker",
-          "nights" not in open(os.path.join(here, "static", "template.html")).read().lower())
+    tpl = open(os.path.join(here, "static", "template.html")).read()
+    check("the published page has no tracker UI",
+          not any(x in tpl for x in ("/api/nights", "add-player", "set-night",
+                                     "remove-player", "merge-players")))
+    blob = os.path.join(here, "docs", "cube_data.json")
+    if os.path.exists(blob):
+        body = open(blob, encoding="utf-8").read()
+        doc = json.loads(body)
+        who = [p["name"] for p in N.load()["players"]]
+        leaked = [w for w in who if w in body]
+        check("no player name reaches the published blob", not leaked, str(leaked))
+        check("no per-player figures reach the published blob",
+              "players" not in doc and "standings" not in doc)
+        check("published lane records are keyed by colour only",
+              all(set(l.get("local", {})) <= {"w", "l", "d", "matches", "decks", "score_pct"}
+                  for l in doc.get("opportunity", [])))
 
 
 def test_color_names():
