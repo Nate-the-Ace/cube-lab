@@ -281,3 +281,32 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
 .tableau .dcard:hover{transform:translateY(-6px)}
+
+/* ── the hand, fanned ──
+   Cards overlap the way they do in a real hand. Hovering lifts one clear of its
+   neighbours; the stack below it stays put, so the fan never reflows under the
+   pointer and the card you meant to click is still the card under the cursor. */
+.hand.fan{display:flex;flex-wrap:wrap;justify-content:center;gap:0;
+  padding:34px 70px 18px;row-gap:26px}
+.hand.fan .dcard{margin-left:-46px;transform-origin:50% 100%;
+  box-shadow:-6px 4px 14px rgba(0,0,0,.45)}
+.hand.fan .dcard:first-child{margin-left:0}
+.hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
+  transform:translateY(-26px) scale(1.08);z-index:5;
+  box-shadow:0 20px 40px rgba(0,0,0,.6)}
+.hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
+
+/* click-to-zoom, dismissed by clicking anywhere off the card */
+.zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
+  justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);
+  padding:24px;animation:veilIn .14s ease}
+@keyframes veilIn{from{opacity:0}to{opacity:1}}
+.zoomveil figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px}
+.zoomveil img{max-height:78vh;max-width:min(92vw,460px);border-radius:14px;
+  box-shadow:0 30px 70px rgba(0,0,0,.7)}
+.zoomveil .zname{font-size:15px;font-weight:600;color:#fff;text-align:center}
+.zoomveil .zhint{font-size:12px;color:rgba(255,255,255,.7)}
+.zoomveil .ztake{font:inherit;font-size:13px;padding:7px 16px;border-radius:8px;
+  border:1px solid var(--accent);background:var(--accent);color:#1a1205;
+  font-weight:600;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.zoomveil{animation:none}}

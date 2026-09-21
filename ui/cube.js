@@ -447,14 +447,28 @@ function p1DrawHand() {
     hand.innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
     return;
   }
+  hand.className = 'hand fan';
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
   const dir = passDir();
   $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
   $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
   hand.querySelectorAll('[data-pick]').forEach(el => {
-    const take = () => p1Take(el.dataset.pick, el);
-    el.onclick = take;
-    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); take(); } };
+    const card = p1Card(el.dataset.pick);
+    let clickTimer = null;
+    el.onclick = () => {
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => p1Zoom(card), 220);
+    };
+    el.ondblclick = e => {
+      e.preventDefault();
+      clearTimeout(clickTimer);          // the zoom never opens behind the pick
+      hideCard();
+      p1Take(el.dataset.pick, el);
+    };
+    el.onkeydown = e => {
+      if (e.key === 'Enter') { e.preventDefault(); p1Take(el.dataset.pick, el); }
+      else if (e.key === ' ') { e.preventDefault(); p1Zoom(card); }
+    };
   });
 }
 
@@ -466,6 +480,7 @@ function p1Take(oid, el) {
   const card = p1Card(oid);
   if (!card) return;
   P1_ANIMATING = true;
+  p1Unzoom();
   P1_PICK = oid;
   if (!P1_TAKEN.some(c => c.oracle_id === oid)) P1_TAKEN.push(card);
 
@@ -502,6 +517,44 @@ function p1TitleFace() {
     : 'Pack 1, pick 1';
 }
 
+/* A card big enough to actually read, over everything else. Clicking anywhere
+   off the card closes it, as does Escape; taking the card from here is the same
+   pick as double-clicking it in the hand. */
+let P1_ZOOM = null;
+function p1Zoom(card) {
+  if (!card) return;
+  p1Unzoom();
+  hideCard();                            // the small hover preview gets out of the way
+  const veil = document.createElement('div');
+  veil.className = 'zoomveil';
+  veil.innerHTML = `<figure>
+      ${card.image
+        ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
+        : `<div class="zname">${esc(card.name)}</div>`}
+      <div class="zname">${esc(card.name)}</div>
+      ${P1_PACK.some(c => c.oracle_id === card.oracle_id)
+        ? `<button class="ztake">Take this card</button>
+           <div class="zhint">or double-click it in the hand \u00b7 Esc to close</div>`
+        : '<div class="zhint">Esc or click away to close</div>'}
+    </figure>`;
+  veil.addEventListener('click', e => {
+    // only a click on the card itself is not a dismissal
+    if (e.target.closest('.ztake')) {
+      const el = $('#p1Hand').querySelector(`[data-pick="${CSS.escape(card.oracle_id)}"]`);
+      p1Unzoom();
+      if (el) p1Take(card.oracle_id, el);
+      return;
+    }
+    if (!e.target.closest('img')) p1Unzoom();
+  });
+  document.body.appendChild(veil);
+  P1_ZOOM = veil;
+}
+function p1Unzoom() {
+  if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); });
+
 function p1DeckFace() {
   const d = $('#p1Deck');
   d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
@@ -521,7 +574,11 @@ function p1Tableau(toggle) {
   }
   box.innerHTML = `<h3 class="sec">Your picks so far</h3>
     <div class="tableau">${P1_TAKEN.map(c => cardFace(c)).join('')}</div>`;
-  box.querySelectorAll('[data-pick]').forEach(el => el.removeAttribute('data-pick'));
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.pick);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
 }
 
 function p1Deal() {
