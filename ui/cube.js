@@ -506,14 +506,14 @@ function p1Take(oid, el) {
   const settle = () => {
     P1_ANIMATING = false;
     $('#p1Hand').classList.remove('busy');
-    // the card leaves the pack it came from before the packs move on
+    p1Render();                  // ranks the pick against the pack it came from
+    // only then does the card leave the pack, before the packs move on
     const held = P1_PACKS[0] || [];
     const at = held.findIndex(c => c.oracle_id === oid);
     if (at >= 0) held.splice(at, 1);
     p1DeckFace();
     p1Tableau();                 // keep an open tableau in step with the deck
     p1Watchlist();
-    p1Render();
     p1NextPack();
   };
   $('#p1Hand').classList.add('busy');
@@ -808,40 +808,58 @@ function p1Boosters() {
   });
 }
 
-/* Cards come out of the pack you opened: each one starts folded into the top of
-   that wrapper and travels to its place in the fan, a beat apart so the hand
-   spreads rather than appearing. Purely presentational - the hand is already
-   laid out before this runs, and it restores itself if anything goes wrong. */
+/* Cards are pulled out of the pack you opened.
+
+   Three phases per card, which is what makes it read as pulling rather than
+   appearing: it starts tucked INSIDE the wrapper (below the seam, hidden), rises
+   up out of the top still small and edge-on, and only then travels to its place
+   in the fan. They come one at a time, so the hand is drawn out card by card.
+
+   The last keyframe is the card's own resting transform, read from the computed
+   style, so the animation lands exactly where the fan put it rather than
+   fighting the tilt and lift the layout assigned. */
 function p1DealFrom(packNo) {
   const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
   const cards = [...$('#p1Hand').querySelectorAll('.dcard')];
   if (!src || !cards.length) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!cards[0].animate) return;                 // no Web Animations: leave it be
 
   const from = src.getBoundingClientRect();
-  const ox = from.left + from.width / 2;
-  const oy = from.top + 4;                        // the torn seam, not the middle
+  const mouth = from.top + 6;                    // the torn seam
+  const cx = from.left + from.width / 2;
+
   cards.forEach((el, i) => {
     const r = el.getBoundingClientRect();
-    const dx = ox - (r.left + r.width / 2);
-    const dy = oy - (r.top + r.height / 2);
-    el.style.transition = 'none';
-    el.style.transform = `translate(${dx}px, ${dy}px) scale(.28) rotate(0deg)`;
-    el.style.opacity = '0';
-    el.style.zIndex = String(40 - i);             // the first one out stays on top
-  });
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    cards.forEach((el, i) => {
-      el.style.transition = `transform .42s cubic-bezier(.2,.8,.3,1) ${i * 40}ms,`
-                          + ` opacity .2s ease ${i * 40}ms`;
-      el.style.transform = '';
-      el.style.opacity = '';
+    const dx = cx - (r.left + r.width / 2);
+    const dy = mouth - (r.top + r.height / 2);
+    const rest = getComputedStyle(el).transform;
+    const at = (x, y, extra) => `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) ${extra}`;
+
+    el.animate([
+      // inside the wrapper, below the seam
+      {transform: at(dx, dy + from.height * 0.42, 'scale(.22) rotate(0deg)'),
+       opacity: 0, offset: 0},
+      // clearing the seam, still edge-on
+      {transform: at(dx, dy - 10, 'scale(.30) rotate(0deg)'),
+       opacity: 1, offset: 0.30},
+      // drawn clear of the pack before it flies
+      {transform: at(dx, dy - from.height * 0.55, 'scale(.42) rotate(0deg)'),
+       opacity: 1, offset: 0.46},
+      {transform: rest === 'none' ? 'none' : rest, opacity: 1, offset: 1},
+    ], {
+      duration: 620,
+      delay: i * 55,
+      easing: 'cubic-bezier(.25,.8,.3,1)',
+      fill: 'backwards',                          // stays tucked away until its turn
     });
-    setTimeout(() => cards.forEach((el, i) => {
-      el.style.transition = '';
-      el.style.zIndex = String(i + 1);            // hand back to the fan's own order
-    }), 420 + cards.length * 40 + 60);
-  }));
+  });
+
+  // the wrapper gives as each card is drawn out of it
+  src.animate([
+    {transform: 'none'}, {transform: 'translateY(-3px) rotate(-1.5deg)'},
+    {transform: 'none'},
+  ], {duration: 260 + cards.length * 55, easing: 'ease-in-out'});
 }
 
 function p1ShowPack(dealtFrom) {
@@ -1021,7 +1039,8 @@ function p1Render() {
 
   const head = P1_PICK
     ? (() => {
-        const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);
+        const mine = P1_PACK.find(c => c.oracle_id === P1_PICK) || p1Card(P1_PICK);
+        if (!mine) return '';
         const r = rankOf(mine);
         const agree = r === 1;
         return `<div class="note">You took <b>${esc(mine.name)}</b> —
@@ -1235,6 +1254,7 @@ $('#p1Restart').onclick = () => {
   $('#p1Tableau').innerHTML = '';
   $('#p1Tableau').dataset.open = '0';
   p1DrawHand();
+  p1Boosters();
   p1DeckFace();
   p1Watchlist();
 };
