@@ -906,13 +906,20 @@ function attachTypeahead(sel, kind, onPick, opts) {
       menu.classList.remove('hidden');
       return;
     }
-    menu.innerHTML = items.map((it, i) => `
-      <div class="ta-item" role="option" data-i="${i}" aria-selected="${i === active}">
+    const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    menu.innerHTML = items.map((it, i) => {
+      const host = kind === 'commander' || kind === 'card' || kind === 'cube'
+        ? (UUID.test(String(it.value || '')) ? ` data-oracle="${esc(it.value)}"`
+                                             : ` data-card="${esc(it.label)}"`)
+        : '';
+      return `
+      <div class="ta-item" role="option" data-i="${i}" aria-selected="${i === active}"${host}>
         ${it.icon ? `<img class="ta-icon" src="${esc(it.icon)}" alt="">` : ''}
         <b>${esc(it.label)}</b>
         <span class="h">${esc(it.hint || '')}</span>
         ${it.price_usd != null ? `<span class="p">${money(it.price_usd)}</span>` : ''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
     menu.classList.remove('hidden');
     [...menu.querySelectorAll('.ta-item')].forEach(el => {
       el.onmousedown = e => { e.preventDefault(); choose(+el.dataset.i); };
