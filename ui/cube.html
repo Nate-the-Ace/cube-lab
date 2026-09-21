@@ -156,8 +156,11 @@ async function boot() {
     $('#meta').textContent = '';
   }
   const cubes = await loadCubes();
-  p1Data().catch(() => {});      // card previews explain picks on every tab
-  p1Boosters();                  // the three packs are the draft's only control
+  p1Data().then(() => {          // card previews explain picks on every tab
+    p1CutCube();                 // the whole cube goes on the table as packs
+    p1Boosters();
+    p1DrawHand();
+  }).catch(() => {});
   p1DrawHand();
   if (cubes.length) runCube();
   else $('#cubeOut').innerHTML =
