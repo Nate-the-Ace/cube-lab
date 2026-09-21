@@ -787,8 +787,10 @@ function p1Boosters() {
   if (!box) return;
   const open = P1_PACK.length > 0;
   box.innerHTML = [1, 2, 3].map(n => {
-    const state = P1_OPENED.has(n) ? (n === P1_PACKNO && open ? 'open' : 'done') : 'ready';
-    const label = {done: 'drafted', open: 'in hand', ready: 'click to open'}[state];
+    const state = P1_OPENED.has(n) ? (n === P1_PACKNO && open ? 'open' : 'done')
+      : open ? 'waiting' : 'ready';
+    const label = {done: 'drafted', open: 'in hand', waiting: 'sealed',
+                   ready: 'click to open'}[state];
     return `<div class="booster ${state}" data-pack="${n}"
       ${state === 'ready' ? 'role="button" tabindex="0"' : 'aria-hidden="true"'}
       title="Pack ${n} \u2014 ${label}" aria-label="Pack ${n}, ${label}"></div>`;
@@ -818,7 +820,31 @@ function p1Boosters() {
    The last keyframe is the card's own resting transform, read from the computed
    style, so the animation lands exactly where the fan put it rather than
    fighting the tilt and lift the layout assigned. */
-function p1DealFrom(packNo) {
+/* The wrapper's face peels back before anything comes out: a copy of the front
+   is laid over the pack, hinged at the top seam, and folded away from the
+   viewer. It is a throwaway overlay rather than the pack itself, so nothing in
+   the pack's own state depends on the animation finishing. */
+function p1PeelPack(packNo) {
+  const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
+  if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+  const r = src.getBoundingClientRect();
+  const peel = document.createElement('div');
+  peel.className = 'peel';
+  Object.assign(peel.style, {
+    left: r.left + 'px', top: r.top + 'px',
+    width: r.width + 'px', height: r.height + 'px',
+  });
+  document.body.appendChild(peel);
+  const anim = peel.animate([
+    {transform: 'rotateX(0deg)', opacity: 1},
+    {transform: 'rotateX(-58deg) translateY(-4px)', opacity: 1, offset: 0.45},
+    {transform: 'rotateX(-128deg) translateY(-12px)', opacity: 0},
+  ], {duration: 460, easing: 'cubic-bezier(.35,.05,.3,1)', fill: 'forwards'});
+  anim.finished.then(() => peel.remove()).catch(() => peel.remove());
+  return 260;                                  // how long to hold the cards back
+}
+
+function p1DealFrom(packNo, after) {
   const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
   const cards = [...$('#p1Hand').querySelectorAll('.dcard')];
   if (!src || !cards.length) return;
@@ -849,7 +875,7 @@ function p1DealFrom(packNo) {
       {transform: rest === 'none' ? 'none' : rest, opacity: 1, offset: 1},
     ], {
       duration: 620,
-      delay: i * 55,
+      delay: (after || 0) + i * 55,
       easing: 'cubic-bezier(.25,.8,.3,1)',
       fill: 'backwards',                          // stays tucked away until its turn
     });
@@ -859,7 +885,7 @@ function p1DealFrom(packNo) {
   src.animate([
     {transform: 'none'}, {transform: 'translateY(-3px) rotate(-1.5deg)'},
     {transform: 'none'},
-  ], {duration: 260 + cards.length * 55, easing: 'ease-in-out'});
+  ], {duration: 260 + cards.length * 55, delay: after || 0, easing: 'ease-in-out'});
 }
 
 function p1ShowPack(dealtFrom) {
@@ -868,7 +894,7 @@ function p1ShowPack(dealtFrom) {
   $('#p1Out').innerHTML = '';
   p1DrawHand();
   p1Boosters();
-  if (dealtFrom) p1DealFrom(dealtFrom);
+  if (dealtFrom) p1DealFrom(dealtFrom, p1PeelPack(dealtFrom));
   p1Render();
   p1DeckFace();
   p1Watchlist();

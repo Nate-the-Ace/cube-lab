@@ -388,6 +388,10 @@ button.big{font-size:15px;padding:10px 26px}
                     69% 88%,78% 28%,87% 95%,95% 35%,100% 100%);
   background-color:rgba(207,169,78,.35)}
 
+/* sealed, and not reachable while a pack is in your hand */
+.booster.waiting{opacity:.24;filter:saturate(.4) brightness(.8);transform:scale(.96)}
+.booster.waiting::after{opacity:.5}
+
 .booster.done{opacity:.22;transform:scale(.94)}
 .booster.done::after{background:rgba(255,255,255,.12);box-shadow:none}
 
@@ -412,3 +416,15 @@ details.numbers>summary::before{content:"\25B8";color:var(--accent);margin-right
   display:inline-block;transition:transform .12s}
 details.numbers[open]>summary::before{transform:rotate(90deg)}
 details.numbers>summary:hover{color:var(--accent)}
+
+/* the wrapper's face, peeled back when a pack is opened */
+.peel{position:fixed;z-index:120;pointer-events:none;border-radius:4px;
+  transform-origin:50% 0%;transform-style:preserve-3d;backface-visibility:hidden;
+  background:
+    linear-gradient(115deg,transparent 34%,rgba(255,255,255,.16) 44%,rgba(255,255,255,.04) 52%,transparent 60%),
+    linear-gradient(160deg,#3a2f1d 0%,#241c12 46%,#151009 100%);
+  border:1px solid #0d0a06;
+  box-shadow:inset 0 0 0 1px rgba(207,169,78,.18),0 8px 18px rgba(0,0,0,.55)}
+.peel::after{content:"";position:absolute;left:50%;top:52%;width:20px;height:20px;
+  transform:translate(-50%,-50%) rotate(45deg);
+  background:linear-gradient(135deg,rgba(207,169,78,.65),rgba(207,169,78,.15))}
