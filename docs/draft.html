@@ -568,7 +568,6 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <body>
 <header>
   <h1>Cube <span>Draft</span></h1>
-  <span class="meta" id="meta">loading…</span>
   <span class="spacer"></span>
   
   <a href="./" class="badge">Cube analysis</a>
@@ -3898,13 +3897,6 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
 // data, load the cube list, and analyse whichever cube is selected.
 async function boot() {
   explain();
-  try {
-    const s = await (await fetch('/api/stats')).json();
-    $('#meta').textContent =
-      `${Number(s.n_cards).toLocaleString()} cards · card data ${String(s.scryfall_updated_at).slice(0, 10)}`;
-  } catch (e) {
-    $('#meta').textContent = '';
-  }
   const cubes = await loadCubes();
   p1Data().then(() => {          // card previews explain picks on every tab
     p1CutCube();                 // the whole cube goes on the table as packs

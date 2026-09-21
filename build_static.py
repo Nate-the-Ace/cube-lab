@@ -42,6 +42,12 @@ def solo_p1p1(page):
                         '<button id="themeBtn"', 1)
     page = page.replace('<section id="tab-p1p1" class="hidden">',
                         '<section id="tab-p1p1">', 1)
+    # The meta line counts every card Scryfall knows about, which on a page
+    # about ONE cube reads as the cube's size and is off by two orders of
+    # magnitude. The span goes with it, so nothing tries to fill it.
+    page = page.replace('  <span class="meta" id="meta">loading\u2026</span>\n', "", 1)
+    page = re.sub(r"  try \{\n    const s = await \(await fetch\('/api/stats'\)\)\.json\(\);"
+                  r".*?\n  \}\n", "", page, count=1, flags=re.S)
     page = page.replace("<style>", """<style>
   /* draft table only: the analysis and swap tabs are loaded but not shown */
   .tabs, #tab-cube, #tab-swap { display: none !important; }

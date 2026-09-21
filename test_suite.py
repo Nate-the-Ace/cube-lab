@@ -1088,6 +1088,10 @@ def test_game_nights():
               all(x in d for x in ("p1CutCube", "p1MarkWanted", "p1CollectPacks")))
         check("the draft page skips the analysis it cannot show",
               "if (cubes.length) runCube();" not in d)
+        # the meta line counts every card Scryfall knows about, which on a page
+        # about one cube reads as the cube's size and is wrong by 100x
+        check("the draft page carries no whole-database card count",
+              'id="meta"' not in d and "$('#meta').textContent" not in d.split("</script>")[-2])
         check("the draft page links back to the full page",
               '<a href="./" class="badge">Cube analysis</a>' in d)
         who = [p["name"] for p in N.load()["players"]]
