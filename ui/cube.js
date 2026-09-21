@@ -391,6 +391,30 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
+$('#p1Share') && ($('#p1Share').onclick = async () => {
+  p1WriteUrl();
+  const url = location.href;
+  const btn = $('#p1Share');
+  const said = t => { btn.dataset.said = t; setTimeout(() => delete btn.dataset.said, 1400); };
+  try {
+    await navigator.clipboard.writeText(url);
+    said('copied');
+  } catch (e) {
+    // clipboard needs a secure context, and this page is often opened from a file
+    said('in the address bar');
+  }
+});
+
+$('#p1Seed') && ($('#p1Seed').onchange = e => {
+  const want = e.target.value.trim();
+  if (!want || want.toLowerCase() === P1_SEED) return;
+  $('#p1Restart').onclick();          // a different seed is a different cube cut
+  p1SetSeed(want, true);              // the restart made its own; this one wins,
+  p1CutCube();                        // and it locks the seats it was cut for
+  p1Boosters();
+  p1DrawHand();
+});
+
 $('#p1HandSort') && $('#p1HandSort').addEventListener('change', e => {
   P1_HAND_SORT = e.target.value;
   p1DrawHand();
@@ -425,6 +449,8 @@ let P1_PACKS = [], P1_PICKNO = 0;
 let P1_OPENED = new Set();
 // the cube cut into 36 packs, which three are yours, and which the table used
 let P1_ALL = [], P1_CHOSEN = [], P1_SPENT = new Set(), P1_ART = {};
+let P1_PICK_LOG = [];          // each pick's place in the cube list, so a
+                               // shared link resolves without replaying a draft
 // every card this draft has already dealt, so no card is opened twice
 let P1_USED = new Set();
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
@@ -616,6 +642,44 @@ function p1DropRun() {
   }
 }
 
+/* Someone sent you their draft. The seed already put their packs on your table;
+   this says what they took out of them, which is the part worth arguing about.
+   It sits beside your own draft rather than replacing it - the point is to
+   compare, and you cannot compare with only one pool on screen. */
+function p1SharedPicks() {
+  const box = $('#p1Shared');
+  if (!box) return;
+  const want = p1Link().picks;
+  const cards = want.map(i => (P1 && P1.cards || [])[i]).filter(Boolean);
+  if (!cards.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+
+  const lanes = {};
+  cards.forEach(c => [...(c.color_identity || 'C')].forEach(x => {
+    lanes[x] = (lanes[x] || 0) + 1;
+  }));
+  const main = Object.entries(lanes).sort((a, b) => b[1] - a[1]).slice(0, 2)
+    .map(x => x[0]).join('');
+
+  box.innerHTML = `<div class="row"><strong>From the link</strong>
+      <span class="mini dim">${cards.length} pick${cards.length === 1 ? '' : 's'}
+        from this seed${main ? ', mostly ' + esc(ciName(main)) : ''}</span>
+      <span class="spacer"></span>
+      <button id="p1ShareClear" class="mini">clear</button></div>
+    <div class="stacks"><div class="stack"><div class="pile">${
+      cards.map(c => cardFace(c)).join('')}</div></div></div>`;
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.pick);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
+  $('#p1ShareClear').onclick = () => {
+    p1Link().picks = [];
+    p1WriteUrl();
+    p1SharedPicks();
+  };
+}
+
 function p1WireRuns(hand) {
   hand.querySelectorAll('.handgroup').forEach(g => {
     const label = g.querySelector('.glabel');
@@ -700,7 +764,12 @@ function p1Take(oid, el) {
   P1_ANIMATING = true;
   p1Unzoom();
   P1_PICK = oid;
-  if (!P1_TAKEN.some(c => c.oracle_id === oid)) P1_TAKEN.push(card);
+  if (!P1_TAKEN.some(c => c.oracle_id === oid)) {
+    P1_TAKEN.push(card);
+    const at = (P1.cards || []).findIndex(c => c.oracle_id === oid);
+    if (at >= 0) P1_PICK_LOG.push(at);
+    p1WriteUrl();
+  }
 
   const deck = $('#p1Deck').getBoundingClientRect();
   const me = el.getBoundingClientRect();
@@ -1242,6 +1311,102 @@ function p1Tableau(toggle) {
    are empty. */
 const PACK_SIZE = 15;
 
+/* ── the seed ──
+
+   Everything random about a draft comes from one short seed that lives in the
+   URL: how the cube is cut, which spare packs the other seats open, which
+   painting is on each wrapper. Two people who open the same link are handed the
+   same 36 packs and can argue about the same pick afterwards, which is the only
+   way this is any use before a cube night.
+
+   mulberry32 because it is nine lines, has no state to carry between reloads,
+   and the quality that matters here is "the same every time", not entropy. */
+function p1Rng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function p1SeedNumber(text) {
+  let h = 2166136261 >>> 0;                    // FNV-1a, so the words are stable
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function p1NewSeed() {
+  // short, typeable, and case-insensitive: these get read out loud
+  return Math.floor(Math.random() * 36 ** 6).toString(36).padStart(6, '0');
+}
+
+let P1_SEED = '', P1_RAND = Math.random;
+/* A seed on its own does not describe a draft. The other seats take their packs
+   from the ones you did not choose, one draw each, so eight players and six
+   players consume the sequence differently and hand you different cards from
+   the same seed. A shared draft therefore carries its seat count, and once a
+   seed is someone else's - typed in, or arrived in a link - the seat control
+   locks: changing it would quietly make this a different draft under the same
+   name. Restart for a draft of your own and the seats are yours again. */
+let P1_SEED_FIXED = false;
+
+function p1SetSeed(text, fixed) {
+  P1_SEED = (text || p1NewSeed()).toLowerCase().slice(0, 24);
+  P1_SEED_FIXED = !!fixed;
+  P1_RAND = p1Rng(p1SeedNumber(P1_SEED));
+  p1WriteUrl();
+  const box = $('#p1Seed');
+  if (box && box.value !== P1_SEED) box.value = P1_SEED;
+  p1SeatsLock();
+}
+
+/* The link is the draft. Seed alone hands someone the same packs to draft; add
+   your picks and they see what you took from them. A pick is its place in the
+   cube list - three characters rather than a 36-character oracle id - and the
+   cube list is the same for everyone, so reading them back is a lookup rather
+   than a replay of somebody else's draft. */
+function p1WriteUrl() {
+  if (!P1_SEED) return;
+  const q = new URLSearchParams();
+  q.set('seed', P1_SEED);
+  if (P1_CHOSEN.length) q.set('packs', P1_CHOSEN.join('.'));
+  if (P1_PICK_LOG.length) q.set('picks', P1_PICK_LOG.join('.'));
+  q.set('seats', String(p1Wheel().players));
+  try {
+    history.replaceState(null, '', location.pathname + '#p1p1&' + q.toString());
+  } catch (e) { /* a file:// page cannot rewrite its own URL; the seed still works */ }
+}
+
+/* The link as it arrived, read once and kept.
+
+   Writing the URL is the first thing a draft does - the seed has to be in the
+   address bar before anything else happens - and that write reflects YOUR
+   empty draft, so it wiped the picks the link came with before anything had
+   looked at them. Read once, at the top, and keep the answer. */
+let P1_LINK = null;
+
+function p1Link() {
+  if (!P1_LINK) P1_LINK = p1ReadUrl();
+  return P1_LINK;
+}
+
+function p1ReadUrl() {
+  const raw = (location.hash || '').replace(/^#/, '');
+  const q = new URLSearchParams(raw.split('&').slice(1).join('&'));
+  return {
+    seed: q.get('seed') || '',
+    packs: (q.get('packs') || '').split('.').filter(x => x !== '').map(Number),
+    picks: (q.get('picks') || '').split('.').filter(x => x !== '').map(Number),
+    seats: parseInt(q.get('seats'), 10) || 0,
+  };
+}
+
 /* ── cutting the cube into packs ──
 
    540 cards is exactly 36 packs of 15, so the whole cube goes on the table at
@@ -1252,9 +1417,10 @@ const PACK_SIZE = 15;
    The seats you are drafting against take their packs from the ones you did not
    choose, so no card is opened twice and the cube is still a singleton pool. */
 function p1CutCube() {
+  if (!P1_SEED) p1SetSeed(p1Link().seed, !!p1Link().seed);
   const pool = (P1.cards || []).slice();
   for (let i = pool.length - 1; i > 0; i--) {          // Fisher-Yates
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(P1_RAND() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   P1_ALL = [];
@@ -1282,7 +1448,7 @@ function p1CutArt() {
   const pool = (P1 && P1.cards || []).filter(c => c.image);
   if (!pool.length) return;
   for (let i = pool.length - 1; i > 0; i--) {          // drawn without replacement,
-    const j = Math.floor(Math.random() * (i + 1));     // so no two wrappers match
+    const j = Math.floor(P1_RAND() * (i + 1));         // so no two wrappers match
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   let at = 0;
@@ -1316,7 +1482,7 @@ function p1StartRound(which) {
     .filter(x => !P1_CHOSEN.includes(x.i) && !P1_SPENT.has(x.i));
   P1_PACKS = [mine];
   for (let seat = 1; seat < seats && spare.length; seat++) {
-    const take = spare.splice(Math.floor(Math.random() * spare.length), 1)[0];
+    const take = spare.splice(Math.floor(P1_RAND() * spare.length), 1)[0];
     P1_SPENT.add(take.i);
     P1_PACKS.push(take.pack.slice());
   }
@@ -1338,13 +1504,15 @@ function p1StartRound(which) {
 function p1SeatsLock() {
   const sel = $('#p1Players');
   if (!sel) return;
-  const locked = P1_CHOSEN.length > 0;
+  const locked = P1_CHOSEN.length > 0 || P1_SEED_FIXED;
   sel.disabled = locked;
   const label = sel.closest('.seats');
   if (label) label.classList.toggle('locked', locked);
-  sel.title = locked
-    ? 'Seats are set for this draft — restart to change them'
-    : '';
+  sel.title = !locked ? ''
+    : P1_CHOSEN.length > 0
+      ? 'Seats are set for this draft — restart to change them'
+      : 'This seed was cut for ' + sel.value + ' players; changing that deals '
+        + 'different cards — restart for a draft of your own';
 }
 
 /* Hovering a wrapper shows the painting whole, with the set it came from.
@@ -1457,6 +1625,7 @@ function p1Boosters() {
       if (choosing) {
         if (P1_CHOSEN.length >= 3 || P1_CHOSEN.includes(i)) return;
         P1_CHOSEN.push(i);
+        p1WriteUrl();
         p1HidePackTip();
         // the third choice breaks up the cube, so remember where every pack was
         const was = P1_CHOSEN.length === 3 ? p1PackRects() : null;
@@ -2209,6 +2378,8 @@ $('#p1Restart').onclick = () => {
   P1_USED = new Set();
   P1_OPENED = new Set();
   if ($('#p1WantPanel')) $('#p1WantPanel').hidden = false;
+  P1_PICK_LOG = [];
+  p1SetSeed(p1NewSeed());        // a restart is a different draft
   p1CutCube();                   // a fresh cut, so the packs differ
   $('#p1Out').innerHTML = '';
   $('#p1Tableau').innerHTML = '';

@@ -118,6 +118,10 @@
             <option>9</option><option>10</option><option>11</option><option>12</option>
           </select>
         </label>
+        <label class="seats" title="The draft this link opens. Type someone else’s in to draft their packs.">Seed
+          <input id="p1Seed" size="7" spellcheck="false" autocomplete="off"></label>
+        <button class="iconbtn" id="p1Share" title="Copy a link to this draft"
+          aria-label="Copy a link to this draft">⧉</button>
         <button class="iconbtn" id="p1Restart" title="Start over" aria-label="Start over">⟳</button>
       </div>
       <div class="boosters" id="p1Boosters"></div>
@@ -125,6 +129,7 @@
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
     </div>
+    <div id="p1Shared" class="panel inner" hidden></div>
     <div id="p1Out"></div>
     <div id="p1Tableau"></div>
   </div>
@@ -174,9 +179,15 @@ async function boot() {
   }
   const cubes = await loadCubes();
   p1Data().then(() => {          // card previews explain picks on every tab
+    const link = p1Link();       // read before anything writes over it
+    // the seat count travels with the seed: the same seed dealt to six players
+    // is not the same draft, so a link that names one sets and locks it
+    if (link.seats) $('#p1Players').value = String(link.seats);
+    p1SetSeed(link.seed, !!link.seed);
     p1CutCube();                 // the whole cube goes on the table as packs
     p1Boosters();
     p1DrawHand();
+    p1SharedPicks();             // and what whoever sent it took from these packs
   }).catch(() => {});
   p1DrawHand();
   if (cubes.length) runCube();

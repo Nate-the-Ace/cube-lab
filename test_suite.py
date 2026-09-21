@@ -1105,6 +1105,43 @@ def test_game_nights():
                   '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
 
 
+def test_shared_drafts():
+    print("shared drafts")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    html = open(os.path.join(here, "ui", "cube.html")).read()
+    # everything random about a draft comes from one seed, so two people who
+    # open the same link are handed the same 36 packs
+    # Math.random survives in exactly two places: minting a new seed, and the
+    # value P1_RAND holds before a seed has been set
+    check("nothing in the draft rolls its own dice", js.count("Math.random") == 2)
+    for fn in ("p1CutCube", "p1CutArt", "p1StartRound"):
+        body = js.split("function %s(" % fn)[1].split("\nfunction ")[0]
+        check("%s draws from the seed" % fn,
+              "Math.random" not in body and "P1_RAND()" in body)
+    check("the cut, the spare packs and the wrappers all come from the seed",
+          js.count("P1_RAND()") == 3)
+    check("the seed is short enough to read out loud",
+          "toString(36).padStart(6, '0')" in js)
+    # the seat count changes how the sequence is consumed, so it travels with it
+    check("a shared link carries its seat count",
+          "q.set('seats', String(p1Wheel().players));" in js)
+    check("someone else's seed locks the seats it was cut for",
+          "P1_CHOSEN.length > 0 || P1_SEED_FIXED" in js
+          and "p1SetSeed(want, true);" in js
+          and "if (link.seats) $('#p1Players').value" in html)
+    # the first thing a draft does is write the URL, which used to wipe the
+    # picks the link arrived with before anything read them
+    check("the link is read before anything writes over it",
+          "function p1Link()" in js and "const link = p1Link();" in html)
+    check("a pick is its place in the cube, so a link needs no replay",
+          "(P1.cards || []).findIndex(c => c.oracle_id === oid)" in js)
+    check("a shared draft shows what the sender took",
+          "function p1SharedPicks" in js and 'id="p1Shared"' in html)
+    check("and it sits beside your own draft, not over it",
+          "p1ShareClear" in js)
+
+
 def test_hand_sort():
     print("hand sorting")
     here = os.path.dirname(os.path.abspath(__file__))
@@ -1467,6 +1504,7 @@ def main():
     test_english_faces()
     test_pack_art()
     test_hand_sort()
+    test_shared_drafts()
     test_color_names()
     test_draft_math()
     test_cube_parsing()

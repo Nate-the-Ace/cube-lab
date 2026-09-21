@@ -315,6 +315,24 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    flow so a long word cannot push the next group along and split the fan. */
 .handgroup{position:relative;display:flex;min-width:0;padding-bottom:40px}
 .handgroup .gcards{display:flex;align-items:flex-end;min-width:0}
+/* what the link's sender took: a row to read across, not the vertical stack the
+   pool view uses - there are at most 45 of them and they are for comparing */
+#p1Shared .stacks,#p1Shared .stack{display:block}
+#p1Shared .pile{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px}
+#p1Shared .pile .dcard{width:92px}
+#p1Shared .pile .dcard + .dcard{margin-top:0}     /* the pool view stacks; this reads across */
+#p1Shared .pile .dcard:hover{transform:translateY(-6px) scale(1.06);z-index:3}
+
+/* the seed box and its copy button, in the table's own toolbar */
+.tabletools .seats input{width:7em;background:var(--bg-soft);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;padding:3px 6px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em}
+.tabletools .seats input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.iconbtn[data-said]{position:relative}
+.iconbtn[data-said]::after{content:attr(data-said);position:absolute;top:calc(100% + 6px);
+  right:0;white-space:nowrap;font-size:10px;font-family:var(--mono);color:var(--accent);
+  background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+
 /* the name follows the curve the cards sit on - no rule under it; the run of
    names is enough to show where one group ends and the next starts */
 .handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:38px;
