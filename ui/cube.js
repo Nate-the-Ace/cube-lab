@@ -409,12 +409,15 @@ $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
    The point is the disagreement: the score deliberately contains no measure of
    raw card power (see pick_scores in cube.py), so where it is wrong it should
    be obviously wrong, and you should be able to see which component did it. */
-let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
+let P1 = null, P1_PACK = [], P1_PICK = null;
+const P1_NUM_KEY = 'p1-numbers-open';
 // what you have taken across the whole session, so the watchlist can grow with
 // the draft instead of resetting every pack
 let P1_TAKEN = [];
 let P1_PACKNO = 0, P1_ANIMATING = false;
 let P1_PACKS = [], P1_PICKNO = 0;
+// which of the three have been opened, in whatever order they were chosen
+let P1_OPENED = new Set();
 // every card this draft has already dealt, so no card is opened twice
 let P1_USED = new Set();
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
@@ -448,7 +451,7 @@ function cardFace(c, extra) {
 function p1DrawHand() {
   const hand = $('#p1Hand');
   if (!P1_PACK.length) {
-    hand.innerHTML = '<span class="dim">Press \u201cBegin draft\u201d.</span>';
+    hand.innerHTML = '<span class="dim">Click a pack above to open it.</span>';
     return;
   }
   hand.className = 'hand fan';
@@ -479,7 +482,7 @@ function p1DrawHand() {
 
 /* Taking a card: it flies to the deck, the rest of the pack leaves toward the
    seat we pass to, and only then does the table settle. The numbers are left
-   alone until "Show the numbers" - the point of the tab is to pick first. */
+   folded by default, because the point of the tab is to pick first. */
 function p1Take(oid, el) {
   if (P1_ANIMATING) return;
   const card = p1Card(oid);
@@ -510,6 +513,7 @@ function p1Take(oid, el) {
     p1DeckFace();
     p1Tableau();                 // keep an open tableau in step with the deck
     p1Watchlist();
+    p1Render();
     p1NextPack();
   };
   $('#p1Hand').classList.add('busy');
@@ -679,15 +683,6 @@ window.addEventListener('resize', () => {
   p1LayoutTimer = setTimeout(p1LayoutHand, 120);
 });
 
-function p1TitleFace() {
-  const t = $('#p1Title');
-  if (!t) return;
-  t.textContent = !P1_PACKNO ? ''
-    : P1_PACK.length ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO}`
-    : P1_PACKNO < 3 ? `Pack ${P1_PACKNO} finished \u2014 ${P1_TAKEN.length} cards so far`
-    : `Draft over \u2014 ${P1_TAKEN.length} cards`;
-}
-
 /* A card big enough to actually read, over everything else. Clicking anywhere
    off the card closes it, as does Escape; taking the card from here is the same
    pick as double-clicking it in the hand. */
@@ -766,7 +761,7 @@ function p1Tableau(toggle) {
    are empty. */
 const PACK_SIZE = 15;
 
-function p1StartRound() {
+function p1StartRound(which) {
   const size = PACK_SIZE;
   const seats = p1Wheel().players;
   const pool = (P1.cards || []).filter(c => !P1_USED.has(c.oracle_id));
@@ -781,21 +776,82 @@ function p1StartRound() {
     pack.forEach(c => P1_USED.add(c.oracle_id));
     P1_PACKS.push(pack);
   }
-  P1_PACKNO += 1;
+  P1_PACKNO = which || (P1_PACKNO + 1);
+  P1_OPENED.add(P1_PACKNO);
   P1_PICKNO = 1;
-  p1ShowPack();
+  p1ShowPack(P1_PACKNO);
 }
 
-function p1ShowPack() {
+function p1Boosters() {
+  const box = $('#p1Boosters');
+  if (!box) return;
+  const open = P1_PACK.length > 0;
+  box.innerHTML = [1, 2, 3].map(n => {
+    const state = P1_OPENED.has(n) ? (n === P1_PACKNO && open ? 'open' : 'done') : 'ready';
+    const label = {done: 'drafted', open: 'in hand', ready: 'click to open'}[state];
+    return `<div class="booster ${state}" data-pack="${n}"
+      ${state === 'ready' ? 'role="button" tabindex="0"' : 'aria-hidden="true"'}
+      title="Pack ${n} \u2014 ${label}" aria-label="Pack ${n}, ${label}"></div>`;
+  }).join('');
+  box.querySelectorAll('.booster.ready').forEach(el => {
+    const go = async () => {
+      if (P1_PACK.length) return;          // finish the pack in hand first
+        await p1Data();                      // usually already loaded at boot
+      if (P1 && P1.error) {
+        $('#p1Hand').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
+        return;
+      }
+      p1StartRound(parseInt(el.dataset.pack, 10));
+    };
+    el.onclick = go;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
+  });
+}
+
+/* Cards come out of the pack you opened: each one starts folded into the top of
+   that wrapper and travels to its place in the fan, a beat apart so the hand
+   spreads rather than appearing. Purely presentational - the hand is already
+   laid out before this runs, and it restores itself if anything goes wrong. */
+function p1DealFrom(packNo) {
+  const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
+  const cards = [...$('#p1Hand').querySelectorAll('.dcard')];
+  if (!src || !cards.length) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const from = src.getBoundingClientRect();
+  const ox = from.left + from.width / 2;
+  const oy = from.top + 4;                        // the torn seam, not the middle
+  cards.forEach((el, i) => {
+    const r = el.getBoundingClientRect();
+    const dx = ox - (r.left + r.width / 2);
+    const dy = oy - (r.top + r.height / 2);
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(.28) rotate(0deg)`;
+    el.style.opacity = '0';
+    el.style.zIndex = String(40 - i);             // the first one out stays on top
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    cards.forEach((el, i) => {
+      el.style.transition = `transform .42s cubic-bezier(.2,.8,.3,1) ${i * 40}ms,`
+                          + ` opacity .2s ease ${i * 40}ms`;
+      el.style.transform = '';
+      el.style.opacity = '';
+    });
+    setTimeout(() => cards.forEach((el, i) => {
+      el.style.transition = '';
+      el.style.zIndex = String(i + 1);            // hand back to the fan's own order
+    }), 420 + cards.length * 40 + 60);
+  }));
+}
+
+function p1ShowPack(dealtFrom) {
   P1_PACK = P1_PACKS[0] || [];
-  $('#p1Deal').disabled = true;         // the draft continues by itself now
   P1_PICK = null;
-  P1_REVEALED = false;
-  $('#p1Reveal').textContent = 'Show the numbers';
-  $('#p1Reveal').disabled = true;
   $('#p1Out').innerHTML = '';
-  p1TitleFace();
   p1DrawHand();
+  p1Boosters();
+  if (dealtFrom) p1DealFrom(dealtFrom);
+  p1Render();
   p1DeckFace();
   p1Watchlist();
 }
@@ -830,29 +886,21 @@ function p1NextPack() {
     return;
   }
   P1_PACK = [];
-  p1TitleFace();
-  if (P1_PACKNO < 3) {
+  p1Boosters();
+  if (P1_OPENED.size < 3) {
     // a round boundary is a real pause at a table, so it takes a press
     $('#p1Hand').innerHTML = `<div class="roundover">
         <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards,
-          ${3 - P1_PACKNO} pack${P1_PACKNO === 2 ? '' : 's'} to go.</div>
-        <button class="primary big" id="p1NextRound">Next Pack</button>
-        <div class="mini dim">pack ${P1_PACKNO + 1} of 3</div>
+          ${3 - P1_OPENED.size} pack${P1_OPENED.size === 2 ? '' : 's'} to go.</div>
+        <div class="mini dim">open another pack above</div>
       </div>`;
-    $('#p1NextRound').onclick = () => p1StartRound();
+    p1Boosters();
     return;
   }
   p1DraftOver();
 }
 
-function p1Deal() {
-  if (P1_PACKNO && P1_PACKNO <= 3 && (P1_PACKS.length || P1_TAKEN.length)) return;
-  P1_PACKNO = 0;
-  P1_TAKEN = [];
-  P1_USED = new Set();
-  p1StartRound();
-  p1DeckFace();
-}
+
 
 /* ── what you could build ──
 
@@ -947,8 +995,6 @@ function p1DraftOver() {
     el.onclick = () => p1Zoom(card);
   });
   sortable('#p1Out');
-  $('#p1Reveal').disabled = true;
-  $('#p1Deal').disabled = false;
 }
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
@@ -973,7 +1019,7 @@ function p1Render() {
   const rankOf = c => ranked.findIndex(x => x.oracle_id === c.oracle_id) + 1;
   const best = ranked[0];
 
-  const head = P1_REVEALED
+  const head = P1_PICK
     ? (() => {
         const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);
         const r = rankOf(mine);
@@ -985,8 +1031,7 @@ function p1Render() {
           ${agree ? '' : `<br>That gap is <b>${(best.score - mine.score).toFixed(1)}</b> points,
              almost all of it ${p1Why(best, mine)}.`}</div>`;
       })()
-    : `<div class="note">${P1_PICK ? 'Picked. Press “Show the numbers”.'
-        : 'Click the card you would take.'}</div>`;
+    : '<div class="note">Double-click the card you would take.</div>';
 
   const w = p1Wheel();
   // worst case: the other seats take the top-ranked cards before it returns
@@ -998,10 +1043,10 @@ function p1Render() {
     return '<span class="badge good">should wheel</span>';
   };
 
-  const rows = (P1_REVEALED ? ranked : P1_PACK).map(c => {
+  const rows = ranked.map(c => {
     const picked = c.oracle_id === P1_PICK;
     return `<tr class="${picked ? 'me' : ''}">
-      ${P1_REVEALED ? `<td class="num">${rankOf(c)}</td>` : ''}
+      <td class="num">${rankOf(c)}</td>
       <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
         ${picked ? ' <span class="badge">your pick</span>' : ''}
         <div class="mini dim">${esc((c.type_line || '').split(' —')[0])}</div></td>
@@ -1017,16 +1062,18 @@ function p1Render() {
     </tr>`;
   }).join('');
 
-  if (!P1_REVEALED) { $('#p1Out').innerHTML = ''; return; }
-  $('#p1Out').innerHTML = head + `<table><thead><tr>
-      ${P1_REVEALED ? '<th class="num">#</th>' : ''}
+  let open = false;
+  try { open = localStorage.getItem(P1_NUM_KEY) === '1'; } catch (e) {}
+  $('#p1Out').innerHTML = `<details class="numbers"${open ? ' open' : ''}>
+      <summary>The numbers for this pack</summary>` + head + `<table><thead><tr>
+      <th class="num">#</th>
       <th>Card</th><th>CI</th><th class="num">MV</th>
-      ${P1_REVEALED
+      ${true
         ? `<th>Comes back?</th><th class="num">Pick score</th><th class="num">Lane record</th>
            <th class="num">Keeps options open</th><th class="num">Cube pull</th>`
         : '<th data-nosort></th>'}
     </tr></thead><tbody>${rows}</tbody></table>`
-    + (P1_REVEALED ? `<p class="note">With <b>${w.players}</b> players, this pack comes back to you
+    + (true ? `<p class="note">With <b>${w.players}</b> players, this pack comes back to you
         at pick ${w.players + 1}${w.wheels
           ? ` with <b>${w.left}</b> cards left in it` : ' — except it does not, because the pack runs out first'}.
         <b>Comes back?</b> assumes every other seat drafts perfectly — each takes the best card
@@ -1036,7 +1083,12 @@ function p1Render() {
       <p class="note"><b>Lane record</b> is the colours' record in recorded games against the
         ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
         matches. <b>Keeps options open</b> matters for this pick and no other.
-        <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '');
+        <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '')
+    + '</details>';
+  const det = $('#p1Out').querySelector('details');
+  if (det) det.addEventListener('toggle', () => {
+    try { localStorage.setItem(P1_NUM_KEY, det.open ? '1' : '0'); } catch (e) {}
+  });
 
   if (P1_PICK) {
     const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);
@@ -1174,15 +1226,11 @@ $('#p1Restart').onclick = () => {
   P1_TAKEN = [];
   P1_PACK = [];
   P1_PICK = null;
-  P1_REVEALED = false;
-  $('#p1Reveal').disabled = true;
-  $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO = 0;
   P1_PACKS = [];
   P1_PICKNO = 0;
   P1_USED = new Set();
-  $('#p1Deal').disabled = false;
-  p1TitleFace();
+  P1_OPENED = new Set();
   $('#p1Out').innerHTML = '';
   $('#p1Tableau').innerHTML = '';
   $('#p1Tableau').dataset.open = '0';
@@ -1191,23 +1239,8 @@ $('#p1Restart').onclick = () => {
   p1Watchlist();
 };
 
-$('#p1Deal').onclick = async () => {
-  $('#p1Out').innerHTML = '<span class="dim">dealing…</span>';
-  await p1Data();
-  if (P1.error) return $('#p1Out').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
-  p1Deal();
-};
-$('#p1Reveal').onclick = () => {
-  P1_REVEALED = !P1_REVEALED;
-  p1Render();
-  $('#p1Reveal').textContent = P1_REVEALED ? 'Hide the numbers' : 'Show the numbers';
-  if (P1_REVEALED) {
-    const box = $('#p1Out');
-    if (box.getBoundingClientRect().top > window.innerHeight - 120) {
-      box.scrollIntoView({behavior: 'smooth', block: 'start'});
-    }
-  }
-};
+
+
 $('#p1Deck').onclick = () => p1Tableau(true);
 $('#p1Deck').onkeydown = e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p1Tableau(true); }

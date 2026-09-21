@@ -89,18 +89,22 @@
 
 <section id="tab-p1p1" class="hidden">
   <div class="panel">
-    <div class="row">
-      <strong id="p1Title"></strong>
-      <span class="spacer"></span>
-      <label>Players <input id="p1Players" type="number" min="2" max="12" value="8" style="min-width:70px"></label>
-      <button class="primary" id="p1Deal">Begin draft</button>
-      <button id="p1Reveal" disabled>Show the numbers</button>
-      <button id="p1Restart">Start over</button>
-    </div>
     <div class="tabletop" id="p1Table">
       <span class="passline l" id="p1PassL"></span>
       <span class="passline r" id="p1PassR"></span>
-      <div class="hand" id="p1Hand"><span class="dim">Press “Begin draft”.</span></div>
+      <div class="tabletools">
+        <span class="spacer"></span>
+        <label class="seats">Players
+          <select id="p1Players">
+            <option>2</option><option>3</option><option>4</option><option>5</option>
+            <option>6</option><option>7</option><option selected>8</option>
+            <option>9</option><option>10</option><option>11</option><option>12</option>
+          </select>
+        </label>
+        <button class="iconbtn" id="p1Restart" title="Start over" aria-label="Start over">⟳</button>
+      </div>
+      <div class="boosters" id="p1Boosters"></div>
+      <div class="hand" id="p1Hand"></div>
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
       <span class="deckhint" id="p1DeckHint">picks go here</span>
@@ -153,6 +157,8 @@ async function boot() {
   }
   const cubes = await loadCubes();
   p1Data().catch(() => {});      // card previews explain picks on every tab
+  p1Boosters();                  // the three packs are the draft's only control
+  p1DrawHand();
   if (cubes.length) runCube();
   else $('#cubeOut').innerHTML =
     '<span class="dim">No cube loaded yet — open “Import or replace a cube” above.</span>';
