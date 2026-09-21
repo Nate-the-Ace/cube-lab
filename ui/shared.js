@@ -522,6 +522,13 @@ const GLOSSARY = {
   // ─ cut picker ─
   'measured': ['Measured here', 'How this lane has actually performed at your table, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from your own cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
   // pack 1 pick 1, and proposing a change
+  'deck': ['Possible deck', 'A colour pair you could build from the cards you drafted. Everything that fits inside those colours counts, colourless included.'],
+  'playables': ['Playables', 'Non-land cards in your pool that fit inside this pair\u2019s colours. A 40-card deck needs 23 of them alongside 17 lands.'],
+  'short by': ['Short by', 'How many playables this pair still needs to reach 23. Zero means you could actually register the deck; anything else means you would be filling slots with cards that do not belong.'],
+  'avg pick score': ['Average pick score', 'The mean score of the best 23 playables in this pair. It carries the same warning as everywhere else on this page: it contains no measure of raw card power.'],
+  'pairs': ['Pairs among your picks', 'How many of the cards you drafted in these colours want to be beside each other, from the lift pairs. This is the number that separates a pile of good cards from a deck.'],
+  'record': ['Record at your table', 'How this colour pair has actually performed in your game nights. Blank where you have never drafted it.'],
+  'curve 1-6': ['Mana curve', 'How many playables cost 1, 2, 3, 4, 5 and 6+. A deck that is all fours and fives loses to one that is not, whatever the individual cards are worth.'],
   'comes back?': ['Comes back on the wheel?', 'With P players, the pack you pass returns after P picks, so a pack of N cards comes back with N \u2212 P left. The question a first pick really asks is not \u201cwhich is best\u201d but \u201cwhich will still be here next time\u201d. This assumes the other drafters take the cards ranked highest on this page \u2014 they do not share that ranking, so read it as which cards are OBVIOUS, which is most of what wheeling turns on.'],
   'pick score': ['Pick score', 'The components to the right, weighted. It contains NO measure of raw card power \u2014 nothing on this page measures that \u2014 so a dull card in a winning lane will outrank a bomb in a losing one. Treat it as an argument, not a verdict.'],
   'lane record': ['Lane record', 'How this card\u2019s colours have actually performed at your table, against the average of all ten lanes. The only measured component, and the smallest sample: a few dozen matches per lane.'],

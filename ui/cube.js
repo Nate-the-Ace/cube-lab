@@ -414,6 +414,7 @@ let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
 // the draft instead of resetting every pack
 let P1_TAKEN = [];
 let P1_PACKNO = 0, P1_ANIMATING = false;
+let P1_PACKS = [], P1_PICKNO = 0;
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
 // the previews want this data on every tab, so it is fetched once at load
@@ -500,13 +501,14 @@ function p1Take(oid, el) {
 
   const settle = () => {
     P1_ANIMATING = false;
+    // the card leaves the pack it came from before the packs move on
+    const held = P1_PACKS[0] || [];
+    const at = held.findIndex(c => c.oracle_id === oid);
+    if (at >= 0) held.splice(at, 1);
     p1DeckFace();
     p1Tableau();                 // keep an open tableau in step with the deck
     p1Watchlist();
-    $('#p1Reveal').disabled = false;
-    $('#p1Hand').innerHTML =
-      `<span class="dim">Took <b>${esc(card.name)}</b>. Deal the next pack, `
-      + `or press \u201cShow the numbers\u201d to see what the pack was worth.</span>`;
+    p1NextPack();
   };
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   setTimeout(settle, reduced ? 20 : 520);
@@ -678,7 +680,9 @@ function p1TitleFace() {
   const t = $('#p1Title');
   if (!t) return;
   t.textContent = P1_PACKNO
-    ? `Pack ${P1_PACKNO}, pick 1 \u2014 passing ${passDir()}`
+    ? (P1_PACK.length
+        ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO} \u2014 passing ${passDir()}`
+        : `Draft over \u2014 ${P1_TAKEN.length} cards`)
     : 'Pack 1, pick 1';
 }
 
@@ -746,26 +750,193 @@ function p1Tableau(toggle) {
   });
 }
 
-function p1Deal() {
+/* ── a real draft, not a series of unrelated packs ──
+
+   Every seat opens a pack. You pick, the other seats pick from theirs, and the
+   packs all move one seat in the pass direction - so the pack you get next is
+   your neighbour's, minus the card they just took, and the one you passed comes
+   back to you `players` picks later with that many cards gone. That is what
+   makes the wheel real rather than a label: it is the same pack.
+
+   The other seats pick the best card left by the page's own ranking, which is
+   the worst case for you and matches what the "Comes back?" column claims.
+   Three rounds, passing left, right, left, and each round runs until the packs
+   are empty. */
+function p1StartRound() {
   const size = Math.max(3, Math.min(30, parseInt($('#p1Size').value, 10) || 15));
+  const seats = p1Wheel().players;
   const pool = (P1.cards || []).slice();
-  // a real pack is a random draw from the whole list, lands and all - filtering
-  // them out would flatter the tool by removing the picks people argue about
-  const pack = [];
-  for (let i = 0; i < size && pool.length; i++) {
-    pack.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  // lands and all: filtering them out would flatter the tool by removing the
+  // picks people actually argue about
+  P1_PACKS = [];
+  for (let seat = 0; seat < seats && pool.length; seat++) {
+    const pack = [];
+    for (let i = 0; i < size && pool.length; i++) {
+      pack.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    }
+    P1_PACKS.push(pack);
   }
-  P1_PACK = pack;
+  P1_PACKNO += 1;
+  P1_PICKNO = 1;
+  p1ShowPack();
+}
+
+function p1ShowPack() {
+  P1_PACK = P1_PACKS[0] || [];
   P1_PICK = null;
   P1_REVEALED = false;
   $('#p1Reveal').textContent = 'Show the numbers';
-  P1_PACKNO += 1;
-  p1TitleFace();
   $('#p1Reveal').disabled = true;
   $('#p1Out').innerHTML = '';
+  p1TitleFace();
   p1DrawHand();
   p1DeckFace();
   p1Watchlist();
+}
+
+/* The other seats take the best card left, then every pack moves one seat. */
+function p1PassPacks() {
+  for (let seat = 1; seat < P1_PACKS.length; seat++) {
+    const pack = P1_PACKS[seat];
+    if (!pack.length) continue;
+    let bestI = 0;
+    for (let i = 1; i < pack.length; i++) {
+      if (pack[i].score > pack[bestI].score) bestI = i;
+    }
+    pack.splice(bestI, 1);
+  }
+  const n = P1_PACKS.length;
+  if (n > 1) {
+    // passing left means your pack goes to the seat on your left, so you
+    // receive the pack from your right - the array rotates the other way
+    P1_PACKS = passDir() === 'left'
+      ? P1_PACKS.slice(1).concat(P1_PACKS.slice(0, 1))
+      : P1_PACKS.slice(-1).concat(P1_PACKS.slice(0, -1));
+  }
+}
+
+/* Called once the pick animation has settled. */
+function p1NextPack() {
+  p1PassPacks();
+  if ((P1_PACKS[0] || []).length) {
+    P1_PICKNO += 1;
+    p1ShowPack();
+    return;
+  }
+  P1_PACK = [];
+  p1TitleFace();
+  if (P1_PACKNO < 3) {
+    // a round boundary is a real pause at a table, so it takes a press
+    $('#p1Hand').innerHTML = `<div class="roundover">
+        <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards.</div>
+        <button class="primary" id="p1NextRound">Open pack ${P1_PACKNO + 1}</button>
+        <div class="mini dim">passing ${PASS[P1_PACKNO % PASS.length]}</div>
+      </div>`;
+    $('#p1NextRound').onclick = () => p1StartRound();
+    return;
+  }
+  p1DraftOver();
+}
+
+function p1Deal() {
+  if (!P1_PACKS.length || !(P1_PACKS[0] || []).length) return p1StartRound();
+  p1ShowPack();
+}
+
+/* ── what you could build ──
+
+   Forty cards is 23 spells and 17 lands, so a pool is only a deck if a colour
+   pair holds 23 playables. Everything in the pair's colours counts, colourless
+   included, and the ratings say which pairs clear that bar and what they are
+   worth: the table's record in those colours, how the picks pair up with each
+   other, and whether the curve is a curve. */
+const DECK_SPELLS = 23;
+
+function p1DeckOptions() {
+  const pool = P1_TAKEN;
+  const lanes = (P1 && P1.lane_pct) || {};
+  const base = (P1 && P1.lane_baseline) || 50;
+  const ids = new Set(pool.map(c => c.oracle_id));
+
+  const pairs = Object.keys(lanes).length ? Object.keys(lanes)
+    : ['WU', 'WB', 'WR', 'WG', 'UB', 'UR', 'UG', 'BR', 'BG', 'RG'];
+
+  return pairs.map(pair => {
+    const fits = pool.filter(c => [...(c.color_identity || '')].every(x => pair.includes(x)));
+    const spells = fits.filter(c => !c.is_land);
+    const lands = fits.length - spells.length;
+    const best = spells.slice().sort((a, b) => b.score - a.score).slice(0, DECK_SPELLS);
+    const avg = best.length ? best.reduce((t, c) => t + c.score, 0) / best.length : 0;
+
+    // how much the picks want each other, counted once per pair
+    let links = 0, lift = 0;
+    fits.forEach(c => (c.partners || []).forEach(pt => {
+      if (ids.has(pt.oracle_id) && fits.some(f => f.oracle_id === pt.oracle_id)) {
+        links += 1; lift += pt.lift || 0;
+      }
+    }));
+    links = Math.round(links / 2); lift = lift / 2;
+
+    const curve = {};
+    spells.forEach(c => { const mv = Math.min(6, Math.round(c.cmc || 0)); curve[mv] = (curve[mv] || 0) + 1; });
+    const cheap = (curve[1] || 0) + (curve[2] || 0) + (curve[3] || 0);
+
+    const rate = lanes[pair];
+    const short = Math.max(0, DECK_SPELLS - spells.length);
+    return {
+      pair, spells: spells.length, lands, short, avg, links, lift, curve, cheap,
+      rate: rate == null ? null : rate,
+      score: (spells.length >= DECK_SPELLS ? 40 : spells.length - DECK_SPELLS)
+             + avg * 0.5 + (rate == null ? 0 : (rate - base) * 1.2) + lift * 0.05,
+    };
+  }).sort((a, b) => b.score - a.score);
+}
+
+function p1DraftOver() {
+  const decks = p1DeckOptions();
+  const best = decks[0];
+  const pool = P1_TAKEN.slice().sort((a, b) => b.score - a.score);
+
+  $('#p1Hand').innerHTML = `<div class="roundover">
+      <div>Draft over \u2014 <b>${P1_TAKEN.length}</b> cards.</div>
+      <div class="mini dim">Your pool and what it could build are below.</div>
+    </div>`;
+
+  $('#p1Out').innerHTML = `
+    <h3 class="sec">Your pool</h3>
+    <div class="tableau">${pool.map(c => cardFace(c)).join('')}</div>
+
+    <h3 class="sec">What you could build</h3>
+    <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is only
+      a deck if it holds ${DECK_SPELLS} playables in its colours. <b>Record</b> is how that pair has
+      done at your table; <b>pairs</b> counts your picks that want to be beside each other.
+      ${best && best.short
+        ? `Nothing in your pool reaches ${DECK_SPELLS} playables \u2014 the closest is
+           <b>${esc(ciName(best.pair))}</b>, ${best.short} short.`
+        : best ? `<b>${esc(ciName(best.pair))}</b> is the deck: ${best.spells} playables,
+           ${best.links} pairs among them${best.rate == null ? ''
+             : `, and the colours are ${best.rate}% at your table`}.` : ''}</p>
+    <div class="scroll"><table><thead><tr>
+      <th>Deck</th><th class="num">Playables</th><th class="num">Short by</th>
+      <th class="num">Avg pick score</th><th class="num">Pairs</th>
+      <th class="num">Record</th><th>Curve 1-6</th>
+    </tr></thead><tbody>${decks.map(d => `<tr>
+      <td class="name">${ciCell(d.pair)} ${esc(ciName(d.pair))}</td>
+      <td class="num">${d.spells}</td>
+      <td class="num">${d.short ? `<span class="badge bad">${d.short}</span>` : '<span class="badge good">none</span>'}</td>
+      <td class="num">${d.avg.toFixed(1)}</td>
+      <td class="num">${d.links || '\u2014'}</td>
+      <td class="num">${d.rate == null ? '\u2014' : d.rate + '%'}</td>
+      <td class="mini">${[1, 2, 3, 4, 5, 6].map(mv => (d.curve[mv] || 0)).join(' · ')}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+
+  $('#p1Out').querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.pick);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
+  sortable('#p1Out');
+  $('#p1Reveal').disabled = true;
 }
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
@@ -995,6 +1166,8 @@ $('#p1Restart').onclick = () => {
   $('#p1Reveal').disabled = true;
   $('#p1Reveal').textContent = 'Show the numbers';
   P1_PACKNO = 0;
+  P1_PACKS = [];
+  P1_PICKNO = 0;
   p1TitleFace();
   $('#p1Out').innerHTML = '';
   $('#p1Tableau').innerHTML = '';
