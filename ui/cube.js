@@ -415,6 +415,8 @@ let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
 let P1_TAKEN = [];
 let P1_PACKNO = 0, P1_ANIMATING = false;
 let P1_PACKS = [], P1_PICKNO = 0;
+// every card this draft has already dealt, so no card is opened twice
+let P1_USED = new Set();
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
 // the previews want this data on every tab, so it is fetched once at load
@@ -453,9 +455,8 @@ function p1DrawHand() {
   hand.innerHTML = P1_PACK.map(c => cardFace(c)).join('');
   p1LayoutHand();
   p1MarkBest();
-  const dir = passDir();
-  $('#p1PassL').textContent = dir === 'left' ? '\u2190 you pass this way' : '';
-  $('#p1PassR').textContent = dir === 'right' ? 'you pass this way \u2192' : '';
+  $('#p1PassL').textContent = '';
+  $('#p1PassR').textContent = '';
   hand.querySelectorAll('[data-pick]').forEach(el => {
     const card = p1Card(el.dataset.pick);
     let clickTimer = null;
@@ -501,6 +502,7 @@ function p1Take(oid, el) {
 
   const settle = () => {
     P1_ANIMATING = false;
+    $('#p1Hand').classList.remove('busy');
     // the card leaves the pack it came from before the packs move on
     const held = P1_PACKS[0] || [];
     const at = held.findIndex(c => c.oracle_id === oid);
@@ -510,8 +512,9 @@ function p1Take(oid, el) {
     p1Watchlist();
     p1NextPack();
   };
+  $('#p1Hand').classList.add('busy');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(settle, reduced ? 20 : 520);
+  setTimeout(settle, reduced ? 20 : 370);
 }
 
 /* Lay the pack out as ONE row whatever the pack size and screen width.
@@ -679,11 +682,10 @@ window.addEventListener('resize', () => {
 function p1TitleFace() {
   const t = $('#p1Title');
   if (!t) return;
-  t.textContent = P1_PACKNO
-    ? (P1_PACK.length
-        ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO} \u2014 passing ${passDir()}`
-        : `Draft over \u2014 ${P1_TAKEN.length} cards`)
-    : 'Pack 1, pick 1';
+  t.textContent = !P1_PACKNO ? 'Ready to draft'
+    : P1_PACK.length ? `Pack ${P1_PACKNO}, pick ${P1_PICKNO}`
+    : P1_PACKNO < 3 ? `Pack ${P1_PACKNO} finished \u2014 ${P1_TAKEN.length} cards so far`
+    : `Draft over \u2014 ${P1_TAKEN.length} cards`;
 }
 
 /* A card big enough to actually read, over everything else. Clicking anywhere
@@ -762,10 +764,12 @@ function p1Tableau(toggle) {
    the worst case for you and matches what the "Comes back?" column claims.
    Three rounds, passing left, right, left, and each round runs until the packs
    are empty. */
+const PACK_SIZE = 15;
+
 function p1StartRound() {
-  const size = Math.max(3, Math.min(30, parseInt($('#p1Size').value, 10) || 15));
+  const size = PACK_SIZE;
   const seats = p1Wheel().players;
-  const pool = (P1.cards || []).slice();
+  const pool = (P1.cards || []).filter(c => !P1_USED.has(c.oracle_id));
   // lands and all: filtering them out would flatter the tool by removing the
   // picks people actually argue about
   P1_PACKS = [];
@@ -774,6 +778,7 @@ function p1StartRound() {
     for (let i = 0; i < size && pool.length; i++) {
       pack.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     }
+    pack.forEach(c => P1_USED.add(c.oracle_id));
     P1_PACKS.push(pack);
   }
   P1_PACKNO += 1;
@@ -783,6 +788,7 @@ function p1StartRound() {
 
 function p1ShowPack() {
   P1_PACK = P1_PACKS[0] || [];
+  $('#p1Deal').disabled = true;         // the draft continues by itself now
   P1_PICK = null;
   P1_REVEALED = false;
   $('#p1Reveal').textContent = 'Show the numbers';
@@ -828,9 +834,10 @@ function p1NextPack() {
   if (P1_PACKNO < 3) {
     // a round boundary is a real pause at a table, so it takes a press
     $('#p1Hand').innerHTML = `<div class="roundover">
-        <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards.</div>
-        <button class="primary" id="p1NextRound">Open pack ${P1_PACKNO + 1}</button>
-        <div class="mini dim">passing ${PASS[P1_PACKNO % PASS.length]}</div>
+        <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards,
+          ${3 - P1_PACKNO} pack${P1_PACKNO === 2 ? '' : 's'} to go.</div>
+        <button class="primary big" id="p1NextRound">Next Pack</button>
+        <div class="mini dim">pack ${P1_PACKNO + 1} of 3</div>
       </div>`;
     $('#p1NextRound').onclick = () => p1StartRound();
     return;
@@ -839,8 +846,12 @@ function p1NextPack() {
 }
 
 function p1Deal() {
-  if (!P1_PACKS.length || !(P1_PACKS[0] || []).length) return p1StartRound();
-  p1ShowPack();
+  if (P1_PACKNO && P1_PACKNO <= 3 && (P1_PACKS.length || P1_TAKEN.length)) return;
+  P1_PACKNO = 0;
+  P1_TAKEN = [];
+  P1_USED = new Set();
+  p1StartRound();
+  p1DeckFace();
 }
 
 /* ── what you could build ──
@@ -937,6 +948,7 @@ function p1DraftOver() {
   });
   sortable('#p1Out');
   $('#p1Reveal').disabled = true;
+  $('#p1Deal').disabled = false;
 }
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
@@ -951,7 +963,7 @@ const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
    marked "should wheel" is one you can pass with confidence. */
 function p1Wheel() {
   const players = Math.max(2, Math.min(12, parseInt($('#p1Players').value, 10) || 8));
-  const size = P1_PACK.length;
+  const size = P1_PACK.length || PACK_SIZE;
   return {players, size, wheels: size > players, left: Math.max(0, size - players)};
 }
 
@@ -1168,6 +1180,8 @@ $('#p1Restart').onclick = () => {
   P1_PACKNO = 0;
   P1_PACKS = [];
   P1_PICKNO = 0;
+  P1_USED = new Set();
+  $('#p1Deal').disabled = false;
   p1TitleFace();
   $('#p1Out').innerHTML = '';
   $('#p1Tableau').innerHTML = '';
