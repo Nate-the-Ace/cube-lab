@@ -458,7 +458,7 @@ function p1DrawHand() {
       !P1_ALL.length ? 'Cutting the cube into packs\u2026'
       : left > 0
         ? `The cube, cut into ${P1_ALL.length} packs. Choose <b>${left}</b> more.`
-        : 'Click one of your packs above to open it.'}</span>`;
+        : ''}</span>`;
     return;
   }
   hand.className = 'hand fan';
@@ -735,6 +735,31 @@ function p1DeckFace() {
   d.innerHTML = `<b>${P1_TAKEN.length}</b><span>pick${P1_TAKEN.length === 1 ? '' : 's'}</span>`;
 }
 
+/* ── your picks ──
+
+   A drafted pool is read by column, the way it is laid out on a table: cards
+   overlap so only the title bar of each shows, grouped by whatever you are
+   thinking about. Colour and mana value are the two every deckbuilder sorts by;
+   role is the one that answers "do I have enough removal". */
+const P1_GROUPS = {
+  colour: {label: 'Colour', of: c => {
+    const ci = c.color_identity || '';
+    return ci.length > 1 ? 'Multicolour' : ci ? ciName(ci) : 'Colourless';
+  }, order: ['White', 'Blue', 'Black', 'Red', 'Green', 'Multicolour', 'Colourless']},
+  mv: {label: 'Mana value', of: c => {
+    const v = Math.round(c.cmc || 0);
+    return v >= 6 ? '6+' : String(v);
+  }, order: ['0', '1', '2', '3', '4', '5', '6+']},
+  role: {label: 'Role', of: c => c.role || 'Other',
+    order: ['Removal', 'Card draw', 'Ramp', 'Tokens', 'Counterspell', 'Creature',
+            'Planeswalker', 'Instant', 'Sorcery', 'Enchantment', 'Artifact',
+            'Land', 'Other']},
+  score: {label: 'Pick score', of: c =>
+    c.score >= 50 ? 'Top picks' : c.score >= 35 ? 'Solid' : 'Filler',
+    order: ['Top picks', 'Solid', 'Filler']},
+};
+let P1_GROUP_BY = 'colour';
+
 function p1Tableau(toggle) {
   const box = $('#p1Tableau');
   if (!P1_TAKEN.length) { box.innerHTML = ''; box.dataset.open = '0'; return; }
@@ -744,8 +769,32 @@ function p1Tableau(toggle) {
   } else if (box.dataset.open !== '1') {
     return;                      // closed stays closed; this is just a refresh
   }
-  box.innerHTML = `<h3 class="sec">Your picks so far</h3>
-    <div class="tableau">${P1_TAKEN.map(c => cardFace(c)).join('')}</div>`;
+
+  const g = P1_GROUPS[P1_GROUP_BY] || P1_GROUPS.colour;
+  const groups = {};
+  P1_TAKEN.forEach(c => { (groups[g.of(c)] = groups[g.of(c)] || []).push(c); });
+  const names = g.order.filter(k => groups[k])
+    .concat(Object.keys(groups).filter(k => !g.order.includes(k)).sort());
+
+  box.innerHTML = `<h3 class="sec">Your picks
+      <span class="count">${P1_TAKEN.length}</span></h3>
+    <div class="row" style="margin-bottom:8px">
+      <label class="seats">Sort by
+        <select id="p1GroupBy">${Object.entries(P1_GROUPS).map(([k, v]) =>
+          `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
+        ).join('')}</select>
+      </label>
+    </div>
+    <div class="stacks">${names.map(name => {
+      const cards = groups[name].slice().sort((a, b) => (a.cmc || 0) - (b.cmc || 0)
+        || a.name.localeCompare(b.name));
+      return `<div class="stack">
+        <div class="stackhead">${esc(name)} <span>${cards.length}</span></div>
+        <div class="pile">${cards.map(c => cardFace(c)).join('')}</div>
+      </div>`;
+    }).join('')}</div>`;
+
+  $('#p1GroupBy').onchange = e => { P1_GROUP_BY = e.target.value; p1Tableau(); };
   box.querySelectorAll('[data-pick]').forEach(el => {
     const card = p1Card(el.dataset.pick);
     el.removeAttribute('data-pick');
@@ -1166,7 +1215,7 @@ function p1Render() {
   let open = false;
   try { open = localStorage.getItem(P1_NUM_KEY) === '1'; } catch (e) {}
   $('#p1Out').innerHTML = `<details class="numbers"${open ? ' open' : ''}>
-      <summary>The numbers for this pack</summary>` + head + `<table><thead><tr>
+      <summary>How the pack in your hand ranks</summary>` + head + `<table><thead><tr>
       <th class="num">#</th>
       <th>Card</th><th>CI</th><th class="num">MV</th>
       ${true
@@ -1269,19 +1318,15 @@ function p1Watchlist() {
     (mine.partners || []).forEach(p => {
       if (taken.has(p.oracle_id)) return;
       const w = want[p.oracle_id] || (want[p.oracle_id] = {
-        oracle_id: p.oracle_id, name: p.name, lift: 0, weighted: 0, decks: 0,
-        from: [], kind: p.kind});
-      // several of your picks pointing at the same card is the real signal, so
-      // pulls are summed rather than maxed
+        oracle_id: p.oracle_id, name: p.name, lift: 0, weighted: 0, from: [], kind: p.kind});
       w.lift += p.lift || 0;
       w.weighted += (p.lift || 0) * pairWeight(p.kind);
-      w.decks = Math.max(w.decks, p.played_together || 0);
       w.from.push(mine.name);
       if (pairWeight(p.kind) > pairWeight(w.kind)) w.kind = p.kind;
     });
   });
 
-  // your colours so far, to say whether a card is even castable in this deck
+  // your colours so far, so a card you cannot cast is not the thing you want most
   const mineColours = {};
   P1_TAKEN.forEach(c => [...(c.color_identity || '')].forEach(x => {
     mineColours[x] = (mineColours[x] || 0) + 1;
@@ -1289,38 +1334,43 @@ function p1Watchlist() {
   const main = Object.entries(mineColours).sort((a, b) => b[1] - a[1])
     .slice(0, 2).map(x => x[0]).join('');
 
-  const rows = Object.values(want)
-    .sort((a, b) => b.weighted - a.weighted || b.from.length - a.from.length)
-    .slice(0, 15);
+  const rows = Object.values(want).map(w => {
+    const card = p1Card(w.oracle_id) || {};
+    const ci = card.color_identity || '';
+    const castable = !ci || [...ci].every(x => main.includes(x));
+    // several of your picks agreeing counts for more than one loud pair, and a
+    // card you cannot cast is worth wanting less
+    w.desire = w.weighted * (1 + 0.5 * (w.from.length - 1)) * (castable ? 1 : 0.45);
+    w.card = card;
+    w.castable = castable;
+    return w;
+  }).sort((a, b) => b.desire - a.desire).slice(0, 5);
 
-  box.innerHTML = rows.length ? `<table><thead><tr>
-      <th>Keep a look out for</th><th>Why it pairs</th><th class="num">Pulled by</th>
-      <th class="num">Lift</th><th>Fits your colours</th><th>Because of</th></tr></thead><tbody>
-      ${rows.map(w => {
-        const card = p1Card(w.oracle_id) || {};
-        const ci = card.color_identity || '';
-        const castable = !ci || [...ci].every(x => main.includes(x));
-        return `<tr>
-          <td class="name"><span data-oracle="${esc(w.oracle_id)}">${esc(w.name)}</span>
-            <div class="mini dim">${esc((card.type_line || '').split(' —')[0])}</div></td>
-          <td><span class="badge">${esc(w.kind || 'general')}</span></td>
-          <td class="num">${w.from.length}</td>
-          <td class="num">${w.lift.toFixed(1)}×</td>
-          <td>${ciCell(ci)} ${castable ? '<span class="badge good">yes</span>'
-                                       : '<span class="badge">needs a splash</span>'}</td>
-          <td class="dim mini">${w.from.map(esc).join(', ')}</td>
-        </tr>`;
-      }).join('')}</tbody></table>
-      <p class="note">Ranked by lift weighted by <b>why it pairs</b>. Cards that merely share a
-      type or a role are pushed down: decks that play one cheap burn spell play the others, so
-      lift reports Shock beside Lightning Strike — true, and not a reason to draft both. Pairs
-      that describe an actual interaction (engine, archetype, typal) rank above them.
-      <b>Fits your colours</b> reads off the two colours you have most of so far —
-      ${main ? `<b>${esc(main)}</b>` : 'nothing yet'} — and is the only thing here that knows
-      what deck you are building. Nothing on this list is guaranteed to come round; it says
-      what to take when it does.</p>`
-    : '<span class="dim">Nothing in the cube pairs above chance with what you have taken.</span>';
-  sortable('#p1Watch');
+  const top = rows[0] ? rows[0].desire : 1;
+  box.innerHTML = `<div class="wants">${rows.map((w, i) => `
+      <figure class="want${w.castable ? '' : ' offcolour'}">
+        <div class="wantcard">${cardFace(w.card.oracle_id ? w.card : {name: w.name})}
+          <span class="rank">${i + 1}</span></div>
+        <figcaption>
+          <b>${esc(w.name)}</b>
+          <span class="bar"><i style="width:${Math.round(100 * w.desire / top)}%"></i></span>
+          <span class="why">${esc(w.kind || 'general')} \u00b7 ${w.lift.toFixed(0)}\u00d7
+            with ${w.from.slice(0, 2).map(esc).join(', ')}${w.from.length > 2
+              ? ' +' + (w.from.length - 2) : ''}</span>
+          ${w.castable ? '' : '<span class="why">needs a splash</span>'}
+        </figcaption>
+      </figure>`).join('')}</div>
+    <p class="note">The five cards the rest of the cube most wants beside what you have taken,
+      by lift weighted toward pairs that describe an actual interaction rather than a shared
+      type. Several of your picks agreeing counts for more than one loud pair, and anything
+      outside <b>${main ? esc(main) : 'your colours'}</b> is wanted less because you would have
+      to splash for it. None of it is guaranteed to come round; it says what to take when it does.</p>`;
+
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.oracle);
+    el.removeAttribute('data-pick');
+    if (card) el.onclick = () => p1Zoom(card);
+  });
 }
 
 $('#p1Restart').onclick = () => {

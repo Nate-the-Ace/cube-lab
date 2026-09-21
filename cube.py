@@ -1533,6 +1533,43 @@ def pick_scores(con, cube_id):
     # how much the cube as a whole is connected to each card, and how many other
     # cards already do its job - the two things the cut proposal ranks on, so the
     # published page can answer that half without a database
+    # One role per card, for sorting a drafted pool the way a deckbuilder does.
+    # Scryfall's tags carry real deckbuilding language ("spot removal", "pure
+    # draw") alongside things no deck cares about ("alliteration"), so the useful
+    # ones are named rather than taken wholesale, and the first match wins.
+    tags = {}
+    for r in con.execute("""select ct.oracle_id, t.label from card_tags ct
+                            join tags t on t.slug = ct.tag
+                            where ct.oracle_id in (%s)""" % marks, list(ids)):
+        tags.setdefault(r["oracle_id"], set()).add(r["label"])
+    kinds_of = {}
+    for r in con.execute("""select oracle_id, kind from card_functions
+                            where oracle_id in (%s)""" % marks, list(ids)):
+        kinds_of.setdefault(r["oracle_id"], set()).add(r["kind"])
+
+    def role_of(row):
+        t = tags.get(row["oracle_id"], set())
+        k = kinds_of.get(row["oracle_id"], set())
+        has = lambda *words: any(w in lab for lab in t for w in words)
+        if row["is_land"]:
+            return "Land"
+        if has("removal", "destroy target", "exile target"):
+            return "Removal"
+        if has("pure draw", "draw engine", "card advantage"):
+            return "Card draw"
+        if "mana_add" in k or has("ramp", "mana ability", "treasure"):
+            return "Ramp"
+        if has("creature tokens", "token"):
+            return "Tokens"
+        if has("counterspell", "counter target spell"):
+            return "Counterspell"
+        line = (row["type_line"] or "")
+        for word in ("Planeswalker", "Creature", "Instant", "Sorcery",
+                     "Enchantment", "Artifact"):
+            if word in line:
+                return word
+        return "Other"
+
     connected = {oid: round(v, 1) for oid, v in pair_lift.items()}
     functions, served = {}, {}
     for r in con.execute("""select oracle_id, kind from card_functions
@@ -1572,6 +1609,7 @@ def pick_scores(con, cube_id):
             "open": round(openness, 1), "synergy": round(synergy, 1),
             "score": round(score, 1),
             "partners": partners.get(r["oracle_id"], []),
+            "role": role_of(r),
             "connected": connected.get(r["oracle_id"], 0.0),
             "redundancy": max([served.get(k, 0)
                                for k in functions.get(r["oracle_id"], ())] or [0]),
