@@ -1039,11 +1039,7 @@ function p1NextPack() {
   p1Boosters();
   if (P1_OPENED.size < 3) {
     // a round boundary is a real pause at a table, so it takes a press
-    $('#p1Hand').innerHTML = `<div class="roundover">
-        <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards,
-          ${3 - P1_OPENED.size} pack${P1_OPENED.size === 2 ? '' : 's'} to go.</div>
-        <div class="mini dim">open another pack above</div>
-      </div>`;
+    $('#p1Hand').innerHTML = '';
     p1Boosters();
     return;
   }
@@ -1235,9 +1231,7 @@ function p1DraftOver() {
   const decks = p1DeckOptions();
   if ($('#p1WantPanel')) $('#p1WantPanel').hidden = true;
 
-  $('#p1Hand').innerHTML = `<div class="roundover">
-      <div>Draft over \u2014 <b>${P1_TAKEN.length}</b> cards.</div>
-    </div>`;
+  $('#p1Hand').innerHTML = '';
 
   $('#p1Out').innerHTML = `
     <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>

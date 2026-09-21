@@ -348,10 +348,6 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .whyline.good::before{content:"\25B2";font-size:8px;top:2px;color:var(--good,#6fae7c)}
 .whyline.bad::before{content:"\25BC";font-size:8px;top:2px;color:var(--bad,#d8746e)}
 
-/* a round boundary, and the end of the draft */
-.roundover{display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding:34px 12px;text-align:center;color:var(--ink-dim)}
-.roundover b{color:var(--ink)}
 button.big{font-size:15px;padding:10px 26px}
 
 /* no picking while the cards are moving */
@@ -3036,11 +3032,7 @@ function p1NextPack() {
   p1Boosters();
   if (P1_OPENED.size < 3) {
     // a round boundary is a real pause at a table, so it takes a press
-    $('#p1Hand').innerHTML = `<div class="roundover">
-        <div>Pack ${P1_PACKNO} is empty. You have <b>${P1_TAKEN.length}</b> cards,
-          ${3 - P1_OPENED.size} pack${P1_OPENED.size === 2 ? '' : 's'} to go.</div>
-        <div class="mini dim">open another pack above</div>
-      </div>`;
+    $('#p1Hand').innerHTML = '';
     p1Boosters();
     return;
   }
@@ -3232,9 +3224,7 @@ function p1DraftOver() {
   const decks = p1DeckOptions();
   if ($('#p1WantPanel')) $('#p1WantPanel').hidden = true;
 
-  $('#p1Hand').innerHTML = `<div class="roundover">
-      <div>Draft over \u2014 <b>${P1_TAKEN.length}</b> cards.</div>
-    </div>`;
+  $('#p1Hand').innerHTML = '';
 
   $('#p1Out').innerHTML = `
     <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>
