@@ -753,9 +753,9 @@ function p1Zoom(card) {
   const veil = document.createElement('div');
   veil.className = 'zoomveil';
   veil.innerHTML = `<figure>
-      ${card.image
+      <div class="zfaces">${card.image
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
-        : `<div class="zname">${esc(card.name)}</div>`}
+        : `<div class="zname">${esc(card.name)}</div>`}</div>
       <div class="zname">${esc(card.name)}</div>
       <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
         `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
@@ -776,6 +776,17 @@ function p1Zoom(card) {
   });
   document.body.appendChild(veil);
   P1_ZOOM = veil;
+
+  if (card.oracle_id) {
+    cardData(card.oracle_id, true).then(d => {
+      if (P1_ZOOM !== veil || !d || !d.faces || d.faces.length < 2) return;
+      const box = veil.querySelector('.zfaces');
+      if (!box) return;
+      box.classList.add('two');
+      box.innerHTML = d.faces.map((u, i) =>
+        `<img src="${esc(u)}" alt="${esc(d.name)} face ${i + 1}">`).join('');
+    }).catch(() => {});
+  }
 }
 function p1Unzoom() {
   if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; }

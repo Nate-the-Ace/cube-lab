@@ -525,6 +525,14 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .hand.fan .dcard{touch-action:pan-x}
 }
 
+/* a two-faced card is two cards: show them together, not one at a time */
+.zfaces{display:flex;gap:10px;justify-content:center;align-items:flex-start}
+.zfaces.two img{max-width:min(44vw,300px)}
+@media (max-width:620px){
+  .zfaces.two{flex-direction:column;align-items:center}
+  .zfaces.two img{max-width:min(78vw,320px);max-height:38vh}
+}
+
 </style>
 <style>
   header .sub{color:var(--ink-dim);font-size:12px}
@@ -2760,9 +2768,9 @@ function p1Zoom(card) {
   const veil = document.createElement('div');
   veil.className = 'zoomveil';
   veil.innerHTML = `<figure>
-      ${card.image
+      <div class="zfaces">${card.image
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
-        : `<div class="zname">${esc(card.name)}</div>`}
+        : `<div class="zname">${esc(card.name)}</div>`}</div>
       <div class="zname">${esc(card.name)}</div>
       <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
         `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
@@ -2783,6 +2791,17 @@ function p1Zoom(card) {
   });
   document.body.appendChild(veil);
   P1_ZOOM = veil;
+
+  if (card.oracle_id) {
+    cardData(card.oracle_id, true).then(d => {
+      if (P1_ZOOM !== veil || !d || !d.faces || d.faces.length < 2) return;
+      const box = veil.querySelector('.zfaces');
+      if (!box) return;
+      box.classList.add('two');
+      box.innerHTML = d.faces.map((u, i) =>
+        `<img src="${esc(u)}" alt="${esc(d.name)} face ${i + 1}">`).join('');
+    }).catch(() => {});
+  }
 }
 function p1Unzoom() {
   if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; }
