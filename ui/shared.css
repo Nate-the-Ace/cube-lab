@@ -524,3 +524,6 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   100%{box-shadow:0 0 0 14px rgba(207,169,78,0)}
 }
 .booster.justopened{animation:justOpened .9s ease-out 2}
+
+/* a pack leaving the table: a throwaway copy, so the real ones are already right */
+.packghost{position:fixed;z-index:110;pointer-events:none;border-radius:3px;opacity:1}

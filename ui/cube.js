@@ -961,8 +961,11 @@ function p1Boosters() {
       if (choosing) {
         if (P1_CHOSEN.length >= 3 || P1_CHOSEN.includes(i)) return;
         P1_CHOSEN.push(i);
+        // the third choice breaks up the cube, so remember where every pack was
+        const was = P1_CHOSEN.length === 3 ? p1PackRects() : null;
         p1Boosters();
         p1DrawHand();
+        if (was) p1CollectPacks(was);
         return;
       }
       if (P1_PACK.length) return;              // finish the pack in hand first
@@ -992,6 +995,78 @@ function p1Boosters() {
    is laid over the pack, hinged at the top seam, and folded away from the
    viewer. It is a throwaway overlay rather than the pack itself, so nothing in
    the pack's own state depends on the animation finishing. */
+/* ── breaking up the cube ──
+
+   When the third pack is chosen the spread stops being 36 packs and becomes
+   your three, which is a big enough change to be worth showing rather than
+   cutting to. The chosen packs slide from where they sat in the cube to their
+   place on the table; the rest leave - as many as there are other seats go to
+   those players, and the remainder are simply not in this draft and drop away.
+
+   The leavers are throwaway clones, so the real boosters are already correct
+   before a single frame runs. */
+function p1PackRects() {
+  const out = {};
+  document.querySelectorAll('#p1Boosters .booster').forEach(el => {
+    out[el.dataset.pack] = el.getBoundingClientRect();
+  });
+  return out;
+}
+
+function p1CollectPacks(was) {
+  const box = $('#p1Boosters');
+  if (!box || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  // the three you kept: slide from the cube to the table
+  box.querySelectorAll('.booster').forEach(el => {
+    const from = was[el.dataset.pack];
+    if (!from) return;
+    const to = el.getBoundingClientRect();
+    if (!el.animate) return;
+    el.animate([
+      {transform: `translate(${(from.left - to.left).toFixed(1)}px, ${(from.top - to.top).toFixed(1)}px)`
+        + ` scale(${(from.width / to.width).toFixed(3)})`},
+      {transform: 'none'},
+    ], {duration: 520, easing: 'cubic-bezier(.3,.9,.3,1)'});
+  });
+
+  const seats = Math.max(0, p1Wheel().players - 1);
+  const leaving = Object.keys(was)
+    .filter(k => !P1_CHOSEN.includes(parseInt(k, 10)))
+    .sort((a, b) => was[a].left - was[b].left);
+
+  leaving.forEach((key, n) => {
+    const from = was[key];
+    const ghost = document.createElement('div');
+    ghost.className = 'booster packghost';
+    Object.assign(ghost.style, {
+      left: from.left + 'px', top: from.top + 'px',
+      width: from.width + 'px', height: from.height + 'px',
+    });
+    document.body.appendChild(ghost);
+
+    const toSeat = n < seats;
+    // dealt out to the other players, alternating sides; the rest are not in
+    // this draft at all and fall away
+    const dx = toSeat
+      ? (n % 2 ? 1 : -1) * (window.innerWidth * 0.6)
+      : (from.left - window.innerWidth / 2) * 0.35;
+    const dy = toSeat ? -60 - (n * 6) : window.innerHeight * 0.45;
+
+    const anim = ghost.animate([
+      {transform: 'none', opacity: 1},
+      {transform: `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(${toSeat ? 0.5 : 0.7})`
+        + ` rotate(${toSeat ? (n % 2 ? 12 : -12) : 4}deg)`, opacity: 0},
+    ], {
+      duration: toSeat ? 620 : 520,
+      delay: 40 + n * 12,
+      easing: toSeat ? 'cubic-bezier(.4,0,.5,1)' : 'ease-in',
+      fill: 'forwards',
+    });
+    anim.finished.then(() => ghost.remove()).catch(() => ghost.remove());
+  });
+}
+
 function p1PeelPack(packNo) {
   const lit = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
   if (lit) {
