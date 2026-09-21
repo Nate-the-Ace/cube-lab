@@ -1110,7 +1110,7 @@ def test_hand_sort():
     here = os.path.dirname(os.path.abspath(__file__))
     js = open(os.path.join(here, "ui", "cube.js")).read()
     html = open(os.path.join(here, "ui", "cube.html")).read()
-    for key in ("deal", "score", "fit", "colour", "mv", "name", "role"):
+    for key in ("deal", "score", "fit", "colour", "mv", "name", "role", "artist"):
         check("the hand can be sorted by %s" % key,
               ("  %s: {label:" % key) in js and ('value="%s"' % key) in html)
     # the pack keeps the order it was dealt in, so "as dealt" is always a way back
@@ -1130,6 +1130,14 @@ def test_hand_sort():
         [k for k in ("Removal", "Ramp", "Tokens", "Counterspell", "Card draw",
                      "Planeswalker") if "'%s':" % k in js]) == 6)
     check("the groups are not separated", ".hand.fan.grouped{gap:0" in css)
+    # grouping belongs to the sort, not to one hard-coded sort
+    check("a sort says how to group and what a run's line reads",
+          "const grouped = !!sorter.groupBy;" in js and "sorter.does(g.key)" in js)
+    check("the artist sort groups by painter",
+          "groupBy: c => c.artist || 'Unknown'" in js and "cards in this cube" in js)
+    # the fan opens up to fit the names before any of them stack
+    check("the fan widens to fit the run names",
+          "const want = Math.max(step, ...need);" in js and "READABLE_CW = 112" in js)
     check("a group is as wide as its cards, whatever its name is",
           ".handgroup .glabel{position:absolute" in css)
     check("the names follow the curve the cards sit on",
@@ -1179,6 +1187,40 @@ def test_hand_sort():
     # card carries its own z-index, one per card in the pack
     check("a raised run is above every other card",
           ".hand.fan.grouped .handgroup.up{z-index:50}" in css)
+
+
+def test_english_faces():
+    print("card faces")
+    con = mtgdb.connect()
+    # the cheapest printing of a few cards is a Japanese alternate art, and a
+    # pack of cards nobody at the table can read is not a pack of cards
+    for name in ("Ugin, the Ineffable", "Tamiyo, Compleated Sage", "Lightning Bolt"):
+        c = mtgdb.by_name(con, name)
+        if not c:
+            continue
+        pr = mtgdb.cheapest_printing(con, c["oracle_id"])
+        check("%s is shown in English" % name, pr and pr["lang"] == "en",
+              pr and "%s %s/%s" % (pr["lang"], pr["set_code"], pr["collector_number"]))
+    here = os.path.dirname(os.path.abspath(__file__))
+    cube_py = open(os.path.join(here, "cube.py")).read()
+    check("the draft payload takes the English face",
+          "p2.lang = 'en'" in cube_py)
+    blob = os.path.join(here, "docs", "ui_data.json")
+    if os.path.exists(blob):
+        d = json.load(open(blob, encoding="utf-8"))
+        cards = (d.get("p1p1") or {}).get("cards") or []
+        # every published image should be one an English-speaking table can read
+        ids = {c["oracle_id"]: c.get("image") for c in cards}
+        wrong = []
+        for oid, img in ids.items():
+            if not img:
+                continue
+            r = con.execute("select lang from printings where image_uri = ?", (
+                img.replace("/large/", "/normal/"),)).fetchone()
+            if r and r["lang"] != "en":
+                wrong.append(oid)
+        check("no published card wears a non-English face",
+              not wrong, "%d of %d" % (len(wrong), len(ids)))
 
 
 def test_pack_art():
@@ -1414,6 +1456,7 @@ def main():
     test_pages_and_privacy()
     test_game_nights()
     test_name_lookup_skips_non_cards()
+    test_english_faces()
     test_pack_art()
     test_hand_sort()
     test_color_names()

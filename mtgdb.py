@@ -147,13 +147,29 @@ def by_name(con, name):
     return dict(r) if r else None
 
 
-def cheapest_printing(con, oracle_id):
-    r = con.execute("""select * from printings where oracle_id=? and paper=1 and digital=0
-                       and oversized=0 and usd is not null order by usd limit 1""", (oracle_id,)).fetchone()
-    if r is None:   # foil-only cards (Secret Lair, some 40K commanders) carry no nonfoil price
+def cheapest_printing(con, oracle_id, lang="en"):
+    """The printing to SHOW a card as. Cheapest, because a cube is played with
+    whatever is cheapest, but English first: the cheapest print of Ugin, the
+    Ineffable is the Japanese alternate art from War of the Spark, and a pack of
+    cards nobody at the table can read is not a pack of cards.
+
+    Callers take set_code, image and tcgplayer_id from this. Prices do NOT come
+    from here - they are rolled up over every printing in load.py - so putting a
+    language first cannot change what a card is said to cost.
+    """
+    def pick(where, args):
         r = con.execute("""select * from printings where oracle_id=? and paper=1 and digital=0
-                           and oversized=0 and coalesce(usd_foil, usd_etched) is not null
-                           order by coalesce(usd_foil, usd_etched) limit 1""", (oracle_id,)).fetchone()
+                           and oversized=0 and usd is not null %s
+                           order by usd limit 1""" % where, args).fetchone()
+        if r is None:   # foil-only cards (Secret Lair, some 40K commanders) carry no nonfoil price
+            r = con.execute("""select * from printings where oracle_id=? and paper=1 and digital=0
+                               and oversized=0 and coalesce(usd_foil, usd_etched) is not null %s
+                               order by coalesce(usd_foil, usd_etched) limit 1""" % where,
+                            args).fetchone()
+        return r
+    r = pick("and lang = ?", (oracle_id, lang)) if lang else None
+    if r is None:                  # a card with no English printing still needs a face
+        r = pick("", (oracle_id,))
     return dict(r) if r else None
 
 

@@ -492,6 +492,19 @@ const ROLE_DOES = {
   'Other': 'does its own thing',
 };
 
+// how many of this cube's cards each painter has, which is the line an artist
+// run shows - the meta answer to "who is this pack by"
+function p1ArtistCount(name) {
+  if (!P1_ART_N) {
+    P1_ART_N = {};
+    ((P1 && P1.cards) || []).forEach(c => {
+      if (c.artist) P1_ART_N[c.artist] = (P1_ART_N[c.artist] || 0) + 1;
+    });
+  }
+  return P1_ART_N[name] || 0;
+}
+let P1_ART_N = null;
+
 const P1_HAND_SORTS = {
   deal: {label: 'as dealt', by: null},
   score: {label: 'pick score', by: (a, b) => b.score - a.score},
@@ -502,7 +515,16 @@ const P1_HAND_SORTS = {
   mv: {label: 'mana value', by: (a, b) => (a.cmc || 0) - (b.cmc || 0)},
   name: {label: 'name', by: (a, b) => a.name.localeCompare(b.name)},
   role: {label: 'what it does', by: (a, b) =>
-         (a.role || 'Other').localeCompare(b.role || 'Other') || b.score - a.score},
+         (a.role || 'Other').localeCompare(b.role || 'Other') || b.score - a.score,
+         groupBy: c => c.role || 'Other',
+         does: k => ROLE_DOES[k] || ROLE_DOES.Other},
+  artist: {label: 'artist', by: (a, b) =>
+           (a.artist || '').localeCompare(b.artist || '') || a.name.localeCompare(b.name),
+           groupBy: c => c.artist || 'Unknown',
+           does: k => {
+             const n = p1ArtistCount(k);
+             return n ? `${n} card${n === 1 ? '' : 's'} in this cube` : 'not in the cube';
+           }},
 };
 let P1_HAND_SORT = 'deal';
 
@@ -593,14 +615,15 @@ function p1DrawHand() {
         : ''}</span>`;
     return;
   }
-  const grouped = P1_HAND_SORT === 'role';
+  const sorter = P1_HAND_SORTS[P1_HAND_SORT] || {};
+  const grouped = !!sorter.groupBy;
   p1DropRun();                   // the groups it pointed at are about to go
   hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
   if (grouped) {
     const groups = [];
     inOrder.forEach(c => {
-      const k = c.role || 'Other';
+      const k = sorter.groupBy(c);
       const last = groups[groups.length - 1];
       if (last && last.key === k) last.cards.push(c);
       else groups.push({key: k, cards: [c]});
@@ -608,9 +631,9 @@ function p1DrawHand() {
     hand.innerHTML = groups.map(g => `<div class="handgroup">
       <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
       <span class="gfoot"><span class="glabel"
-        title="${esc(g.key)} \u2014 ${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}"
+        title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
         ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
-        <em>${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}</em></span></span>
+        <em>${esc(sorter.does(g.key))}</em></span></span>
     </div>`).join('');
   } else {
     hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
@@ -909,6 +932,43 @@ function p1LayoutHand() {
     step = n > 1 ? (room - cw) / (n - 1) : cw;
   }
   step = Math.min(step, cw + 8);
+
+  /* Sorted into runs, the fan spreads to fit the names.
+
+     What you see of a run before the next covers it is n * step, so a run whose
+     name is wider than that has nowhere to put it - which is why names were
+     stacking onto a second line. Widening the gap between the cards gives every
+     run the room its name needs, and the fan has that room to give: it is only
+     as tight as it is because it defaults to filling the width.
+
+     It cannot always be given. A pack of twelve one-card runs wants more width
+     than the table has, and past a point the cards would be slivers - so the
+     spread is capped, and whatever still does not fit stacks as before. */
+  const runs = [...hand.querySelectorAll('.handgroup')];
+  if (runs.length > 1) {
+    const need = runs.map(g => {
+      const label = g.querySelector('.glabel');
+      const cnt = g.querySelectorAll('.dcard').length || 1;
+      if (!label) return 0;
+      label.style.width = 'max-content';
+      return (label.getBoundingClientRect().width + 12) / cnt;
+    });
+    const want = Math.max(step, ...need);
+    /* Widening is paid for out of the cards' own width, and that is a bad trade
+       past a point: a full 15-card pack has no slack at all - measured, buying
+       enough room for "Enchantment" beside "Instant" took the cards from 132px
+       down to 82px and STILL left a name stacked. So the cards may not go below
+       READABLE_CW, and the fan takes whatever spread is left over. Later in a
+       pack, where there are eight or ten cards and the fan is not tight, that
+       is usually the whole of it and nothing stacks. */
+    const READABLE_CW = 112;
+    if (want > step) {
+      const maxStep = Math.min(cw + 8, (room - READABLE_CW) / (n - 1));
+      step = Math.max(step, Math.min(want, maxStep));
+      cw = Math.min(132, Math.max(READABLE_CW, room - (n - 1) * step));
+      step = Math.min(step, cw + 8);
+    }
+  }
 
   const mid = (n - 1) / 2;
   cards.forEach((el, i) => {

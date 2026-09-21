@@ -1500,7 +1500,16 @@ def pick_scores(con, cube_id):
     rows = [dict(r) for r in con.execute("""
         select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
                c.mana_cost, c.price_usd, c.is_land, p.image_uri, p.artist, p.set_code
-        from cards c left join printings p on p.id = c.cheap_printing_id
+        from cards c left join printings p on p.id = coalesce(
+             -- cheap_printing_id is the cheapest print in ANY language, which for
+             -- a few cards is the Japanese alternate art. Prices are rolled up
+             -- over every printing and are not touched by this; it only decides
+             -- which face, artist and set the page shows.
+             (select p2.id from printings p2
+               where p2.oracle_id = c.oracle_id and p2.lang = 'en' and p2.paper = 1
+                 and p2.digital = 0 and p2.oversized = 0 and p2.image_uri is not null
+               order by p2.usd is null, p2.usd limit 1),
+             c.cheap_printing_id)
         where c.oracle_id in (%s)""" % marks, list(ids))]
 
     lanes = lane_pcts()
