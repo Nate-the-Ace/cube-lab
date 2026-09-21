@@ -117,19 +117,32 @@ def search(con, q="", fmt="", ci=None, max_usd=None, min_usd=None, types="",
     return {"total": total, "results": rows}
 
 
+# Scryfall files more than cards under these names. An art series print, the
+# token version of a card, an emblem or a scheme each gets its own oracle id and
+# carries the card's name, so a name lookup can land on one: "Vizier of Many
+# Faces" matched its Amonkhet TOKEN and "Valki, God of Lies" matched the art
+# card, whose two faces are a painting and the artist's signature. Neither has
+# an image the page can use, and both rendered as a double-faced card.
+NOT_A_CARD = ("art_series", "token", "double_faced_token", "emblem", "scheme",
+              "planar", "vanguard", "augment", "host")
+CARD_ONLY = "layout not in (%s)" % ",".join("'%s'" % x for x in NOT_A_CARD)
+
+
 def by_name(con, name):
     """Exact-ish name lookup; tolerates 'Front // Back' and partial front-face names."""
     n = name.strip()
-    r = con.execute("select * from cards where name = ? collate nocase", (n,)).fetchone()
+    # n_printings orders the ties: a real card has printings, its token has one
+    r = con.execute("select * from cards where name = ? collate nocase and " + CARD_ONLY
+                    + " order by n_printings desc limit 1", (n,)).fetchone()
     if r:
         return dict(r)
-    r = con.execute("select * from cards where name like ? escape '\\' collate nocase "
-                    "order by length(name) limit 1",
+    r = con.execute("select * from cards where name like ? escape '\\' collate nocase and "
+                    + CARD_ONLY + " order by length(name) limit 1",
                     (like_escape(n) + " // %",)).fetchone()
     if r:
         return dict(r)
-    r = con.execute("select * from cards where name like ? escape '\\' collate nocase "
-                    "order by n_printings desc limit 1",
+    r = con.execute("select * from cards where name like ? escape '\\' collate nocase and "
+                    + CARD_ONLY + " order by n_printings desc limit 1",
                     ("%" + like_escape(n) + "%",)).fetchone()
     return dict(r) if r else None
 
@@ -933,7 +946,7 @@ def suggest(con, q, kind="card", limit=12):
                c.edh_decks, c.n_printings,
                (case when c.name like ? escape '\\' then 0 else 1 end) rank_grp
         from cards c
-        where c.name like ? escape '\\' collate nocase
+        where c.name like ? escape '\\' collate nocase and """ + CARD_ONLY + """
         order by rank_grp, c.edh_decks desc nulls last, c.n_printings desc, c.name
         limit ?""", (pre, mid, limit))
     return [{"label": r["name"], "value": r["oracle_id"],

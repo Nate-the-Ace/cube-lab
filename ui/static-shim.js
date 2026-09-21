@@ -270,6 +270,8 @@
     };
   }
 
+  const NOT_A_CARD = '-layout:art_series -is:token -is:emblem -is:oversized';
+
   const big = u => (u || '').replace('/normal/', '/large/');
 
   function asCard(c) {
@@ -310,8 +312,12 @@
       const oid = qs.get('oracle_id'), name = qs.get('name') || '';
       let c = null;
       if (oid) {
+        // Order by price and the cheapest print of a card is often not a card:
+        // an art series print (a painting on the front, the artist's signature
+        // on the back) or the token version. Both carry the name and render as
+        // a double-faced card with no rules text, so exclude them by layout.
         const j = await sfJson('https://api.scryfall.com/cards/search?order=usd&dir=asc&q='
-                               + encodeURIComponent('oracleid:' + oid));
+                               + encodeURIComponent('oracleid:' + oid + ' ' + NOT_A_CARD));
         c = j && (j.data || [])[0];
       }
       if (!c && name) {
@@ -323,7 +329,7 @@
     if (path === '/api/legality') {
       const oid = qs.get('oracle_id');
       const j = oid && await sfJson('https://api.scryfall.com/cards/search?q='
-                                    + encodeURIComponent('oracleid:' + oid));
+                                    + encodeURIComponent('oracleid:' + oid + ' ' + NOT_A_CARD));
       const c = j && (j.data || [])[0];
       return c ? legalityOf(c) : {error: 'not found'};
     }

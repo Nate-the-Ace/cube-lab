@@ -1499,7 +1499,7 @@ def pick_scores(con, cube_id):
     marks = ",".join("?" * len(ids))
     rows = [dict(r) for r in con.execute("""
         select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
-               c.mana_cost, c.price_usd, c.is_land, p.image_uri
+               c.mana_cost, c.price_usd, c.is_land, p.image_uri, p.artist, p.set_code
         from cards c left join printings p on p.id = c.cheap_printing_id
         where c.oracle_id in (%s)""" % marks, list(ids))]
 
@@ -1605,6 +1605,9 @@ def pick_scores(con, cube_id):
             "color_identity": ci, "cmc": r["cmc"], "type_line": r["type_line"],
             "mana_cost": r["mana_cost"], "price_usd": r["price_usd"],
             "is_land": r["is_land"], "image": r["image_uri"],
+            # the pack wrappers are painted with real art, and Scryfall's terms
+            # ask for the artist's name wherever a crop is shown
+            "artist": r["artist"], "set_code": r["set_code"],
             "lane": round(lane, 1),
             "open": round(openness, 1), "synergy": round(synergy, 1),
             "score": round(score, 1),

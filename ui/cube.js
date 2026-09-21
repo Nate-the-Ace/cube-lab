@@ -419,7 +419,7 @@ let P1_PACKS = [], P1_PICKNO = 0;
 // which of the three have been opened, in whatever order they were chosen
 let P1_OPENED = new Set();
 // the cube cut into 36 packs, which three are yours, and which the table used
-let P1_ALL = [], P1_CHOSEN = [], P1_SPENT = new Set();
+let P1_ALL = [], P1_CHOSEN = [], P1_SPENT = new Set(), P1_ART = {};
 // every card this draft has already dealt, so no card is opened twice
 let P1_USED = new Set();
 const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
@@ -851,8 +851,19 @@ const P1_GROUPS = {
   score: {label: 'Pick score', of: c =>
     c.score >= 50 ? 'Top picks' : c.score >= 35 ? 'Solid' : 'Filler',
     order: ['Top picks', 'Solid', 'Filler']},
+  /* Stacking your picks by who painted them says nothing about the draft, which
+     is exactly why it is worth having. It is not in the menu until you go
+     looking - type an artist's name into the find box, or the word "artist" -
+     and the wrappers are the hint: every pack is a painting, credited. */
+  artist: {label: 'Artist', egg: true, of: c => c.artist || 'Unknown', order: []},
 };
-let P1_GROUP_BY = 'colour';
+let P1_GROUP_BY = 'colour', P1_EGG = false;
+
+// 203 people painted this cube; 100 of them have exactly one card in it
+function p1Artists() {
+  return new Set(((P1 && P1.cards) || []).map(c => (c.artist || '').toLowerCase())
+    .filter(Boolean));
+}
 
 function p1Tableau(toggle) {
   const box = $('#p1Tableau');
@@ -931,6 +942,46 @@ function p1CutCube() {
   }
   P1_CHOSEN = [];
   P1_SPENT = new Set();
+  p1CutArt();
+}
+
+/* Real art on the wrappers.
+
+   Scryfall serves an art crop of every printing at the same path as the normal
+   image, so `/normal/` -> `/art_crop/` turns a card the page already knows about
+   into a painting with no extra request. Each pack takes one at random from a
+   card that is NOT inside it, so the wrapper never hints at its own contents,
+   and carries the painting and the artist in its tooltip because that is what
+   showing the crop asks of us. */
+const artCrop = u => (u || '').replace('/normal/', '/art_crop/')
+                              .replace('/large/', '/art_crop/');
+
+function p1CutArt() {
+  P1_ART = {};
+  const pool = (P1 && P1.cards || []).filter(c => c.image);
+  if (!pool.length) return;
+  for (let i = pool.length - 1; i > 0; i--) {          // drawn without replacement,
+    const j = Math.floor(Math.random() * (i + 1));     // so no two wrappers match
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  let at = 0;
+  P1_ALL.forEach((pack, i) => {
+    const inside = new Set(pack.map(c => c.oracle_id));
+    while (at < pool.length && inside.has(pool[at].oracle_id)) at++;
+    const c = pool[at++];
+    if (!c) return;
+    P1_ART[i] = {url: artCrop(c.image), name: c.name,
+                 artist: c.artist || '', set: (c.set_code || '').toUpperCase()};
+  });
+}
+
+function p1PackFace(i) {
+  const a = P1_ART[i];
+  if (!a) return {html: '', credit: ''};
+  return {
+    html: `<i class="packart" style="background-image:url(${esc(a.url)})"></i>`,
+    credit: a.artist ? `${a.name} \u2014 art by ${a.artist}` : a.name,
+  };
 }
 
 function p1StartRound(which) {
@@ -998,10 +1049,12 @@ function p1Boosters() {
       label = {done: 'drafted', open: 'in hand', waiting: 'sealed',
                ready: 'click to open'}[state];
     }
+    const face = p1PackFace(i);
+    const what = choosing ? 'A sealed pack' : 'Pack';
     return `<div class="booster ${state}" data-pack="${i}"
       ${state === 'ready' ? 'role="button" tabindex="0"' : 'aria-hidden="true"'}
-      title="${choosing ? 'A sealed pack' : 'Pack'} \u2014 ${label}"
-      aria-label="${choosing ? 'Sealed pack' : 'Pack'}, ${label}"></div>`;
+      title="${what} \u2014 ${label}${face.credit ? '\n' + esc(face.credit) : ''}"
+      aria-label="${what}, ${label}">${face.html}</div>`;
   }).join('');
 
   box.querySelectorAll('.booster.ready').forEach(el => {
@@ -1103,6 +1156,7 @@ function p1CollectPacks(was) {
     const from = was[key];
     const ghost = document.createElement('div');
     ghost.className = 'booster packghost';
+    ghost.innerHTML = p1PackFace(parseInt(key, 10)).html;   // it keeps its painting
     Object.assign(ghost.style, {
       left: from.left + 'px', top: from.top + 'px',
       width: from.width + 'px', height: from.height + 'px',
@@ -1331,7 +1385,8 @@ let P1_FILTER = {colours: new Set(), role: '', q: ''};
 function p1PoolCards() {
   const f = P1_FILTER;
   return P1_TAKEN.filter(c => {
-    if (f.q && !c.name.toLowerCase().includes(f.q)) return false;
+    if (f.q && !c.name.toLowerCase().includes(f.q)
+             && !(c.artist || '').toLowerCase().includes(f.q)) return false;
     if (f.role && (c.role || 'Other') !== f.role) return false;
     if (f.colours.size) {
       const ci = [...(c.color_identity || '')];
@@ -1366,9 +1421,11 @@ function p1PoolView() {
           `<option${r === P1_FILTER.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
       </label>
       <label class="seats">Stack by
-        <select id="poolGroup">${Object.entries(P1_GROUPS).map(([k, v]) =>
-          `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
-        ).join('')}</select>
+        <select id="poolGroup">${Object.entries(P1_GROUPS)
+          .filter(([k, v]) => !v.egg || P1_EGG || k === P1_GROUP_BY)
+          .map(([k, v]) =>
+            `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
+          ).join('')}</select>
       </label>
       <input id="poolQ" placeholder="find a card" value="${esc(P1_FILTER.q)}">
       <span class="spacer"></span>
@@ -1399,7 +1456,13 @@ function p1PoolView() {
   $('#poolQ').oninput = e => {
     clearTimeout(t);
     const v = e.target.value.trim().toLowerCase();
-    t = setTimeout(() => { P1_FILTER.q = v; p1PoolView(); }, 200);
+    t = setTimeout(() => {
+      P1_FILTER.q = v;
+      // naming a painter, or asking for one, opens the stacking nobody advertised
+      if (v.length > 2 && (v === 'artist'
+          || [...p1Artists()].some(a => a.includes(v)))) P1_EGG = true;
+      p1PoolView();
+    }, 200);
   };
   if ($('#poolClear')) $('#poolClear').onclick = () => {
     P1_FILTER = {colours: new Set(), role: '', q: ''};

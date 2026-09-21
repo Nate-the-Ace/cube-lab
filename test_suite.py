@@ -1064,7 +1064,7 @@ def test_game_nights():
         body = open(blob, encoding="utf-8").read()
         doc = json.loads(body)
         who = [p["name"] for p in N.load()["players"]]
-        leaked = [w for w in who if w in body]
+        leaked = [w for w in who if w in without_artists(body)]
         check("no player name reaches the published blob", not leaked, str(leaked))
         check("no per-player figures reach the published blob",
               "players" not in doc and "standings" not in doc)
@@ -1096,13 +1096,97 @@ def test_game_nights():
               '<a href="./" class="badge">' not in d and 'href="/nights"' not in d)
         who = [p["name"] for p in N.load()["players"]]
         check("no player name reaches the draft page",
-              not [w for w in who if w in d])
+              not [w for w in who if w in without_artists(d)])
         check("the draft page refuses writes like the full page does",
               "READ_ONLY" in d and "/api/cube/import" in d)
         idx = os.path.join(here, "docs", "index.html")
         if os.path.exists(idx):
             check("the full page links to the draft table",
                   '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
+
+
+def test_pack_art():
+    print("pack art")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    # the crop comes from a URL the page already has, not another request
+    check("pack art is derived from an image the page already has",
+          "'/normal/', '/art_crop/'" in js and "fetch" not in js.split("function p1CutArt")[1].split("}")[0])
+    check("a pack never wears art from a card inside it",
+          "inside.has(pool[at].oracle_id)" in js)
+    check("no two wrappers wear the same painting",
+          "drawn without replacement" in js)
+    check("the art is recut with the cube", "p1CutArt();" in js)
+    check("the wrapper credits the painting and its artist",
+          "art by" in js and "face.credit" in js)
+    # stacking your picks by painter is not in the menu until you go looking
+    check("the artist stacking is hidden until it is found",
+          "artist: {label: 'Artist', egg: true" in js
+          and "!v.egg || P1_EGG || k === P1_GROUP_BY" in js)
+    check("the find box matches artists as well as card names",
+          "(c.artist || '').toLowerCase().includes(f.q)" in js)
+    css = open(os.path.join(here, "ui", "shared.css")).read()
+    check("the seam and foil paint over the art",
+          ".booster .packart{position:absolute;inset:0;z-index:1" in css
+          and "height:7px;z-index:2" in css)
+    # the payload has to carry the artist for the credit to say anything
+    blob = os.path.join(here, "docs", "ui_data.json")
+    if os.path.exists(blob):
+        d = json.load(open(blob, encoding="utf-8"))
+        cards = (d.get("p1p1") or {}).get("cards") or []
+        if cards:
+            named = [c for c in cards if c.get("artist")]
+            check("published cards carry their artist",
+                  len(named) > 0.9 * len(cards), "%d/%d" % (len(named), len(cards)))
+
+
+# Card artists are people too, and some of them share a first name with someone
+# at the table: Austin Hsu, Brad Rigney, Noah Bradley. Their names are printed on
+# the cards, so they are card data rather than a leak - but everything OUTSIDE an
+# artist credit is still held to the strict substring test below.
+ARTIST_FIELD = re.compile(r'"artist"\s*:\s*"[^"]*"')
+
+
+def without_artists(text):
+    return ARTIST_FIELD.sub('"artist":""', text)
+
+
+def test_name_lookup_skips_non_cards():
+    print("name lookup")
+    con = mtgdb.connect()
+    # Scryfall files art series prints, token versions and emblems under the
+    # card's own name. They have no rules text and their two "faces" are a
+    # painting and a signature, so landing on one puts a card in the cube that
+    # cannot be drawn, previewed or picked.
+    for name, want_layout in [("Vizier of Many Faces", "normal"),
+                              ("Valki, God of Lies", "modal_dfc"),
+                              ("Lightning Bolt", "normal")]:
+        c = mtgdb.by_name(con, name)
+        check("%s resolves to a real card" % name,
+              c is not None and c["layout"] == want_layout,
+              c and c["layout"])
+    check("the non-card layouts are excluded by name",
+          all("'%s'" % x in mtgdb.CARD_ONLY for x in ("art_series", "token", "emblem")))
+
+    cu = cube.connect_rw()
+    rows = list(cu.execute("select oracle_id, card_name from cube_cards"))
+    if rows:
+        bad = [r["card_name"] for r in rows
+               if (con.execute("select layout from cards where oracle_id=?",
+                               (r["oracle_id"],)).fetchone()
+                   or {"layout": "missing"})["layout"] in mtgdb.NOT_A_CARD]
+        check("no cube card points at an art card or a token", not bad, str(bad[:3]))
+        noimg = [r["card_name"] for r in rows
+                 if not (con.execute("""select p.image_uri from cards c
+                                        left join printings p on p.id = c.cheap_printing_id
+                                        where c.oracle_id = ?""",
+                                     (r["oracle_id"],)).fetchone() or [None])[0]]
+        check("every cube card has an image to draw", not noimg, str(noimg[:3]))
+
+    shim = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "ui", "static-shim.js")).read()
+    check("the shim excludes non-cards from its card lookups",
+          shim.count("NOT_A_CARD") >= 3 and "-layout:art_series" in shim)
 
 
 def test_color_names():
@@ -1224,6 +1308,8 @@ def main():
     test_ui_glossary()
     test_pages_and_privacy()
     test_game_nights()
+    test_name_lookup_skips_non_cards()
+    test_pack_art()
     test_color_names()
     test_draft_math()
     test_cube_parsing()

@@ -372,12 +372,22 @@ button.big{font-size:15px;padding:10px 26px}
              inset 0 -14px 22px rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.5);
   opacity:.5;filter:saturate(.7);
   transition:transform .16s ease,opacity .16s ease,filter .16s ease,box-shadow .16s ease}
+/* The wrapper's painting: a card's art crop, from a card that is not in this
+   pack. It sits under the foil and the seam, dimmed enough that the gold still
+   reads on top of it. */
+.booster .packart{position:absolute;inset:0;z-index:1;border-radius:3px;background-size:cover;
+  background-position:center 28%;opacity:.55;
+  -webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,.25) 0,#000 34%,#000 74%,rgba(0,0,0,.12) 100%);
+  mask-image:linear-gradient(180deg,rgba(0,0,0,.25) 0,#000 34%,#000 74%,rgba(0,0,0,.12) 100%)}
+.booster.ready .packart{opacity:.78}
+.booster.ready:hover .packart{opacity:.95}
+
 /* the crimped seam across the top of the wrapper */
-.booster::before{content:"";position:absolute;left:0;right:0;top:5px;height:7px;
+.booster::before{content:"";position:absolute;left:0;right:0;top:5px;height:7px;z-index:2;
   background:repeating-linear-gradient(90deg,rgba(0,0,0,.55) 0 2px,rgba(255,255,255,.07) 2px 4px);
   border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(0,0,0,.6)}
 /* a foil diamond, so the face is not empty */
-.booster::after{content:"";position:absolute;left:50%;top:52%;width:20px;height:20px;
+.booster::after{content:"";position:absolute;left:50%;top:52%;width:20px;height:20px;z-index:2;
   transform:translate(-50%,-50%) rotate(45deg);
   background:linear-gradient(135deg,rgba(207,169,78,.65),rgba(207,169,78,.15));
   box-shadow:0 0 10px rgba(207,169,78,.28)}
