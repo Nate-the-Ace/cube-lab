@@ -1146,10 +1146,16 @@ def test_hand_sort():
           and ".handgroup.up .dcard{" in css)
     check("pointing at a card raises nothing",
           ".handgroup:hover .dcard{" not in css and ".handgroup:hover .dcard," not in css)
-    check("the run stays up across the gap on the way to its cards",
-          "P1_UP_TIMER = setTimeout(" in js and "}, now ? 0 : 140);" in js)
+    # the gaps are unavoidable - a raised card leaves a strip behind it, the
+    # dimmed cards filling that strip are inert, and a line of text has room
+    # above it - so the latch asks where the pointer IS, not what it is over
+    check("the run holds by where the pointer is, not what it is over",
+          "function p1RunBox" in js and "RUN_MARGIN = 56" in js
+          and "document.addEventListener('mousemove', P1_UP_MOVE)" in js)
+    check("the run box covers its cards and its name",
+          "[...g.querySelectorAll('.dcard'), g.querySelector('.glabel')]" in js)
     check("a redraw drops the latch with the groups it pointed at",
-          "p1RaiseRun(null);" in js)
+          "p1DropRun();                   // the groups it pointed at are about to go" in js)
     # raising is not enough: inside a run the cards overlap each other, so a
     # five-card run went up as a stack of slivers
     check("a raised run spreads out far enough to read",

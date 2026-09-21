@@ -519,43 +519,65 @@ function p1SortedPack() {
 
    Two rules that CSS alone cannot hold at once: a run rises only when you point
    at its NAME - pointing at a card is for looking at that one card - but once it
-   is up it has to stay up while you move onto its cards. And the way up crosses
-   a gap: the cards have moved 26px clear of where they sat, and what is under
-   the pointer in that strip is a dimmed card belonging to another run, which is
-   inert, so the pointer briefly lands on nothing at all. A latch with a short
-   grace period covers the crossing; anything else retracts the run under you. */
-let P1_UP = null, P1_UP_TIMER = null;
+   is up it has to stay up while you move onto its cards.
+
+   Between the two there are gaps with nothing under the pointer: the cards have
+   moved 26px clear of where they sat, the strip they left is covered by dimmed
+   cards from other runs which are deliberately inert, and the name itself is a
+   line of text with room above it. Leaving and re-entering fires mouseleave
+   every time. So the latch does not ask what the pointer is OVER at all - it
+   asks where the pointer IS, and holds the run while it is anywhere near the
+   run's own cards and name. Nothing to cross, so nothing to fall through. */
+const RUN_MARGIN = 56;
+let P1_UP = null, P1_UP_MOVE = null;
+
+function p1RunBox(g) {
+  const parts = [...g.querySelectorAll('.dcard'), g.querySelector('.glabel')]
+    .filter(Boolean).map(el => el.getBoundingClientRect());
+  if (!parts.length) return null;
+  return {
+    left: Math.min(...parts.map(r => r.left)) - RUN_MARGIN,
+    right: Math.max(...parts.map(r => r.right)) + RUN_MARGIN,
+    top: Math.min(...parts.map(r => r.top)) - RUN_MARGIN,
+    bottom: Math.max(...parts.map(r => r.bottom)) + RUN_MARGIN,
+  };
+}
 
 function p1RaiseRun(g) {
-  clearTimeout(P1_UP_TIMER);
   if (P1_UP === g) return;
   if (P1_UP) P1_UP.classList.remove('up');
   P1_UP = g;
   if (g) g.classList.add('up');
+  if (g && !P1_UP_MOVE) {
+    P1_UP_MOVE = e => {
+      if (!P1_UP) return;
+      const b = p1RunBox(P1_UP);
+      if (!b) return;
+      if (e.clientX < b.left || e.clientX > b.right
+          || e.clientY < b.top || e.clientY > b.bottom) p1DropRun();
+    };
+    document.addEventListener('mousemove', P1_UP_MOVE);
+  }
+  if (!g) p1DropRun();
 }
 
-function p1DropRun(now) {
-  clearTimeout(P1_UP_TIMER);
-  if (!P1_UP) return;
-  P1_UP_TIMER = setTimeout(() => {
-    if (P1_UP) P1_UP.classList.remove('up');
-    P1_UP = null;
-  }, now ? 0 : 140);
+function p1DropRun() {
+  if (P1_UP) P1_UP.classList.remove('up');
+  P1_UP = null;
+  if (P1_UP_MOVE) {
+    document.removeEventListener('mousemove', P1_UP_MOVE);
+    P1_UP_MOVE = null;
+  }
 }
 
 function p1WireRuns(hand) {
   hand.querySelectorAll('.handgroup').forEach(g => {
     const label = g.querySelector('.glabel');
-    if (label) {
-      label.addEventListener('mouseenter', () => p1RaiseRun(g));
-      label.addEventListener('focus', () => p1RaiseRun(g));
-      label.addEventListener('blur', () => p1DropRun(true));
-    }
-    // a raised run holds while the pointer is anywhere on it
-    g.addEventListener('mouseenter', () => { if (P1_UP === g) clearTimeout(P1_UP_TIMER); });
-    g.addEventListener('mouseleave', () => { if (P1_UP === g) p1DropRun(); });
+    if (!label) return;
+    label.addEventListener('mouseenter', () => p1RaiseRun(g));
+    label.addEventListener('focus', () => p1RaiseRun(g));
+    label.addEventListener('blur', () => p1DropRun());
   });
-  hand.addEventListener('mouseleave', () => p1DropRun(true));
 }
 
 function p1DrawHand() {
@@ -572,7 +594,7 @@ function p1DrawHand() {
     return;
   }
   const grouped = P1_HAND_SORT === 'role';
-  p1RaiseRun(null);
+  p1DropRun();                   // the groups it pointed at are about to go
   hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
   if (grouped) {
