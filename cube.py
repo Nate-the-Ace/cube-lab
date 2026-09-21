@@ -621,7 +621,7 @@ def cube_tactics(con, cube_id, min_cards=6, limit=40, contention=0.35,
 # means decks that play one specifically go and find the other, which is the
 # signature of a real interaction rather than two good cards coexisting.
 #
-# "Novel for your table" is then lift that is high while the cards themselves are
+# "Novel for this table" is then lift that is high while the cards themselves are
 # not household names: a proven pairing you are unlikely to have noticed sitting
 # in your own cube.
 
@@ -1640,7 +1640,7 @@ def propose_swap(con, cube_id, add=None, remove=None, limit=12, fmt="pioneer"):
 
     WHAT RANKS A CUT: a card is easy to lose when nothing in the cube wants to be
     in a deck with it, when the cube already has plenty of cards doing its job,
-    and when its colours are not carrying their weight at your table. Note what
+    and when its colours are not carrying their weight in recorded games. Note what
     is NOT here: any measure of raw card power. This will never tell you a bomb
     is safe to cut, and it will happily suggest cutting a card that is simply
     good on its own. Read it as "least connected", not "worst".
@@ -1758,7 +1758,7 @@ def _propose_cut(con, cube_id, add_name, cube_cards, ids, total, lane_of, limit)
         if c["others_doing_its_job"] >= 20:
             c["why"].append("%d other cards already do its job" % c["others_doing_its_job"])
         if c["lane"] < -3:
-            c["why"].append("its colours are underperforming at your table")
+            c["why"].append("its colours are underperforming in recorded games")
 
     before = _composition(cube_cards)
     out = cands[:limit]

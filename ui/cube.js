@@ -193,15 +193,15 @@ async function runCube() {
 
     <h3 class="sec">Where the opportunity is</h3>
     <p class="note"><b>Depth</b> is a hard fact about your list: how many playable spells the lane
-      holds. <b>Measured</b> is how the lane has actually performed at your table.
+      holds. <b>Measured</b> is how the lane has actually performed in recorded games.
       <b>Opportunity</b> is the two multiplied — depth counts for nothing if the lane keeps losing.
       This used to be depth × EDHREC play rate, which ranked these ten lanes almost exactly
-      backwards against your own results (Spearman −0.32): Boros came last on play rate and third
+      backwards against the cube's own results (Spearman −0.32): Boros came last on play rate and third
       on games won. Popularity in multiplayer Commander is not a claim about a Pioneer cube, so it
       is gone from the page.
       ${(opp && opp.has_local)
         ? `<b>Measured</b> is what this table has actually done with the lane, from the game-night
-           records — the only signal here drawn from your own cube rather than someone else's format.
+           records — the only signal here drawn from this cube rather than someone else's format.
            It is also the smallest: a couple of dozen matches decides nothing on its own, so the
            match count sits beside every rate. A three-colour deck counts toward each of its pairs.`
         : `A third signal, what this table has actually done with each lane, appears here once
@@ -585,7 +585,7 @@ function p1WhyLines(card) {
     const d = bestPct - base;
     lines.push([d >= 2 ? 'good' : d <= -2 ? 'bad' : '',
       `Best lane <b>${esc(ciName(bestPair))}</b> at <b>${bestPct}%</b> here`
-      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against your ${base}% average.`]);
+      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against the ${base}% cube average.`]);
   } else if (!ci) {
     lines.push(['good', 'Colourless, so it fits whatever you end up in.']);
   }
@@ -920,13 +920,13 @@ function p1DraftOver() {
     <h3 class="sec">What you could build</h3>
     <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is only
       a deck if it holds ${DECK_SPELLS} playables in its colours. <b>Record</b> is how that pair has
-      done at your table; <b>pairs</b> counts your picks that want to be beside each other.
+      done in recorded games; <b>pairs</b> counts your picks that want to be beside each other.
       ${best && best.short
         ? `Nothing in your pool reaches ${DECK_SPELLS} playables \u2014 the closest is
            <b>${esc(ciName(best.pair))}</b>, ${best.short} short.`
         : best ? `<b>${esc(ciName(best.pair))}</b> is the deck: ${best.spells} playables,
            ${best.links} pairs among them${best.rate == null ? ''
-             : `, and the colours are ${best.rate}% at your table`}.` : ''}</p>
+             : `, and the colours are ${best.rate}% in recorded games`}.` : ''}</p>
     <div class="scroll"><table><thead><tr>
       <th>Deck</th><th class="num">Playables</th><th class="num">Short by</th>
       <th class="num">Avg pick score</th><th class="num">Pairs</th>
@@ -1033,7 +1033,7 @@ function p1Render() {
         left by this ranking. That is the worst case on purpose: real tables are softer, so a card
         marked <span class="badge bad">gone</span> may still come back, while one marked
         <span class="badge good">should wheel</span> is safe to pass.</p>
-      <p class="note"><b>Lane record</b> is the colours' record at your table against the
+      <p class="note"><b>Lane record</b> is the colours' record in recorded games against the
         ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
         matches. <b>Keeps options open</b> matters for this pick and no other.
         <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '');

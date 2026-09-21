@@ -457,7 +457,7 @@ button.big{font-size:15px;padding:10px 26px}
       <b>double-click</b> to take it. Pick the card you would actually take, then see what the numbers say and
       where yours landed. <b>They are not an authority.</b> Nothing here measures raw card
       power — EDHREC play rate is close to inverted for a cube and has been dropped from the
-      whole page. What is left is the colours' record at your table, how little
+      whole page. What is left is the colours' record in recorded games, how little
       the card commits you, and how much the rest of the cube wants to be beside it. A dull
       card in a winning lane will outrank a bomb in a losing one; that is the disagreement
       worth having.</p>
@@ -727,7 +727,7 @@ button.big{font-size:15px;padding:10px 26px}
             : x.connected < 20 ? 'only loosely connected to the rest of the cube' : null,
           (x.redundancy || 0) >= 20
             ? x.redundancy + ' other cards already do its job' : null,
-          (x.lane || 0) < -3 ? 'its colours are underperforming at your table' : null,
+          (x.lane || 0) < -3 ? 'its colours are underperforming in recorded games' : null,
         ].filter(Boolean),
         delta: {},             // same colours, same type, within a mana value
       })),
@@ -1417,18 +1417,18 @@ const GLOSSARY = {
   'filler': ['Filler', 'A slot the budget could not afford a played card for, filled with the cheapest legal option.'],
   'overlap': ['Overlap', "How strongly two cards share commanders: for every commander running your card, its other staples score by how often they're played."],
   // ─ cut picker ─
-  'measured': ['Measured here', 'How this lane has actually performed at your table, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from your own cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
+  'measured': ['Measured here', 'How this lane has actually performed in recorded games, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from this cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
   // pack 1 pick 1, and proposing a change
   'deck': ['Possible deck', 'A colour pair you could build from the cards you drafted. Everything that fits inside those colours counts, colourless included.'],
   'playables': ['Playables', 'Non-land cards in your pool that fit inside this pair\u2019s colours. A 40-card deck needs 23 of them alongside 17 lands.'],
   'short by': ['Short by', 'How many playables this pair still needs to reach 23. Zero means you could actually register the deck; anything else means you would be filling slots with cards that do not belong.'],
   'avg pick score': ['Average pick score', 'The mean score of the best 23 playables in this pair. It carries the same warning as everywhere else on this page: it contains no measure of raw card power.'],
   'pairs': ['Pairs among your picks', 'How many of the cards you drafted in these colours want to be beside each other, from the lift pairs. This is the number that separates a pile of good cards from a deck.'],
-  'record': ['Record at your table', 'How this colour pair has actually performed in your game nights. Blank where you have never drafted it.'],
+  'record': ['Record in recorded games', 'How this colour pair has actually performed in the recorded game nights. Blank where you have never drafted it.'],
   'curve 1-6': ['Mana curve', 'How many playables cost 1, 2, 3, 4, 5 and 6+. A deck that is all fours and fives loses to one that is not, whatever the individual cards are worth.'],
   'comes back?': ['Comes back on the wheel?', 'With P players, the pack you pass returns after P picks, so a pack of N cards comes back with N \u2212 P left. The question a first pick really asks is not \u201cwhich is best\u201d but \u201cwhich will still be here next time\u201d. This assumes the other drafters take the cards ranked highest on this page \u2014 they do not share that ranking, so read it as which cards are OBVIOUS, which is most of what wheeling turns on.'],
   'pick score': ['Pick score', 'The components to the right, weighted. It contains NO measure of raw card power \u2014 nothing on this page measures that \u2014 so a dull card in a winning lane will outrank a bomb in a losing one. Treat it as an argument, not a verdict.'],
-  'lane record': ['Lane record', 'How this card\u2019s colours have actually performed at your table, against the average of all ten lanes. The only measured component, and the smallest sample: a few dozen matches per lane.'],
+  'lane record': ['Lane record', 'How this card\u2019s colours have actually performed in recorded games, against the average of all ten lanes. The only measured component, and the smallest sample: a few dozen matches per lane.'],
   'keeps options open': ['Keeps options open', 'How little the card commits you. Colourless closes nothing, mono-colour closes little, gold closes most of the ten lanes. This matters for a first pick and is meaningless by the third. Lands score low here: a land is the fixing, not a way of keeping your spells\u2019 options open.'],
   'cube pull': ['Cube pull', 'How hard the rest of the cube wants to be in a deck with this card, summed over its above-chance lift pairs. Summed rather than averaged, because a card six cube cards want is a better bet than one wanted intensely by a single card that may never reach you.'],
   'then look for': ['Then look for', 'The cards the cube most wants beside the one you just took, by lift. None are guaranteed to reach you \u2014 that is what the draft odds are for.'],
@@ -1476,7 +1476,7 @@ const GLOSSARY = {
   'card type': ['Card type', 'How the list splits across card types. Nothing here says what the split should be; it is a description, not a target.'],
   'power': ['Power', "Average EDHREC play rate of this lane's twenty best spells — a proxy for raw card quality. It comes from multiplayer Commander, so it transfers loosely: it says \"these cards are strong\" much better than it says \"this strategy is strong\". EDHREC archetype data is not used anywhere in the cube analysis."],
   'opportunity': ['Opportunity', 'Depth times the quality of what sits in the lane. It is a ranking, not a score with units.'],
-  "you've drafted": ['Times drafted', 'How many of your recorded decks contained both colours of this lane, including three-colour decks that happen to span it.'],
+  "you've drafted": ['Times drafted', 'How many recorded decks contained both colours of this lane, including three-colour decks that happen to span it.'],
   'spells': ['Spells', 'Non-land cards in the cube that fit inside this lane. Lands are excluded because fixing serves every lane.'],
   'type': ['Type', 'In the pairs table: why these two keep sharing decks. <b>typal</b> — same creature type. <b>engine</b> — one card does something the other wants. <b>creature removal / card draw / tokens</b> — both do the same job. <b>archetype</b> — both belong to the same strategy. <b>general</b> — they co-occur far more than chance but the link isn\'t named in the data, which is where the odd ideas hide. <b>mana base / land + spell</b> — fixing, hidden by default.<br><br>Elsewhere: the card\'s printed type line.'],
   'include mana base in pairs': ['Include the mana base', 'Adds back pairs where one or both cards are lands. They are excluded by default because duals share decks with everything in their colours: half of all pairs in this cube are a land meeting a spell, which tells you about fixing rather than about an interaction.'],
@@ -2037,15 +2037,15 @@ async function runCube() {
 
     <h3 class="sec">Where the opportunity is</h3>
     <p class="note"><b>Depth</b> is a hard fact about your list: how many playable spells the lane
-      holds. <b>Measured</b> is how the lane has actually performed at your table.
+      holds. <b>Measured</b> is how the lane has actually performed in recorded games.
       <b>Opportunity</b> is the two multiplied — depth counts for nothing if the lane keeps losing.
       This used to be depth × EDHREC play rate, which ranked these ten lanes almost exactly
-      backwards against your own results (Spearman −0.32): Boros came last on play rate and third
+      backwards against the cube's own results (Spearman −0.32): Boros came last on play rate and third
       on games won. Popularity in multiplayer Commander is not a claim about a Pioneer cube, so it
       is gone from the page.
       ${(opp && opp.has_local)
         ? `<b>Measured</b> is what this table has actually done with the lane, from the game-night
-           records — the only signal here drawn from your own cube rather than someone else's format.
+           records — the only signal here drawn from this cube rather than someone else's format.
            It is also the smallest: a couple of dozen matches decides nothing on its own, so the
            match count sits beside every rate. A three-colour deck counts toward each of its pairs.`
         : `A third signal, what this table has actually done with each lane, appears here once
@@ -2429,7 +2429,7 @@ function p1WhyLines(card) {
     const d = bestPct - base;
     lines.push([d >= 2 ? 'good' : d <= -2 ? 'bad' : '',
       `Best lane <b>${esc(ciName(bestPair))}</b> at <b>${bestPct}%</b> here`
-      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against your ${base}% average.`]);
+      + ` — ${d >= 0 ? '+' : ''}${d.toFixed(1)} against the ${base}% cube average.`]);
   } else if (!ci) {
     lines.push(['good', 'Colourless, so it fits whatever you end up in.']);
   }
@@ -2764,13 +2764,13 @@ function p1DraftOver() {
     <h3 class="sec">What you could build</h3>
     <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is only
       a deck if it holds ${DECK_SPELLS} playables in its colours. <b>Record</b> is how that pair has
-      done at your table; <b>pairs</b> counts your picks that want to be beside each other.
+      done in recorded games; <b>pairs</b> counts your picks that want to be beside each other.
       ${best && best.short
         ? `Nothing in your pool reaches ${DECK_SPELLS} playables \u2014 the closest is
            <b>${esc(ciName(best.pair))}</b>, ${best.short} short.`
         : best ? `<b>${esc(ciName(best.pair))}</b> is the deck: ${best.spells} playables,
            ${best.links} pairs among them${best.rate == null ? ''
-             : `, and the colours are ${best.rate}% at your table`}.` : ''}</p>
+             : `, and the colours are ${best.rate}% in recorded games`}.` : ''}</p>
     <div class="scroll"><table><thead><tr>
       <th>Deck</th><th class="num">Playables</th><th class="num">Short by</th>
       <th class="num">Avg pick score</th><th class="num">Pairs</th>
@@ -2877,7 +2877,7 @@ function p1Render() {
         left by this ranking. That is the worst case on purpose: real tables are softer, so a card
         marked <span class="badge bad">gone</span> may still come back, while one marked
         <span class="badge good">should wheel</span> is safe to pass.</p>
-      <p class="note"><b>Lane record</b> is the colours' record at your table against the
+      <p class="note"><b>Lane record</b> is the colours' record in recorded games against the
         ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
         matches. <b>Keeps options open</b> matters for this pick and no other.
         <b>Cube pull</b> is how much the rest of the cube wants to sit beside it.</p>` : '');

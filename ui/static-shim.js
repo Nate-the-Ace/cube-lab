@@ -221,7 +221,7 @@
             : x.connected < 20 ? 'only loosely connected to the rest of the cube' : null,
           (x.redundancy || 0) >= 20
             ? x.redundancy + ' other cards already do its job' : null,
-          (x.lane || 0) < -3 ? 'its colours are underperforming at your table' : null,
+          (x.lane || 0) < -3 ? 'its colours are underperforming in recorded games' : null,
         ].filter(Boolean),
         delta: {},             // same colours, same type, within a mana value
       })),
