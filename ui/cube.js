@@ -994,6 +994,7 @@ function p1DealFrom(packNo, after) {
 }
 
 function p1ShowPack(dealtFrom) {
+  if ($('#p1WantPanel')) $('#p1WantPanel').hidden = false;
   P1_PACK = P1_PACKS[0] || [];
   P1_PICK = null;
   $('#p1Out').innerHTML = '';
@@ -1232,6 +1233,7 @@ function p1Guidance(decks) {
 
 function p1DraftOver() {
   const decks = p1DeckOptions();
+  if ($('#p1WantPanel')) $('#p1WantPanel').hidden = true;
 
   $('#p1Hand').innerHTML = `<div class="roundover">
       <div>Draft over \u2014 <b>${P1_TAKEN.length}</b> cards.</div>
@@ -1518,6 +1520,7 @@ $('#p1Restart').onclick = () => {
   P1_PICKNO = 0;
   P1_USED = new Set();
   P1_OPENED = new Set();
+  if ($('#p1WantPanel')) $('#p1WantPanel').hidden = false;
   p1CutCube();                   // a fresh cut, so the packs differ
   $('#p1Out').innerHTML = '';
   $('#p1Tableau').innerHTML = '';
