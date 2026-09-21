@@ -1135,14 +1135,21 @@ def test_hand_sort():
     check("the names follow the curve the cards sit on",
           "--gtilt" in js and "rotate(var(--gtilt,0deg))" in css)
     check("there is no rule under a group", ".gfoot::before" not in css)
-    check("what a group does shows on hover, not at rest",
+    check("what a group does shows with the raise, not at rest",
           ".handgroup .glabel em{position:absolute" in css
-          and ".glabel:hover em" in css)
-    check("hovering a group's name raises that run",
-          ".handgroup:hover .dcard" in css)
-    check("the run stays up when the pointer moves onto its cards",
-          ".hand.fan.grouped .handgroup:hover .dcard{" not in css
-          and ".hand.fan.grouped .handgroup:hover .dcard," in css)
+          and ".handgroup.up .glabel em{opacity:.85}" in css)
+    # the raise is latched in JS, not left to :hover: pointing at the NAME
+    # raises the run, pointing at a card raises nothing, and the way from one to
+    # the other crosses a strip where the pointer is over nothing at all
+    check("pointing at a group's name raises that run",
+          "label.addEventListener('mouseenter', () => p1RaiseRun(g))" in js
+          and ".handgroup.up .dcard{" in css)
+    check("pointing at a card raises nothing",
+          ".handgroup:hover .dcard{" not in css and ".handgroup:hover .dcard," not in css)
+    check("the run stays up across the gap on the way to its cards",
+          "P1_UP_TIMER = setTimeout(" in js and "}, now ? 0 : 140);" in js)
+    check("a redraw drops the latch with the groups it pointed at",
+          "p1RaiseRun(null);" in js)
     # raising is not enough: inside a run the cards overlap each other, so a
     # five-card run went up as a stack of slivers
     check("a raised run spreads out far enough to read",
@@ -1151,15 +1158,14 @@ def test_hand_sort():
           ".handgroup .glabel{position:absolute;left:0;right:0;top:5px;text-align:center"
           in css and "g.style.marginLeft = (step - cw)" in js)
     check("the rest of the hand dims behind a raised run",
-          ":has(.handgroup:hover) .handgroup:not(:hover) .dcard{" in css
+          ":has(.handgroup.up) .handgroup:not(.up) .dcard{" in css
           and "opacity:.4" in css)
     check("and cannot steal the pointer from it",
-          "pointer-events:none}" in css.split(":has(.handgroup:hover)")[1])
+          "pointer-events:none}" in css.split(":has(.handgroup.up)")[1])
     # and it has to clear the whole fan, not just the group beside it: every
     # card carries its own z-index, one per card in the pack
     check("a raised run is above every other card",
-          ".hand.fan.grouped .handgroup:hover,\n"
-          ".hand.fan.grouped .handgroup:has(.glabel:focus-visible){z-index:50}" in css)
+          ".hand.fan.grouped .handgroup.up{z-index:50}" in css)
 
 
 def test_pack_art():

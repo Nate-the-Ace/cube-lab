@@ -354,28 +354,27 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   transition:opacity .14s ease}
 .handgroup:first-child .glabel em{left:0;translate:none}
 .handgroup:last-child .glabel em{left:auto;right:0;translate:none}
-.handgroup .glabel:hover em,.handgroup .glabel:focus-visible em{opacity:.85}
+.handgroup.up .glabel em{opacity:.85}
 /* hovering the name raises that run so you can read it without picking it up
    card by card; the cards keep their own tilt and their place in the fan */
-/* The run stays up while the pointer is anywhere on it - its name OR its cards.
-   Hovering the name and then moving up to read a card used to leave the name,
-   which collapsed the run out from under the pointer. */
-.hand.fan.grouped .handgroup:hover .dcard,
-.hand.fan.grouped .handgroup:has(.glabel:focus-visible) .dcard{
+/* A run is up because cube.js latched it there: pointing at the NAME raises it,
+   and it holds while the pointer is anywhere on the run. Pointing at a card
+   raises nothing - that is for looking at the one card. */
+.hand.fan.grouped .handgroup.up .dcard{
   transform:translate(var(--gdx,0px),calc(var(--lift,0px) - 26px)) rotate(var(--tilt,0deg));
   box-shadow:-6px 10px 22px rgba(0,0,0,.55)}
 /* While a run is up, the rest of the hand is background: dimmed so the run
    reads as the thing in front, and made untouchable so that moving the pointer
    up through the gaps between the spread cards cannot land on a card from
    another run - which would hover THAT run and drop this one. */
-.hand.fan.grouped:has(.handgroup:hover) .handgroup:not(:hover) .dcard{
+.hand.fan.grouped:has(.handgroup.up) .handgroup:not(.up) .dcard{
   opacity:.4;filter:saturate(.55) brightness(.8);pointer-events:none}
-.hand.fan.grouped:has(.handgroup:hover) .handgroup:not(:hover) .glabel{opacity:.55}
+.hand.fan.grouped:has(.handgroup.up) .handgroup:not(.up) .glabel{opacity:.55}
 
 /* and one card in a raised run still comes forward on its own, from where the
    run put it rather than from where it sits in the fan */
-.hand.fan.grouped .handgroup:hover .dcard:hover,
-.hand.fan.grouped .handgroup:hover .dcard:focus-visible{
+.hand.fan.grouped .handgroup.up .dcard:hover,
+.hand.fan.grouped .handgroup.up .dcard:focus-visible{
   transform:translate(var(--gdx,0px),calc(var(--lift,0px) - 56px)) scale(1.08);
   z-index:9;box-shadow:0 20px 44px rgba(0,0,0,.62)}
 /* The raised run has to clear the whole fan, not just its neighbour: every card
@@ -384,9 +383,8 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    the highest card, not the group next to it. At 4 the single-card runs went up
    and stayed behind the cards either side of them, which is the opposite of
    raising them. */
-.hand.fan.grouped .handgroup:hover,
-.hand.fan.grouped .handgroup:has(.glabel:focus-visible){z-index:50}
-.hand.fan.grouped .handgroup:hover .glabel b{color:var(--accent)}
+.hand.fan.grouped .handgroup.up{z-index:50}
+.hand.fan.grouped .handgroup.up .glabel b{color:var(--accent)}
 
 .hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
   transform:translateY(calc(var(--lift,0px) - 30px)) rotate(0deg) scale(1.1);
@@ -2723,6 +2721,49 @@ function p1SortedPack() {
     || at.get(a.oracle_id) - at.get(b.oracle_id));
 }
 
+/* Which run is raised, latched rather than left to :hover.
+
+   Two rules that CSS alone cannot hold at once: a run rises only when you point
+   at its NAME - pointing at a card is for looking at that one card - but once it
+   is up it has to stay up while you move onto its cards. And the way up crosses
+   a gap: the cards have moved 26px clear of where they sat, and what is under
+   the pointer in that strip is a dimmed card belonging to another run, which is
+   inert, so the pointer briefly lands on nothing at all. A latch with a short
+   grace period covers the crossing; anything else retracts the run under you. */
+let P1_UP = null, P1_UP_TIMER = null;
+
+function p1RaiseRun(g) {
+  clearTimeout(P1_UP_TIMER);
+  if (P1_UP === g) return;
+  if (P1_UP) P1_UP.classList.remove('up');
+  P1_UP = g;
+  if (g) g.classList.add('up');
+}
+
+function p1DropRun(now) {
+  clearTimeout(P1_UP_TIMER);
+  if (!P1_UP) return;
+  P1_UP_TIMER = setTimeout(() => {
+    if (P1_UP) P1_UP.classList.remove('up');
+    P1_UP = null;
+  }, now ? 0 : 140);
+}
+
+function p1WireRuns(hand) {
+  hand.querySelectorAll('.handgroup').forEach(g => {
+    const label = g.querySelector('.glabel');
+    if (label) {
+      label.addEventListener('mouseenter', () => p1RaiseRun(g));
+      label.addEventListener('focus', () => p1RaiseRun(g));
+      label.addEventListener('blur', () => p1DropRun(true));
+    }
+    // a raised run holds while the pointer is anywhere on it
+    g.addEventListener('mouseenter', () => { if (P1_UP === g) clearTimeout(P1_UP_TIMER); });
+    g.addEventListener('mouseleave', () => { if (P1_UP === g) p1DropRun(); });
+  });
+  hand.addEventListener('mouseleave', () => p1DropRun(true));
+}
+
 function p1DrawHand() {
   const hand = $('#p1Hand');
   const sortWrap = $('#p1SortWrap');
@@ -2737,6 +2778,7 @@ function p1DrawHand() {
     return;
   }
   const grouped = P1_HAND_SORT === 'role';
+  p1RaiseRun(null);
   hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
   if (grouped) {
@@ -2757,6 +2799,7 @@ function p1DrawHand() {
   } else {
     hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
   }
+  if (grouped) p1WireRuns(hand);
   p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();

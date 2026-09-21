@@ -515,6 +515,49 @@ function p1SortedPack() {
     || at.get(a.oracle_id) - at.get(b.oracle_id));
 }
 
+/* Which run is raised, latched rather than left to :hover.
+
+   Two rules that CSS alone cannot hold at once: a run rises only when you point
+   at its NAME - pointing at a card is for looking at that one card - but once it
+   is up it has to stay up while you move onto its cards. And the way up crosses
+   a gap: the cards have moved 26px clear of where they sat, and what is under
+   the pointer in that strip is a dimmed card belonging to another run, which is
+   inert, so the pointer briefly lands on nothing at all. A latch with a short
+   grace period covers the crossing; anything else retracts the run under you. */
+let P1_UP = null, P1_UP_TIMER = null;
+
+function p1RaiseRun(g) {
+  clearTimeout(P1_UP_TIMER);
+  if (P1_UP === g) return;
+  if (P1_UP) P1_UP.classList.remove('up');
+  P1_UP = g;
+  if (g) g.classList.add('up');
+}
+
+function p1DropRun(now) {
+  clearTimeout(P1_UP_TIMER);
+  if (!P1_UP) return;
+  P1_UP_TIMER = setTimeout(() => {
+    if (P1_UP) P1_UP.classList.remove('up');
+    P1_UP = null;
+  }, now ? 0 : 140);
+}
+
+function p1WireRuns(hand) {
+  hand.querySelectorAll('.handgroup').forEach(g => {
+    const label = g.querySelector('.glabel');
+    if (label) {
+      label.addEventListener('mouseenter', () => p1RaiseRun(g));
+      label.addEventListener('focus', () => p1RaiseRun(g));
+      label.addEventListener('blur', () => p1DropRun(true));
+    }
+    // a raised run holds while the pointer is anywhere on it
+    g.addEventListener('mouseenter', () => { if (P1_UP === g) clearTimeout(P1_UP_TIMER); });
+    g.addEventListener('mouseleave', () => { if (P1_UP === g) p1DropRun(); });
+  });
+  hand.addEventListener('mouseleave', () => p1DropRun(true));
+}
+
 function p1DrawHand() {
   const hand = $('#p1Hand');
   const sortWrap = $('#p1SortWrap');
@@ -529,6 +572,7 @@ function p1DrawHand() {
     return;
   }
   const grouped = P1_HAND_SORT === 'role';
+  p1RaiseRun(null);
   hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
   if (grouped) {
@@ -549,6 +593,7 @@ function p1DrawHand() {
   } else {
     hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
   }
+  if (grouped) p1WireRuns(hand);
   p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
