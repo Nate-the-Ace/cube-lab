@@ -936,7 +936,8 @@ function p1Boosters() {
   const open = P1_PACK.length > 0;
   box.className = 'boosters' + (choosing ? ' spread' : '');
 
-  const show = choosing ? P1_ALL.map((_, i) => i) : P1_CHOSEN;
+  const show = choosing ? P1_ALL.map((_, i) => i)
+    : P1_CHOSEN.slice().sort((a, b) => a - b);
   box.innerHTML = show.map(i => {
     let state, label;
     if (choosing) {
@@ -992,6 +993,11 @@ function p1Boosters() {
    viewer. It is a throwaway overlay rather than the pack itself, so nothing in
    the pack's own state depends on the animation finishing. */
 function p1PeelPack(packNo) {
+  const lit = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
+  if (lit) {
+    lit.classList.add('justopened');
+    setTimeout(() => lit.classList.remove('justopened'), 1400);
+  }
   const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
   if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
   const r = src.getBoundingClientRect();
