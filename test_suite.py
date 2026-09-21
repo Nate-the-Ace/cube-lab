@@ -1184,6 +1184,7 @@ def test_hand_sort():
     here = os.path.dirname(os.path.abspath(__file__))
     js = open(os.path.join(here, "ui", "cube.js")).read()
     html = open(os.path.join(here, "ui", "cube.html")).read()
+    css = open(os.path.join(here, "ui", "shared.css")).read()
     for key in ("deal", "score", "fit", "colour", "mv", "name", "role", "artist"):
         check("the hand can be sorted by %s" % key,
               ("  %s: {label:" % key) in js and ('value="%s"' % key) in html)
@@ -1206,7 +1207,6 @@ def test_hand_sort():
 
     # sorted by what it does, the fan stays one fan: the runs are named along
     # the curve rather than pulled apart
-    css = open(os.path.join(here, "ui", "shared.css")).read()
     check("every role says what it is for", len(
         [k for k in ("Removal", "Ramp", "Tokens", "Counterspell", "Card draw",
                      "Planeswalker") if "'%s':" % k in js]) == 6)
