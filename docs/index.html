@@ -503,6 +503,14 @@ details.numbers>summary:hover{color:var(--accent)}
 .want.offcolour .dcard{filter:saturate(.55) brightness(.82)}
 @media (max-width:560px){.want,.want .dcard{width:104px}}
 
+/* filters over the finished pool */
+.poolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.poolbar .pips{display:flex;gap:4px}
+.poolbar .pip{cursor:pointer;opacity:.4;transition:opacity .12s,transform .12s}
+.poolbar .pip.on{opacity:1;transform:scale(1.1)}
+.poolbar .pip:hover{opacity:.85}
+.poolbar input{min-width:150px}
+
 </style>
 <style>
   header .sub{color:var(--ink-dim);font-size:12px}
@@ -3085,30 +3093,152 @@ function p1DeckOptions() {
   }).sort((a, b) => b.score - a.score);
 }
 
+/* ── the pool, once the draft is done ──
+
+   Forty-five cards is too many to read as one spread, so the finished pool gets
+   the same stacks the deck view uses, plus filters for the questions you
+   actually ask of a pool: what is in these colours, what does this role look
+   like, how does the curve sit. Nothing here is a deck yet - that is what the
+   guidance underneath is for. */
+let P1_FILTER = {colours: new Set(), role: '', q: ''};
+
+function p1PoolCards() {
+  const f = P1_FILTER;
+  return P1_TAKEN.filter(c => {
+    if (f.q && !c.name.toLowerCase().includes(f.q)) return false;
+    if (f.role && (c.role || 'Other') !== f.role) return false;
+    if (f.colours.size) {
+      const ci = [...(c.color_identity || '')];
+      // a card qualifies if it fits INSIDE the chosen colours, which is the
+      // question a drafter asks: could this go in that deck
+      if (!ci.length) return f.colours.has('C');
+      if (!ci.every(x => f.colours.has(x))) return false;
+    }
+    return true;
+  });
+}
+
+function p1PoolView() {
+  const box = $('#p1Pool');
+  if (!box) return;
+  const cards = p1PoolCards();
+  const g = P1_GROUPS[P1_GROUP_BY] || P1_GROUPS.colour;
+  const groups = {};
+  cards.forEach(c => { (groups[g.of(c)] = groups[g.of(c)] || []).push(c); });
+  const names = g.order.filter(k => groups[k])
+    .concat(Object.keys(groups).filter(k => !g.order.includes(k)).sort());
+  const roles = [...new Set(P1_TAKEN.map(c => c.role || 'Other'))].sort();
+
+  box.innerHTML = `
+    <div class="poolbar">
+      <span class="pips">${['W', 'U', 'B', 'R', 'G', 'C'].map(x =>
+        `<span class="pip ${x}${P1_FILTER.colours.has(x) ? ' on' : ''}"
+          data-col="${x}" role="button" tabindex="0" title="${esc(ciName(x === 'C' ? '' : x))}">${x}</span>`
+      ).join('')}</span>
+      <label class="seats">Role
+        <select id="poolRole"><option value="">any</option>${roles.map(r =>
+          `<option${r === P1_FILTER.role ? ' selected' : ''}>${esc(r)}</option>`).join('')}</select>
+      </label>
+      <label class="seats">Stack by
+        <select id="poolGroup">${Object.entries(P1_GROUPS).map(([k, v]) =>
+          `<option value="${k}"${k === P1_GROUP_BY ? ' selected' : ''}>${esc(v.label)}</option>`
+        ).join('')}</select>
+      </label>
+      <input id="poolQ" placeholder="find a card" value="${esc(P1_FILTER.q)}">
+      <span class="spacer"></span>
+      <span class="mini dim">${cards.length} of ${P1_TAKEN.length}</span>
+      ${cards.length < P1_TAKEN.length ? '<button id="poolClear">clear</button>' : ''}
+    </div>
+    ${cards.length ? `<div class="stacks">${names.map(name => {
+      const list = groups[name].slice().sort((a, b) => (a.cmc || 0) - (b.cmc || 0)
+        || a.name.localeCompare(b.name));
+      return `<div class="stack">
+        <div class="stackhead">${esc(name)} <span>${list.length}</span></div>
+        <div class="pile">${list.map(c => cardFace(c)).join('')}</div>
+      </div>`;
+    }).join('')}</div>` : '<p class="note">Nothing in the pool matches those filters.</p>'}`;
+
+  box.querySelectorAll('[data-col]').forEach(el => {
+    const flip = () => {
+      const x = el.dataset.col;
+      P1_FILTER.colours.has(x) ? P1_FILTER.colours.delete(x) : P1_FILTER.colours.add(x);
+      p1PoolView();
+    };
+    el.onclick = flip;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
+  });
+  $('#poolRole').onchange = e => { P1_FILTER.role = e.target.value; p1PoolView(); };
+  $('#poolGroup').onchange = e => { P1_GROUP_BY = e.target.value; p1PoolView(); };
+  let t = null;
+  $('#poolQ').oninput = e => {
+    clearTimeout(t);
+    const v = e.target.value.trim().toLowerCase();
+    t = setTimeout(() => { P1_FILTER.q = v; p1PoolView(); }, 200);
+  };
+  if ($('#poolClear')) $('#poolClear').onclick = () => {
+    P1_FILTER = {colours: new Set(), role: '', q: ''};
+    p1PoolView();
+  };
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.pick);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
+}
+
+/* What the pool is actually close to being, in words before numbers. */
+function p1Guidance(decks) {
+  const real = decks.filter(d => !d.short);
+  const near = decks.filter(d => d.short && d.short <= 4);
+  const best = decks[0];
+  const bits = [];
+
+  if (real.length) {
+    const d = real[0];
+    bits.push(`<b>${esc(ciName(d.pair))}</b> is a deck: ${d.spells} playables against the
+      ${DECK_SPELLS} a 40-card list needs${d.rate == null ? ''
+        : `, and those colours are ${d.rate}% in recorded games`}.`);
+    if (d.links) bits.push(`${d.links} of those cards want to be beside each other.`);
+    if (real.length > 1) {
+      bits.push(`<b>${esc(ciName(real[1].pair))}</b> also gets there, with
+        ${real[1].spells}.`);
+    }
+  } else if (near.length) {
+    bits.push(`No pair reaches ${DECK_SPELLS} playables. The closest is
+      <b>${esc(ciName(near[0].pair))}</b>, ${near[0].short} short — which in a real draft
+      is what the last few picks and a splash are for.`);
+  } else if (best) {
+    bits.push(`This pool is spread thin: even ${esc(ciName(best.pair))}, the deepest pair,
+      is ${best.short} playables short of a deck.`);
+  }
+
+  const curve = (real[0] || best || {}).curve || {};
+  const cheap = (curve[1] || 0) + (curve[2] || 0);
+  if (best && best.spells) {
+    bits.push(cheap < 5
+      ? `Watch the curve: only ${cheap} cards at one or two mana in that lane.`
+      : `The curve holds up: ${cheap} cards at one or two mana.`);
+  }
+  return bits.join(' ');
+}
+
 function p1DraftOver() {
   const decks = p1DeckOptions();
-  const best = decks[0];
-  const pool = P1_TAKEN.slice().sort((a, b) => b.score - a.score);
 
   $('#p1Hand').innerHTML = `<div class="roundover">
       <div>Draft over \u2014 <b>${P1_TAKEN.length}</b> cards.</div>
-      <div class="mini dim">Your pool and what it could build are below.</div>
     </div>`;
 
   $('#p1Out').innerHTML = `
-    <h3 class="sec">Your pool</h3>
-    <div class="tableau">${pool.map(c => cardFace(c)).join('')}</div>
+    <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>
+    <div id="p1Pool"></div>
 
     <h3 class="sec">What you could build</h3>
-    <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is only
-      a deck if it holds ${DECK_SPELLS} playables in its colours. <b>Record</b> is how that pair has
-      done in recorded games; <b>pairs</b> counts your picks that want to be beside each other.
-      ${best && best.short
-        ? `Nothing in your pool reaches ${DECK_SPELLS} playables \u2014 the closest is
-           <b>${esc(ciName(best.pair))}</b>, ${best.short} short.`
-        : best ? `<b>${esc(ciName(best.pair))}</b> is the deck: ${best.spells} playables,
-           ${best.links} pairs among them${best.rate == null ? ''
-             : `, and the colours are ${best.rate}% in recorded games`}.` : ''}</p>
+    <p class="note">${p1Guidance(decks)}</p>
+    <p class="note">A 40-card deck is <b>${DECK_SPELLS} spells</b> and 17 lands, so a pair is
+      only a deck if it holds ${DECK_SPELLS} playables in its colours. <b>Record</b> is how that
+      pair has done in recorded games; <b>pairs</b> counts your picks that want to be beside
+      each other.</p>
     <div class="scroll"><table><thead><tr>
       <th>Deck</th><th class="num">Playables</th><th class="num">Short by</th>
       <th class="num">Avg pick score</th><th class="num">Pairs</th>
@@ -3120,14 +3250,10 @@ function p1DraftOver() {
       <td class="num">${d.avg.toFixed(1)}</td>
       <td class="num">${d.links || '\u2014'}</td>
       <td class="num">${d.rate == null ? '\u2014' : d.rate + '%'}</td>
-      <td class="mini">${[1, 2, 3, 4, 5, 6].map(mv => (d.curve[mv] || 0)).join(' · ')}</td>
+      <td class="mini">${[1, 2, 3, 4, 5, 6].map(mv => (d.curve[mv] || 0)).join(' \u00b7 ')}</td>
     </tr>`).join('')}</tbody></table></div>`;
 
-  $('#p1Out').querySelectorAll('[data-pick]').forEach(el => {
-    const card = p1Card(el.dataset.pick);
-    el.removeAttribute('data-pick');
-    el.onclick = () => p1Zoom(card);
-  });
+  p1PoolView();
   sortable('#p1Out');
 }
 

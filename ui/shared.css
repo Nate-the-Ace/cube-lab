@@ -491,3 +491,11 @@ details.numbers>summary:hover{color:var(--accent)}
 .want .why{font-size:10.5px;color:var(--ink-dim);line-height:1.35}
 .want.offcolour .dcard{filter:saturate(.55) brightness(.82)}
 @media (max-width:560px){.want,.want .dcard{width:104px}}
+
+/* filters over the finished pool */
+.poolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.poolbar .pips{display:flex;gap:4px}
+.poolbar .pip{cursor:pointer;opacity:.4;transition:opacity .12s,transform .12s}
+.poolbar .pip.on{opacity:1;transform:scale(1.1)}
+.poolbar .pip:hover{opacity:.85}
+.poolbar input{min-width:150px}
