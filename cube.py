@@ -1409,3 +1409,1111 @@ def cube_near_misses(con, cube_id, limit=40, max_extra=0, fmt="pioneer",
             # a card you can't legally add is not a suggestion
             "excluded_illegal": len(illegal),
             "illegal_examples": [r["name"] for r in illegal[:5]]}
+
+
+# ───────────────────────────── pack 1 pick 1 ─────────────────────────────
+
+# How each archetype has actually done at this table feeds the fit component.
+# Derived from the game-night deck strings; see nights.py.
+ARCHETYPE_PATTERNS = [
+    ("aggro", r"aggro|agro|burn|rdw|phoenix|spellslinger|pingers"),
+    ("control", r"control|superfriends|artifacts\b"),
+    ("midrange", r"midrange|good stuff|delirium|liliana|yorion|jund|abzan|mardu"),
+    ("ramp", r"ramp|omnath|dorks|niv|golos"),
+    ("tokens", r"token"),
+    ("graveyard", r"graveyard|escape"),
+]
+
+
+def archetype_records():
+    """Win rate per archetype, from the recorded deck names. Empty when there
+    are no game-night results to read."""
+    try:
+        import nights
+    except Exception:
+        return {}
+    doc = nights.load()
+    out = {}
+    for n in doc["nights"]:
+        for r in n["results"].values():
+            played = r["w"] + r["l"] + r["d"]
+            if not played:
+                continue
+            text = (r.get("deck") or "").lower()
+            for name, pat in ARCHETYPE_PATTERNS:
+                if re.search(pat, text):
+                    b = out.setdefault(name, {"w": 0, "l": 0, "d": 0, "decks": 0})
+                    b["w"] += r["w"]; b["l"] += r["l"]; b["d"] += r["d"]; b["decks"] += 1
+                    break
+    for b in out.values():
+        m = b["w"] + b["l"] + b["d"]
+        b["matches"] = m
+        b["score_pct"] = round(100.0 * (b["w"] + 0.5 * b["d"]) / m, 1) if m else None
+    return out
+
+
+def lane_pcts():
+    """Measured score per colour pair, keyed in WUBRG order. Empty without results."""
+    try:
+        import nights
+    except Exception:
+        return {}
+    return {nights.norm_colors(r["colors"]): r["score_pct"]
+            for r in nights.pair_records(nights.load())
+            if len(nights.norm_colors(r["colors"])) == 2}
+
+
+def pick_scores(con, cube_id):
+    """Score every card in the cube as a FIRST pick.
+
+    A first pick is not the question "is this card strong". You are choosing
+    before you have a deck, so what matters is what the card is worth across the
+    decks you might still end up in, and what it costs you to keep those open.
+
+    WHAT THIS DELIBERATELY DOES NOT USE: EDHREC play rate. It is multiplayer
+    Commander data, and for a cube it is close to inverted - it ranks universal
+    fixing and mana rocks above every real cube card, so a list built on it
+    opens with Evolving Wilds. It is still shown as a column, labelled, so you
+    can see how badly it disagrees; it is not in the score.
+
+    THE HONEST CONSEQUENCE: nothing here measures raw card power. A dull card in
+    a winning lane will outrank a bomb in a losing one. That is a real weakness,
+    not a quirk - the components are shown separately so you can overrule it,
+    which is the point of the tab.
+
+      lane     how the card's colours have actually performed at this table
+      open     how little the card commits you - a first pick should keep lanes
+               available, and this component is meaningless by pick three
+      synergy  how much the rest of the cube wants to be in a deck with it
+
+    Archetype win rates are reported alongside but NOT scored. Tying them to
+    cards would mean going through the EDHREC theme list, which on a Pioneer
+    cube reports set mechanics (morph, foretell) as archetypes - so the join
+    would be noise wearing a number.
+    """
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
+               c.mana_cost, c.edh_decks, c.price_usd, c.is_land
+        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+
+    lanes = lane_pcts()
+    baseline = (sum(lanes.values()) / len(lanes)) if lanes else 50.0
+
+    pair_lift = {}
+    syn = cube_synergies(con, cube_id, limit=800)
+    for pr in syn["pairs"]:
+        for c in pr["cards"]:
+            pair_lift[c["oracle_id"]] = pair_lift.get(c["oracle_id"], 0.0) + (pr["lift"] or 0)
+    top_lift = max(list(pair_lift.values()) or [1]) or 1
+
+    # which tactics each card serves, and how those tactics have performed
+    arch = archetype_records()
+    out = []
+    for r in rows:
+        if r["theme"] in NOT_ARCHETYPES:
+            continue
+        out.append({
+            "theme": r["theme"], "name": r["name"],
+            "cards_in_cube": r["n_in_cube"],
+            "avg_synergy": round(r["avg_syn"] or 0, 3),
+            "p_enough_band": band(lambda c: round(p_at_least_k(
+                n, r["n_in_cube"], need, players, pack_size, rounds, c), 4)),
+            "p_draft_enough": round(p_at_least_k(n, r["n_in_cube"], need, players,
+                                                 pack_size, rounds, contention), 4),
+            # the interpretable number: how many of this tactic's cards you should
+            # actually end up with. A probability of hitting some arbitrary
+            # threshold reads as 0% for every tactic once the threshold is too high.
+            "expected_drafted": round((r["n_in_cube"] or 0) * per, 1),
+            "need": need,
+            # depth alone favours whatever is most numerous; weighting by how
+            # strongly those cards belong to the theme separates a real archetype
+            # from a pile of cards that happen to qualify
+            "support": round((r["n_in_cube"] or 0) * (r["avg_syn"] or 0), 2),
+            "examples": examples(r["theme"]),
+        })
+    out.sort(key=lambda r: -r["support"])
+    out = out[:limit]
+    return {"cube_id": cube_id, "cube_size": n, "tactics": out,
+            "lanes": cube_lanes(con, cube_id, contention, players, pack_size, rounds),
+            "per_card": round(per, 4),
+            "functions": cube_functions(con, cube_id),
+            "shape": draft_shape(n, players, pack_size, rounds),
+            "need": need, "contention": contention}
+
+
+# ───────────────────────── synergy inside a cube ─────────────────────────
+#
+# Globally there is nothing new: every two-card infinite combo worth finding is
+# already in a database. Inside a 540-card pool the useful question is different
+# - which pairs WORK but nobody actually plays together? That is answerable,
+# because we know what each card does (parsed rules text) and how often any two
+# cards really appear in the same deck (EDHREC inclusion lists).
+#
+# A pair scores as an idea worth trying when it is:
+#   * functionally complementary  - one card wants what the other provides
+#   * scarce in this cube         - few other cards can play either role
+#   * rarely played together      - low or zero real-world co-occurrence
+#
+# The last one is what makes it novel FOR YOUR TABLE rather than novel on paper.
+
+# Pairs worth trying, found by LIFT rather than by pattern-matching primitives.
+#
+# The first attempt paired parsed functions ("has a cost reducer" + "has a free
+# cast") and produced confident nonsense, because most primitives describe the
+# card itself rather than an interaction. Worse, the rules that were directional
+# surfaced the trivial: untapping a dual land for one extra mana is not an idea.
+#
+# Lift asks a sharper question. Across every EDHREC deck, how much more often do
+# these two cards appear TOGETHER than their individual popularity would predict?
+#
+#     lift = P(a and b) / (P(a) * P(b))
+#
+# Lift of 1 means independent - both are popular and happen to meet. Lift of 20
+# means decks that play one specifically go and find the other, which is the
+# signature of a real interaction rather than two good cards coexisting.
+#
+# "Novel for your table" is then lift that is high while the cards themselves are
+# not household names: a proven pairing you are unlikely to have noticed sitting
+# in your own cube.
+
+FUNCTION_HINTS = [
+    ("sac_outlet", "death_trigger", "a sacrifice outlet with something that pays off on death"),
+    ("sac_outlet", "self_recur", "a creature that recurs itself as repeatable fodder"),
+    ("token", "sac_outlet", "tokens to feed the outlet"),
+    ("blink", "etb_trigger", "flicker re-triggering an enter-the-battlefield ability"),
+    ("untap", "mana_add", "untapping a mana source"),
+    ("drain", "death_trigger", "each death drains"),
+]
+
+
+# Why a pair co-occurs, in order of how much it tells you.
+#
+# Lands are the noise here: dual lands share decks with everything in their
+# colours, so nearly half of all pairs involve one. Labelling the reason lets the
+# mana base be set aside without throwing away the statistics that produced it.
+
+# Scryfall tags that describe what a card DOES, mapped to a plain label. A pair
+# that shares one of these is doing the same job twice.
+SHARED_TAG_LABELS = {
+    "removal-creature": "creature removal",
+    "removal-permanent": "removal",
+    "board wipe": "board wipe",
+    "counterspell": "counterspells",
+    "pure draw": "card draw",
+    "draw engine": "card draw",
+    "burst draw": "card draw",
+    "repeatable pure draw": "card draw",
+    "tutor-to-hand": "tutors",
+    "ramp": "ramp",
+    "utility land": "utility lands",
+    "discard-opponent": "discard",
+    "graveyard hate": "graveyard hate",
+    "recursion-creature": "recursion",
+    "token-maker": "tokens",
+    "repeatable creature tokens": "tokens",
+}
+
+BASIC_TYPES = ("Land", "Creature", "Instant", "Sorcery", "Artifact",
+               "Enchantment", "Planeswalker", "Battle")
+
+
+def _subtypes(type_line):
+    """Creature subtypes, which is what typal pairings run on."""
+    tl = type_line or ""
+    if "—" not in tl or "Creature" not in tl.split("—")[0]:
+        return set()
+    return {w for w in tl.split("—", 1)[1].split() if w.isalpha()}
+
+
+def classify_pair(ca, cb, kinds_a, kinds_b, tags_a, tags_b, themes_a, themes_b):
+    """Label WHY these two cards keep sharing decks."""
+    lands = sum(1 for c in (ca, cb) if "Land" in (c["type_line"] or ""))
+    if lands == 2:
+        return "mana base", "both are lands — duals share decks with everything in their colours"
+    if lands == 1:
+        return "land + spell", "a land and a spell of the same colours; usually the mana base, not an interaction"
+
+    hint = _hint_for(kinds_a, kinds_b)
+    if hint:
+        return "engine", hint
+
+    shared_sub = _subtypes(ca["type_line"]) & _subtypes(cb["type_line"])
+    if shared_sub:
+        return "typal", "both are %s" % "/".join(sorted(shared_sub))
+
+    for tag in sorted(tags_a & tags_b):
+        if tag in SHARED_TAG_LABELS:
+            return SHARED_TAG_LABELS[tag], "both do the same job: %s" % SHARED_TAG_LABELS[tag]
+
+    shared_theme = themes_a & themes_b
+    if shared_theme:
+        return "archetype", "both belong to %s" % sorted(shared_theme)[0].replace("-", " ")
+
+    same_type = [x for x in BASIC_TYPES
+                 if x in (ca["type_line"] or "") and x in (cb["type_line"] or "")]
+    if same_type:
+        word = same_type[0].lower()
+        plural = "sorceries" if word == "sorcery" else word + "s"
+        return plural, "two %s that keep turning up together" % plural
+    return "general", None
+
+
+def _hint_for(kinds_a, kinds_b):
+    """A plain-language guess at WHY a pair might work, from parsed functions.
+    Annotation only - it never affects the ranking."""
+    for ka, kb, why in FUNCTION_HINTS:
+        if (ka in kinds_a and kb in kinds_b) or (ka in kinds_b and kb in kinds_a):
+            return why
+    return None
+
+
+MANA_KINDS = {"mana base", "land + spell"}
+
+
+def cube_synergies(con, cube_id, limit=60, min_together=6, max_popularity=None,
+                   contention=0.35, players=8, pack_size=15, rounds=3,
+                   include_lands=False):
+    """Card pairs in this cube that real decks play together far more than chance,
+    ranked so the non-obvious ones come first."""
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    n = len(ids)
+    marks = ",".join("?" * len(ids))
+
+    cards = {r["oracle_id"]: dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.type_line, c.cmc, c.price_usd, c.color_identity,
+               c.edh_decks, p.tcgplayer_id
+        from cards c left join printings p on p.id = c.cheap_printing_id
+        where c.oracle_id in (%s)""" % marks, list(ids))}
+
+    kinds = {}
+    for r in con.execute("""select distinct oracle_id, kind from card_functions
+                            where oracle_id in (%s)""" % marks, list(ids)):
+        kinds.setdefault(r["oracle_id"], set()).add(r["kind"])
+
+    tags = {}
+    for r in con.execute("""select ct.oracle_id, t.label from card_tags ct
+                            join tags t on t.slug = ct.tag
+                            where ct.oracle_id in (%s)""" % marks, list(ids)):
+        tags.setdefault(r["oracle_id"], set()).add(r["label"])
+
+    themes = {}
+    for r in con.execute("""select oracle_id, theme from edh_theme_cards
+                            where oracle_id in (%s) and synergy > 0.25""" % marks, list(ids)):
+        themes.setdefault(r["oracle_id"], set()).add(r["theme"])
+
+    decks = {}
+    for r in con.execute("""select oracle_id, slug from edh_inclusions
+                            where oracle_id in (%s)""" % marks, list(ids)):
+        decks.setdefault(r["oracle_id"], set()).add(r["slug"])
+
+    total_commanders = con.execute("select count(*) from edh_commanders").fetchone()[0] or 1
+    per_card = p_single_card(n, players, pack_size, rounds, contention)["p_you_get_it"]
+
+    # only cards with enough presence to say anything statistically
+    pool = [o for o in ids if len(decks.get(o, ())) >= 3]
+    pool.sort()
+    out = []
+    for i, oa in enumerate(pool):
+        da = decks[oa]
+        ca = cards.get(oa)
+        if not ca:
+            continue
+        for ob in pool[i + 1:]:
+            db = decks[ob]
+            together = len(da & db)
+            if together < min_together:
+                continue
+            cb = cards.get(ob)
+            if not cb:
+                continue
+            combined = set((ca["color_identity"] or "") + (cb["color_identity"] or "")) - {"C"}
+            if len(combined) > 3:          # has to fit in one drafted deck
+                continue
+            kind, why = classify_pair(
+                ca, cb, kinds.get(oa, set()), kinds.get(ob, set()),
+                tags.get(oa, set()), tags.get(ob, set()),
+                themes.get(oa, set()), themes.get(ob, set()))
+            expected = len(da) * len(db) / float(total_commanders)
+            if expected <= 0:
+                continue
+            lift = together / expected
+            if lift <= 1.5:                # no better than coincidence
+                continue
+            # Raw lift rewards tiny samples: two obscure cards meeting in six
+            # decks score higher than a pairing proven across hundreds. Damp by
+            # the evidence behind it so "often and reliably" beats "rarely but
+            # coincidentally".
+            support = together / float(together + 25)
+            # how often the rarer card drags the other along with it
+            confidence = together / float(min(len(da), len(db)))
+            score = lift * support * (0.5 + confidence)
+            fame = max(ca["edh_decks"] or 0, cb["edh_decks"] or 0)
+            if max_popularity and fame > max_popularity:
+                continue
+            if not include_lands and kind in MANA_KINDS:
+                continue
+            out.append({
+                "cards": [{"name": c["name"], "oracle_id": c["oracle_id"],
+                           "type_line": c["type_line"], "price_usd": c["price_usd"],
+                           "color_identity": c["color_identity"],
+                           "edh_decks": c["edh_decks"],
+                           "tcgplayer_id": c["tcgplayer_id"]} for c in (ca, cb)],
+                "colors": "".join(sorted(combined)) or "C",
+                "played_together": together,
+                "lift": round(lift, 1),
+                "score": round(score, 2),
+                "confidence": round(confidence, 3),
+                "expected": round(expected, 1),
+                "fame": fame,
+                "kind": kind, "hint": why,
+                "p_draft_both": round(per_card ** 2, 4),
+                "p_both_band": band(lambda c: round(p_single_card(
+                    n, players, pack_size, rounds, c)["p_you_get_it"] ** 2, 4)),
+                "total_price": round((ca["price_usd"] or 0) + (cb["price_usd"] or 0), 2),
+            })
+
+    out.sort(key=lambda r: -r["score"])
+    counts = {}
+    for r in out:
+        counts[r["kind"]] = counts.get(r["kind"], 0) + 1
+    return {
+        "cube_id": cube_id, "cube_size": n,
+        "pairs": out[:limit], "total_pairs": len(out),
+        "by_kind": dict(sorted(counts.items(), key=lambda kv: -kv[1])),
+        "lands_included": include_lands,
+        "per_card_odds": round(per_card, 4),
+        "commanders_sampled": total_commanders,
+    }
+
+
+# ─────────────────── your table vs the wider world ───────────────────
+#
+# Three different things get combined here, and they are not equally trustworthy:
+#
+#   cube depth    - hard fact. How many playables a lane has in YOUR list.
+#   EDHREC power  - a proxy. Card play rates come from multiplayer Commander, so
+#                   they say "this card is strong" far better than they say
+#                   "this archetype is strong". Archetype data does NOT transfer
+#                   to 1v1 draft and is deliberately not used here.
+#
+# An opportunity is a lane that is deep in the cube and full of individually
+# strong cards.
+
+def cube_opportunities(con, cube_id, contention=0.35, players=8, pack_size=15, rounds=3):
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    n = len(ids)
+    marks = ",".join("?" * len(ids))
+    per = p_single_card(n, players, pack_size, rounds, contention)["p_you_get_it"]
+
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.edh_decks, c.is_land,
+               c.type_line, c.price_usd
+        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+
+    # What this table has actually done with each lane, when there are results to
+    # read. EDHREC power is a proxy and a loose one - it is multiplayer Commander
+    # data answering a Pioneer cube question - so a measured record, however
+    # small, is worth more than the proxy wherever it exists. It never REPLACES
+    # the proxy here: both are reported, with the sample size, because 20-odd
+    # matches decides nothing on its own.
+    local, canon = {}, lambda c: c
+    try:
+        import nights
+        canon = nights.norm_colors
+        local = {canon(r["colors"]): r for r in nights.pair_records(nights.load())}
+    except Exception:
+        local = {}
+
+    out = []
+    for name, pair in GUILDS:
+        allowed = set(pair)
+        inlane = [r for r in rows
+                  if r["color_identity"] and r["color_identity"] != "C"
+                  and set(r["color_identity"]) <= allowed]
+        nonland = [r for r in inlane if not r["is_land"]]
+        if not nonland:
+            continue
+        power = sorted((r["edh_decks"] or 0) for r in nonland)
+        # median play rate of the lane's spells: a lane of quietly strong cards
+        # beats one with two bombs and forty filler
+        median = power[len(power) // 2]
+        top = sum(sorted(power, reverse=True)[:20]) / 20.0
+
+        out.append({
+            "lane": name, "colors": pair, "label": mtgdb.color_label(pair),
+            "cards_in_cube": len(inlane), "spells": len(nonland),
+            "median_power": median, "top20_power": round(top),
+            "expected_drafted": round(len(inlane) * per, 1),
+            # depth times the quality of what's in it
+            "opportunity": round(top / 1000.0 * len(nonland), 2),
+        })
+        seen = local.get(canon(pair))
+        if seen:
+            out[-1]["local"] = {
+                "w": seen["w"], "l": seen["l"], "d": seen["d"],
+                "matches": seen["matches"], "decks": seen["decks"],
+                "score_pct": seen["score_pct"],
+            }
+    out.sort(key=lambda r: -r["opportunity"])
+    return {"cube_id": cube_id, "cube_size": n, "lanes": out,
+            "has_local": bool(local), "per_card_odds": round(per, 4)}
+
+
+def lane_picks(con, cube_id, colors, limit=15, contention=0.35,
+               players=8, pack_size=15, rounds=3, spells_only=True):
+    """The cards that actually define a lane.
+
+    Ranking the whole colour identity by EDHREC play rate is useless: Evolving
+    Wilds, Solemn Simulacrum and Chromatic Lantern top every lane because they go
+    in every deck. A lane pick has to be a card that is IN those colours.
+    """
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return []
+    marks = ",".join("?" * len(ids))
+    allowed = set((colors or "").upper()) | {"C"}
+    per = p_single_card(len(ids), players, pack_size, rounds, contention)["p_you_get_it"]
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.type_line, c.cmc, c.color_identity,
+               c.edh_decks, c.price_usd, p.tcgplayer_id
+        from cards c left join printings p on p.id = c.cheap_printing_id
+        where c.oracle_id in (%s) and c.edh_decks is not null
+        order by c.edh_decks desc""" % marks, list(ids))]
+    out = []
+    want = set((colors or "").upper()) - {"C"}
+    for r in rows:
+        ci = set(r["color_identity"] or "")
+        if not ci or not ci <= allowed:
+            continue
+        if want and not (ci & want):       # colourless goes in every deck
+            continue
+        if spells_only and "Land" in (r["type_line"] or ""):
+            continue
+        r["p_reaches_you"] = round(per, 4)
+        out.append(r)
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ─────────────────── replacement candidates ───────────────────
+#
+# A cube is a fixed-size list, so improving it means swapping, not adding. Two
+# questions have to be answered together: which card is the weakest in its slot,
+# and what would sit in that same slot without unbalancing the colour or the
+# curve. Suggestions therefore always come as a matched pair, same colour
+# identity and same broad type, so the shape of the cube survives the change.
+#
+# The measure of "weak" is EDHREC play rate, which is a proxy and a flawed one:
+# it comes from multiplayer Commander, so it under-rates cheap aggressive cards
+# and over-rates slow value. Read these as candidates to look at, not verdicts.
+
+def _broad_type(type_line):
+    for t in ("Land", "Creature", "Planeswalker", "Instant", "Sorcery",
+              "Artifact", "Enchantment", "Battle"):
+        if t in (type_line or ""):
+            return t
+    return "Other"
+
+
+def cube_balance(con, cube_id):
+    """Where the cube is thin or fat, by colour, type and curve."""
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line, c.edh_decks
+        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+
+    by_colour, by_type, curve = {}, {}, {}
+    for r in rows:
+        ci = r["color_identity"] or "C"
+        key = ci if len(ci) <= 1 else "multicolour"
+        by_colour[key] = by_colour.get(key, 0) + 1
+        bt = _broad_type(r["type_line"])
+        by_type[bt] = by_type.get(bt, 0) + 1
+        if bt != "Land" and r["cmc"] is not None:
+            slot = int(min(r["cmc"], 7))
+            curve[slot] = curve.get(slot, 0) + 1
+    return {"by_colour": dict(sorted(by_colour.items())),
+            "by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
+            "curve": dict(sorted(curve.items())),
+            "cube_size": len(ids)}
+
+
+# Why swap suggestions are switched off
+# ------------------------------------
+# The machinery below works. The MEASURE it was given does not, and the failure
+# is not subtle — EDHREC play rate is inverted for the cards a Pioneer cube is
+# built on:
+#
+#   Collected Company      373 EDH decks   — defines Pioneer, near-absent in EDH
+#   Thoughtseize        22,685             — premier discard, low in EDH
+#   Lightning Helix     28,492             — excellent, low in EDH
+#   Vandalblast        838,149             — a multiplayer artifact sweeper
+#   Zulaport Cutthroat 406,160             — a multiplayer drain
+#
+# Ranking a cube by that metric recommends cutting Collected Company for Return
+# of the Wildspeaker, which is worse than no advice at all. The right measure is
+# how many CUBES run a card, which needs cube lists this project cannot fetch:
+# Cube Cobra's robots.txt disallows every cube-list route, and Lucky Paper blocks
+# AI crawlers outright.
+#
+# So `power` is a required argument with no working value yet. Supply cube
+# frequency data and this turns on; until then it refuses rather than emitting
+# confident nonsense.
+
+def cube_swaps(con, cube_id, limit=25, fmt="pioneer", per_slot=1,
+               power="cube_frequency", neighbours=100):
+    """Weakest card in each slot, with a same-slot replacement that is played more.
+
+    Slot means colour identity plus broad type, so a mono-blue instant is only
+    ever compared with, and replaced by, another mono-blue instant.
+
+    Requires a `power` measure appropriate to cube. See the note above for why
+    EDHREC play rate is not one.
+    """
+    if power != "cube_frequency":
+        return {"error": "the only supported power measure is cube_frequency; "
+                         "EDHREC play rate is inverted for cube and is refused"}
+    fq = cube_frequency(con, cube_id, neighbours=neighbours)
+    if fq.get("error") or not fq.get("freq"):
+        return {
+            "error": "no reference cubes loaded, so there is nothing to compare against",
+            "needs": "cube lists from comparable cubes, in data/reference_cubes/",
+            "why": "the alternative measure, EDHREC play rate, is inverted for "
+                   "cube: Collected Company sits in 373 Commander decks and "
+                   "Vandalblast in 838,149, which would have this recommend "
+                   "cutting the first for the second.",
+            "how_many": "about 100 similar cubes gives +/-5 points per card; 30 "
+                        "only separates staples from fringe; past 200 the error "
+                        "falls as 1/sqrt(N) and stops being worth the effort.",
+        }
+    freq = fq["freq"]
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+
+    inside = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
+               c.edh_decks, c.price_usd, c.is_funny
+        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+    for r in inside:
+        r["cube_pct"] = freq.get(r["oracle_id"], 0.0)
+
+    slots = {}
+    for r in inside:
+        if _broad_type(r["type_line"]) == "Land":
+            continue                      # the mana base is its own problem
+        r["slot"] = (r["color_identity"] or "C", _broad_type(r["type_line"]))
+        slots.setdefault(r["slot"], []).append(r)
+
+    # everything legal in the format that ISN'T already in the cube
+    outside = {}
+    for r in con.execute("""
+            select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
+                   c.edh_decks, c.price_usd
+            from cards c
+            join legalities l on l.oracle_id = c.oracle_id
+            where l.format = ? and l.status = 'legal'
+              and c.kind = 'card'
+              and coalesce(c.is_funny, 0) = 0
+            """, (fmt,)):
+        r = dict(r)
+        if r["oracle_id"] in ids:
+            continue
+        pct = freq.get(r["oracle_id"], 0.0)
+        if pct <= 0:
+            continue                      # no neighbour runs it; nothing to learn
+        r["cube_pct"] = pct
+        bt = _broad_type(r["type_line"])
+        if bt == "Land":
+            continue
+        outside.setdefault((r["color_identity"] or "C", bt), []).append(r)
+    for pool in outside.values():
+        pool.sort(key=lambda r: -r["cube_pct"])
+
+    out = []
+    for slot, cards_in in slots.items():
+        pool = outside.get(slot) or []
+        if not pool or len(cards_in) < 2:
+            continue
+        cards_in.sort(key=lambda r: r["cube_pct"])
+        for weak in cards_in[:per_slot]:
+            weak_n = weak["cube_pct"]
+            # a replacement has to be played more AND sit at a similar cost, or
+            # swapping it quietly reshapes the curve
+            best = None
+            for cand in pool:
+                if cand["cube_pct"] <= weak_n:
+                    break                 # pool is sorted, nothing better follows
+                same_cost = (weak["cmc"] is None or cand["cmc"] is None
+                             or abs(cand["cmc"] - weak["cmc"]) <= 1)
+                if not same_cost:
+                    continue
+                best = cand
+                break
+            if not best:
+                continue
+            median = sorted(c["cube_pct"] for c in cards_in)[len(cards_in) // 2]
+            out.append({
+                "slot": "%s %s" % (mtgdb.color_label(slot[0]), slot[1].lower()),
+                "colors": slot[0],
+                "cut": {k: weak[k] for k in
+                        ("name", "oracle_id", "cmc", "type_line", "price_usd", "cube_pct")},
+                "add": {k: best[k] for k in
+                        ("name", "oracle_id", "cmc", "type_line", "price_usd", "cube_pct")},
+                "slot_median": round(median, 4),
+                "gain": round(best["cube_pct"] - weak_n, 4),
+                # how far below its own slot the cut card sits
+                "weakness": round(1 - (weak_n / median), 3) if median else None,
+            })
+    out.sort(key=lambda r: -(r["weakness"] or 0))
+    return {"cube_id": cube_id, "format": fmt, "swaps": out[:limit],
+            "total_candidates": len(out),
+            "neighbours": fq["neighbours"], "nearest": fq["nearest"],
+            "confidence": _freq_confidence(fq["neighbours"])}
+
+
+def _freq_confidence(n):
+    """What a given number of neighbours can and can't tell you."""
+    if n >= 200:
+        return "±%.0f points per card — fine-grained" % (100 * (0.25 / n) ** 0.5)
+    if n >= 100:
+        return "±%.0f points per card — tiers are reliable" % (100 * (0.25 / n) ** 0.5)
+    if n >= 30:
+        return ("±%.0f points per card — separates staples from fringe, but don't "
+                "trust close calls" % (100 * (0.25 / n) ** 0.5))
+    return ("only %d neighbours: ±%.0f points per card, which is too coarse for "
+            "anything but the most obvious gaps" % (n, 100 * (0.25 / max(n, 1)) ** 0.5))
+
+
+# ─────────────────── reference cubes (the neighbourhood) ───────────────────
+#
+# How many reference cubes are worth collecting? The estimate for each card is a
+# proportion — "X% of comparable cubes run this" — so its error falls as
+# 1/sqrt(N):
+#
+#     30 cubes  ->  +/- ~9 points, separates staples from fringe only
+#    100 cubes  ->  +/- ~5 points, ranks tiers reliably      <- the sweet spot
+#    200 cubes  ->  +/- ~3.5 points
+#    400 cubes  ->  +/- ~2.5 points, four times the work for a 1.5-point gain
+#
+# Similarity matters more than volume. A powered vintage cube shares almost no
+# card pool with a Pioneer list, so fifty close neighbours beat two hundred
+# arbitrary ones — which is why frequency is weighted by overlap rather than
+# counted flat.
+
+REF_SCHEMA = """
+CREATE TABLE IF NOT EXISTS ref_cubes (
+  id TEXT PRIMARY KEY, name TEXT, n_cards INTEGER, source TEXT, added_at TEXT
+);
+CREATE TABLE IF NOT EXISTS ref_cube_cards (
+  ref_id TEXT, oracle_id TEXT, PRIMARY KEY (ref_id, oracle_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ref_cards ON ref_cube_cards(oracle_id);
+"""
+
+
+def _name_index(con):
+    idx = {}
+    for name, oid in con.execute("select name, oracle_id from cards"):
+        idx.setdefault(name.lower(), oid)
+        if " // " in name:
+            idx.setdefault(name.split(" // ")[0].lower(), oid)
+    return idx
+
+
+def import_reference_dir(folder):
+    """Load every cube list in a folder as a reference cube.
+
+    These never appear in the cube picker - they exist only as the neighbourhood
+    your own cube is measured against.
+    """
+    con = connect_rw()
+    con.executescript(REF_SCHEMA)
+    ro = mtgdb.connect()
+    idx = _name_index(ro)
+    added, skipped = [], []
+    for fn in sorted(os.listdir(folder)):
+        if not fn.lower().endswith((".txt", ".csv")):
+            continue
+        path = os.path.join(folder, fn)
+        try:
+            text = io_open_text(path)
+        except Exception as e:
+            skipped.append((fn, str(e)))
+            continue
+        names = parse_list(text)
+        oids = {idx[n.lower()] for n in names if n.lower() in idx}
+        if len(oids) < 100:
+            skipped.append((fn, "only %d cards resolved — not a cube list?" % len(oids)))
+            continue
+        ref_id = os.path.splitext(fn)[0]
+        con.execute("DELETE FROM ref_cube_cards WHERE ref_id = ?", (ref_id,))
+        con.executemany("INSERT OR REPLACE INTO ref_cube_cards VALUES (?,?)",
+                        [(ref_id, o) for o in oids])
+        con.execute("INSERT OR REPLACE INTO ref_cubes VALUES (?,?,?,?,?)",
+                    (ref_id, ref_id, len(oids), "file:" + fn,
+                     time.strftime("%Y-%m-%dT%H:%M:%S")))
+        added.append({"id": ref_id, "cards": len(oids), "unresolved": len(names) - len(oids)})
+    con.commit()
+    con.close()
+    return {"added": added, "skipped": skipped, "total": len(added)}
+
+
+def io_open_text(path):
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        return f.read()
+
+
+def cube_neighbors(con, cube_id, limit=None):
+    """Reference cubes ranked by how much card pool they share with yours.
+
+    Overlap is the Jaccard index: shared cards over the union. A Pioneer list and
+    a powered vintage list barely touch, and this is what keeps the latter from
+    voting on the former.
+    """
+    mine = cube_card_ids(con, cube_id)
+    if not mine:
+        return []
+    if not con.execute("""select count(*) from sqlite_master
+                          where type='table' and name='ref_cubes'""").fetchone()[0]:
+        return []
+    refs = {}
+    for r in con.execute("select ref_id, oracle_id from ref_cube_cards"):
+        refs.setdefault(r["ref_id"], set()).add(r["oracle_id"])
+    out = []
+    for ref_id, cards in refs.items():
+        shared = len(mine & cards)
+        union = len(mine | cards)
+        out.append({"id": ref_id, "cards": len(cards), "shared": shared,
+                    "overlap": round(shared / union, 4) if union else 0.0})
+    out.sort(key=lambda r: -r["overlap"])
+    return out[:limit] if limit else out
+
+
+def cube_frequency(con, cube_id, neighbours=100, min_overlap=0.05):
+    """How often each card appears in the nearest reference cubes.
+
+    Each neighbour's vote is weighted by how similar it is to yours, so a list
+    that shares most of your pool counts for more than one that barely overlaps.
+    """
+    near = [n for n in cube_neighbors(con, cube_id) if n["overlap"] >= min_overlap][:neighbours]
+    if not near:
+        return {"error": "no reference cubes loaded", "neighbours": 0}
+    ids = {n["id"] for n in near}
+    weight = {n["id"]: n["overlap"] for n in near}
+    total_w = sum(weight.values()) or 1.0
+    marks = ",".join("?" * len(ids))
+    freq = {}
+    for r in con.execute("""select oracle_id, ref_id from ref_cube_cards
+                            where ref_id in (%s)""" % marks, list(ids)):
+        freq[r["oracle_id"]] = freq.get(r["oracle_id"], 0.0) + weight[r["ref_id"]]
+    return {"neighbours": len(near),
+            "weighted_total": total_w,
+            "freq": {o: w / total_w for o, w in freq.items()},
+            "nearest": near[:10]}
+
+
+# ─────────────────── can the cube satisfy a combo's template? ───────────────────
+#
+# Commander Spellbook describes the unnamed piece of a combo as a template —
+# "Persist Creature", "Undying Creature", "Zombie Creature". Those are checkable
+# against a card pool, so a combo that needs one can say whether your cube has it
+# rather than leaving you to guess. Templates phrased as effects rather than
+# keywords ("Haste Enabler", "Effects that Alter a Creature's Power") are not
+# reliably checkable and say so instead of guessing.
+
+TEMPLATE_KEYWORDS = [
+    # (fragment of the template name, how to find it in a card)
+    ("persist", ("text", "persist")),
+    ("undying", ("text", "undying")),
+    ("bloodthirst", ("text", "bloodthirst")),
+    ("landfall", ("text", "landfall")),
+    ("lifelink", ("text", "lifelink")),
+    ("deathtouch", ("text", "deathtouch")),
+    ("flying", ("text", "flying")),
+    ("zombie", ("type", "Zombie")),
+    ("knight", ("type", "Knight")),
+    ("goblin", ("type", "Goblin")),
+    ("orc", ("type", "Orc")),
+    ("army", ("type", "Army")),
+    ("hero", ("type", "Hero")),
+    ("cleric", ("type", "Cleric")),
+    ("elf", ("type", "Elf")),
+    ("wizard", ("type", "Wizard")),
+    ("vampire", ("type", "Vampire")),
+]
+
+
+def template_in_cube(con, cube_ids, template, limit=5):
+    """Which cube cards, if any, could stand in for a combo's unnamed piece."""
+    name = (template or "").lower()
+    rule = None
+    for frag, how in TEMPLATE_KEYWORDS:
+        if frag in name:
+            rule = how
+            break
+    if not rule or not cube_ids:
+        return {"template": template, "checkable": False,
+                "note": "described as an effect rather than a keyword, so this "
+                        "one can't be checked against the list automatically"}
+    field, needle = rule
+    marks = ",".join("?" * len(cube_ids))
+    if field == "text":
+        sql = ("select name from cards where oracle_id in (%s) "
+               "and lower(oracle_text) like ? order by name" % marks)
+        args = list(cube_ids) + ["%" + needle + "%"]
+    else:
+        sql = ("select name from cards where oracle_id in (%s) "
+               "and type_line like ? order by name" % marks)
+        args = list(cube_ids) + ["%" + needle + "%"]
+    hits = [r[0] for r in con.execute(sql, args)]
+    return {"template": template, "checkable": True,
+            "found": len(hits), "examples": hits[:limit]}
+
+
+# ─────────────────── one card short ───────────────────
+#
+# No combo of three or more cards sits entirely inside this cube, which is the
+# honest answer to "search for 3+ card combos" — but it isn't the useful one.
+# The useful question is what the cube is one card away from: a combo missing a
+# single piece tells you exactly which card to add, and how much it would unlock.
+
+def cube_near_misses(con, cube_id, limit=40, max_extra=0, fmt="pioneer",
+                     legal_only=True):
+    """Combos with every piece but one already in the cube.
+
+    Ranked by the missing card: adding one card that completes several combos is
+    worth more than one that completes a single obscure line.
+    """
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+
+    rows = con.execute("""
+        select c.id, c.n_cards, c.card_key, c.card_names, c.produces,
+               c.n_extra, c.notable_prereqs, c.popularity, c.identity
+        from combos c join combo_cards cc on cc.combo_id = c.id
+        where cc.oracle_id in (%s) group by c.id""" % marks, list(ids))
+
+    missing_counts = {}
+    for r in rows:
+        key = set((r["card_key"] or "").split("|")) - {""}
+        if not key or len(key) != (r["n_cards"] or 0):
+            continue
+        if (r["n_extra"] or 0) > max_extra:
+            continue              # already needs something unnamed; adding a card won't finish it
+        absent = key - ids
+        if len(absent) != 1:
+            continue
+        oid = absent.pop()
+        slot = missing_counts.setdefault(oid, {"combos": [], "popularity": 0})
+        import json as _j
+        slot["combos"].append({
+            "id": r["id"], "n_cards": r["n_cards"],
+            "cards": _j.loads(r["card_names"] or "[]"),
+            "produces": _j.loads(r["produces"] or "[]"),
+        })
+        slot["popularity"] += (r["popularity"] or 0)
+
+    if not missing_counts:
+        return {"cube_id": cube_id, "cards": [], "total": 0}
+
+    marks2 = ",".join("?" * len(missing_counts))
+    info = {r["oracle_id"]: dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.type_line, c.cmc, c.color_identity,
+               c.price_usd, c.edh_decks, p.tcgplayer_id,
+               (select 1 from legalities l where l.oracle_id = c.oracle_id
+                and l.format = ? and l.status = 'legal') fmt_legal
+        from cards c left join printings p on p.id = c.cheap_printing_id
+        where c.oracle_id in (%s)""" % marks2, [fmt] + list(missing_counts))}
+
+    out = []
+    for oid, slot in missing_counts.items():
+        c = info.get(oid)
+        if not c:
+            continue
+        out.append({
+            "name": c["name"], "oracle_id": oid, "type_line": c["type_line"],
+            "cmc": c["cmc"], "color_identity": c["color_identity"],
+            "price_usd": c["price_usd"], "tcgplayer_id": c["tcgplayer_id"],
+            "format_legal": bool(c["fmt_legal"]),
+            "unlocks": len(slot["combos"]),
+            "combos": sorted(slot["combos"], key=lambda x: x["n_cards"])[:6],
+        })
+    out.sort(key=lambda r: (-r["unlocks"], not r["format_legal"],
+                            r["price_usd"] if r["price_usd"] is not None else 1e9))
+    illegal = [r for r in out if not r["format_legal"]]
+    if legal_only:
+        out = [r for r in out if r["format_legal"]]
+    return {"cube_id": cube_id, "format": fmt, "cards": out[:limit],
+            "total": len(out),
+            # a card you can't legally add is not a suggestion
+            "excluded_illegal": len(illegal),
+            "illegal_examples": [r["name"] for r in illegal[:5]]}
+
+
+# ───────────────────────────── pack 1 pick 1 ─────────────────────────────
+
+# How each archetype has actually done at this table feeds the fit component.
+# Derived from the game-night deck strings; see nights.py.
+ARCHETYPE_PATTERNS = [
+    ("aggro", r"aggro|agro|burn|rdw|phoenix|spellslinger|pingers"),
+    ("control", r"control|superfriends|artifacts\b"),
+    ("midrange", r"midrange|good stuff|delirium|liliana|yorion|jund|abzan|mardu"),
+    ("ramp", r"ramp|omnath|dorks|niv|golos"),
+    ("tokens", r"token"),
+    ("graveyard", r"graveyard|escape"),
+]
+
+
+def archetype_records():
+    """Win rate per archetype, from the recorded deck names. Empty when there
+    are no game-night results to read."""
+    try:
+        import nights
+    except Exception:
+        return {}
+    doc = nights.load()
+    out = {}
+    for n in doc["nights"]:
+        for r in n["results"].values():
+            played = r["w"] + r["l"] + r["d"]
+            if not played:
+                continue
+            text = (r.get("deck") or "").lower()
+            for name, pat in ARCHETYPE_PATTERNS:
+                if re.search(pat, text):
+                    b = out.setdefault(name, {"w": 0, "l": 0, "d": 0, "decks": 0})
+                    b["w"] += r["w"]; b["l"] += r["l"]; b["d"] += r["d"]; b["decks"] += 1
+                    break
+    for b in out.values():
+        m = b["w"] + b["l"] + b["d"]
+        b["matches"] = m
+        b["score_pct"] = round(100.0 * (b["w"] + 0.5 * b["d"]) / m, 1) if m else None
+    return out
+
+
+def lane_pcts():
+    """Measured score per colour pair, keyed in WUBRG order. Empty without results."""
+    try:
+        import nights
+    except Exception:
+        return {}
+    return {nights.norm_colors(r["colors"]): r["score_pct"]
+            for r in nights.pair_records(nights.load())
+            if len(nights.norm_colors(r["colors"])) == 2}
+
+
+def pick_scores(con, cube_id):
+    """Score every card in the cube as a FIRST pick.
+
+    A first pick is not the question "is this card strong". You are choosing
+    before you have a deck, so what matters is what the card is worth across the
+    decks you might still end up in, and what it costs you to keep those open.
+
+    WHAT THIS DELIBERATELY DOES NOT USE: EDHREC play rate. It is multiplayer
+    Commander data, and for a cube it is close to inverted - it ranks universal
+    fixing and mana rocks above every real cube card, so a list built on it
+    opens with Evolving Wilds. It is still shown as a column, labelled, so you
+    can see how badly it disagrees; it is not in the score.
+
+    THE HONEST CONSEQUENCE: nothing here measures raw card power. A dull card in
+    a winning lane will outrank a bomb in a losing one. That is a real weakness,
+    not a quirk - the components are shown separately so you can overrule it,
+    which is the point of the tab.
+
+      lane     how the card's colours have actually performed at this table
+      open     how little the card commits you - a first pick should keep lanes
+               available, and this component is meaningless by pick three
+      synergy  how much the rest of the cube wants to be in a deck with it
+
+    Archetype win rates are reported alongside but NOT scored. Tying them to
+    cards would mean going through the EDHREC theme list, which on a Pioneer
+    cube reports set mechanics (morph, foretell) as archetypes - so the join
+    would be noise wearing a number.
+    """
+    ids = cube_card_ids(con, cube_id)
+    if not ids:
+        return {"error": "unknown or empty cube"}
+    marks = ",".join("?" * len(ids))
+    rows = [dict(r) for r in con.execute("""
+        select c.oracle_id, c.name, c.color_identity, c.cmc, c.type_line,
+               c.mana_cost, c.edh_decks, c.price_usd, c.is_land
+        from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
+
+    lanes = lane_pcts()
+    baseline = (sum(lanes.values()) / len(lanes)) if lanes else 50.0
+
+    pair_lift = {}
+    syn = cube_synergies(con, cube_id, limit=800)
+    for pr in syn["pairs"]:
+        for c in pr["cards"]:
+            pair_lift[c["oracle_id"]] = pair_lift.get(c["oracle_id"], 0.0) + (pr["lift"] or 0)
+    top_lift = max(list(pair_lift.values()) or [1]) or 1
+
+    # which tactics each card serves, and how those tactics have performed
+    arch = archetype_records()
+    tac = cube_tactics(con, cube_id, need=6)
+    arch_of_tactic = {}
+    for t in tac["tactics"]:
+        text = (t["name"] or "").lower()
+        for name, pat in ARCHETYPE_PATTERNS:
+            if re.search(pat, text):
+                arch_of_tactic[t["name"]] = name
+                break
+    card_fit = {}
+    for t in tac["tactics"]:
+        a = arch_of_tactic.get(t["name"])
+        pct = (arch.get(a) or {}).get("score_pct")
+        if pct is None:
+            continue
+        for ex in t.get("examples", []):
+            oid = ex.get("oracle_id")
+            if oid:
+                card_fit[oid] = max(card_fit.get(oid, 0.0), pct - 50.0)
+
+    out = []
+    for r in rows:
+        ci = "".join(c for c in "WUBRG" if c in (r["color_identity"] or ""))
+        n_col = len(ci)
+
+        fits = [pct for pair, pct in lanes.items() if set(ci) <= set(pair)]
+        lane = (max(fits) - baseline) if fits else 0.0
+
+        # Openness is about COLOUR COMMITMENT, and a land is not keeping your
+        # spells' options open - it is the fixing. Without the exception, every
+        # colourless fixing land scored a perfect 100 and topped the pack, which
+        # is the same failure that makes EDHREC popularity useless here.
+        openness = {0: 100.0, 1: 70.0, 2: 35.0}.get(n_col, 10.0)
+        if r["is_land"]:
+            openness = 35.0
+        synergy = 100.0 * pair_lift.get(r["oracle_id"], 0.0) / top_lift
+
+        score = 2.0 * lane + 0.35 * openness + 0.35 * synergy
+        out.append({
+            "oracle_id": r["oracle_id"], "name": r["name"],
+            "color_identity": ci, "cmc": r["cmc"], "type_line": r["type_line"],
+            "mana_cost": r["mana_cost"], "price_usd": r["price_usd"],
+            "is_land": r["is_land"], "edh_decks": r["edh_decks"],
+            "lane": round(lane, 1),
+            "open": round(openness, 1), "synergy": round(synergy, 1),
+            "score": round(score, 1),
+        })
+    out.sort(key=lambda c: -c["score"])
+    return {"cube_id": cube_id, "cube_size": len(ids), "cards": out,
+            "lane_pct": lanes, "lane_baseline": round(baseline, 1),
+            "archetypes": arch, "has_local": bool(lanes)}

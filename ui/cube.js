@@ -423,3 +423,124 @@ let draftTimer = null;
   });
 });
 $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
+
+/* ── pack 1 pick 1 ──
+   Deal a pack from the cube, take your pick, then see what the numbers say.
+   The point is the disagreement: the score deliberately contains no measure of
+   raw card power (see pick_scores in cube.py), so where it is wrong it should
+   be obviously wrong, and you should be able to see which component did it. */
+let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
+
+async function p1Data() {
+  if (P1) return P1;
+  const cube_id = $('#cubeSel').value || (LOADED_CUBES[0] || {}).id;
+  P1 = await (await fetch('/api/cube/p1p1?' + new URLSearchParams({cube_id}))).json();
+  return P1;
+}
+
+function p1Deal() {
+  const size = Math.max(3, Math.min(30, parseInt($('#p1Size').value, 10) || 15));
+  const pool = (P1.cards || []).slice();
+  // a real pack is a random draw from the whole list, lands and all - filtering
+  // them out would flatter the tool by removing the picks people argue about
+  const pack = [];
+  for (let i = 0; i < size && pool.length; i++) {
+    pack.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  }
+  P1_PACK = pack;
+  P1_PICK = null;
+  P1_REVEALED = false;
+  $('#p1Reveal').disabled = true;
+  p1Render();
+}
+
+const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
+
+function p1Render() {
+  if (!P1_PACK.length) return;
+  const ranked = P1_PACK.slice().sort((a, b) => b.score - a.score);
+  const rankOf = c => ranked.findIndex(x => x.oracle_id === c.oracle_id) + 1;
+  const best = ranked[0];
+
+  const head = P1_REVEALED
+    ? (() => {
+        const mine = P1_PACK.find(c => c.oracle_id === P1_PICK);
+        const r = rankOf(mine);
+        const agree = r === 1;
+        return `<div class="note">You took <b>${esc(mine.name)}</b> —
+          ${agree ? '<span class="badge good">the numbers agree</span>'
+                  : `the numbers rank it <b>${r}</b> of ${P1_PACK.length}, behind
+                     <b>${esc(best.name)}</b>`}.
+          ${agree ? '' : `<br>That gap is <b>${(best.score - mine.score).toFixed(1)}</b> points,
+             almost all of it ${p1Why(best, mine)}.`}</div>`;
+      })()
+    : `<div class="note">${P1_PICK ? 'Picked. Press “Show the numbers”.'
+        : 'Click the card you would take.'}</div>`;
+
+  const rows = (P1_REVEALED ? ranked : P1_PACK).map(c => {
+    const picked = c.oracle_id === P1_PICK;
+    return `<tr class="${picked ? 'me' : ''}">
+      ${P1_REVEALED ? `<td class="num">${rankOf(c)}</td>` : ''}
+      <td class="name"><span data-oracle="${esc(c.oracle_id)}">${esc(c.name)}</span>
+        ${picked ? ' <span class="badge">your pick</span>' : ''}
+        <div class="mini dim">${esc((c.type_line || '').split(' —')[0])}</div></td>
+      <td>${ciCell(c.color_identity)}</td>
+      <td class="num">${c.cmc ?? '—'}</td>
+      ${P1_REVEALED ? `
+        <td class="num">${c.score.toFixed(1)}</td>
+        <td class="num">${p1Sign(c.lane)}</td>
+        <td class="num">${c.open.toFixed(0)}</td>
+        <td class="num">${c.synergy.toFixed(0)}</td>
+        <td class="num dim">${(c.edh_decks || 0).toLocaleString()}</td>`
+      : `<td><button class="pickbtn" data-pick="${esc(c.oracle_id)}">${picked ? 'picked' : 'take it'}</button></td>`}
+    </tr>`;
+  }).join('');
+
+  $('#p1Out').innerHTML = head + `<table><thead><tr>
+      ${P1_REVEALED ? '<th class="num">#</th>' : ''}
+      <th>Card</th><th>CI</th><th class="num">MV</th>
+      ${P1_REVEALED
+        ? `<th class="num">Score</th><th class="num">Lane</th><th class="num">Open</th>
+           <th class="num">Synergy</th><th class="num">EDHREC</th>`
+        : '<th data-nosort></th>'}
+    </tr></thead><tbody>${rows}</tbody></table>`
+    + (P1_REVEALED ? `<p class="note"><b>Lane</b> is the colours' record at your table against the
+        ${P1.lane_baseline}% average — the only measured number here, and it rests on a few dozen
+        matches. <b>Open</b> is how little the card commits you, which matters for this pick and
+        no other. <b>Synergy</b> is how much the rest of the cube wants to sit beside it.
+        <b>EDHREC</b> is shown for contrast and is not in the score: it ranks universal fixing
+        above real cube cards.</p>` : '');
+
+  $('#p1Out').querySelectorAll('[data-pick]').forEach(b => {
+    b.onclick = () => {
+      P1_PICK = b.dataset.pick;
+      $('#p1Reveal').disabled = false;
+      p1Render();
+    };
+  });
+  sortable('#p1Out');
+}
+
+// which component actually separated the two cards
+function p1Why(best, mine) {
+  const parts = [
+    ['the colours’ record here', 2.0 * (best.lane - mine.lane)],
+    ['how little it commits you', 0.35 * (best.open - mine.open)],
+    ['how much the cube wants it', 0.35 * (best.synergy - mine.synergy)],
+  ].sort((a, b) => b[1] - a[1]);
+  return parts[0][0];
+}
+
+$('#p1Deal').onclick = async () => {
+  $('#p1Out').innerHTML = '<span class="dim">dealing…</span>';
+  await p1Data();
+  if (P1.error) return $('#p1Out').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
+  p1Deal();
+};
+$('#p1Reveal').onclick = () => { P1_REVEALED = true; p1Render(); };
+
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
+  ['cube', 'p1p1'].forEach(t => $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+  explain();
+});

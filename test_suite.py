@@ -6,7 +6,7 @@ comment on each says which one, because the tests look arbitrary otherwise.
 """
 import sys
 
-import json, os, subprocess
+import json, os, re, subprocess
 
 import combo_finder
 import cube
@@ -851,7 +851,11 @@ def test_pages_and_privacy():
 
     check("the cube page loads the shared modules",
           "/shared.js" in cube_page and "/cube.js" in cube_page)
-    check("the cube page has no tab bar", 'class="tabs"' not in cube_page)
+    # the page has tabs again (cube analysis / pack 1 pick 1); what matters is
+    # that both are cube tools and neither reaches the personal side
+    check("the cube page's tabs are cube tools only",
+          set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)) == {"cube", "p1p1"},
+          str(sorted(set(re.findall(r'data-tab="([a-z0-9]+)"', cube_page)))))
     check("the cube page carries the popup hosts",
           all(i in cube_page for i in ("tipbox", "cardpop", "setpop", "manapop")))
 

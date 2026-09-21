@@ -51,6 +51,9 @@ def main():
         "balance": C.cube_balance(con, cid),
         "near_misses": C.cube_near_misses(con, cid, limit=60),
         "picks": {lane: C.lane_picks(con, cid, lane, limit=15) for lane in LANES},
+        # every cube card scored as a first pick, so the published page can deal
+        # packs itself - it has no server to ask for a fresh one
+        "p1p1": C.pick_scores(con, cid),
     }
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)

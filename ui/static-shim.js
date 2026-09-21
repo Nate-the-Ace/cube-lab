@@ -79,6 +79,7 @@
     '/api/stats': () => D.stats,
 
     '/api/cube/balance': () => D.balance,
+    '/api/cube/p1p1': () => D.p1p1,
     '/api/cube/near-misses': () => D.near_misses,
 
     '/api/cube/opportunities': qs => {

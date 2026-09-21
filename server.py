@@ -152,6 +152,10 @@ class H(BaseHTTPRequestHandler):
                     players=int(f(qs, "players", int) or 8),
                     pack_size=int(f(qs, "pack_size", int) or 15),
                     rounds=int(f(qs, "rounds", int) or 3)))
+            if p == "/api/cube/p1p1":
+                import cube as cube_mod
+                return self._send(200, cube_mod.pick_scores(
+                    con(), qs.get("cube_id", [""])[0]))
             if p == "/api/cube/picks":
                 import cube as cube_mod
                 return self._send(200, cube_mod.lane_picks(
