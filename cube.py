@@ -841,6 +841,20 @@ def cube_opportunities(con, cube_id, contention=0.35, players=8, pack_size=15, r
                c.type_line, c.price_usd
         from cards c where c.oracle_id in (%s)""" % marks, list(ids))]
 
+    # What this table has actually done with each lane, when there are results to
+    # read. EDHREC power is a proxy and a loose one - it is multiplayer Commander
+    # data answering a Pioneer cube question - so a measured record, however
+    # small, is worth more than the proxy wherever it exists. It never REPLACES
+    # the proxy here: both are reported, with the sample size, because 20-odd
+    # matches decides nothing on its own.
+    local, canon = {}, lambda c: c
+    try:
+        import nights
+        canon = nights.norm_colors
+        local = {canon(r["colors"]): r for r in nights.pair_records(nights.load())}
+    except Exception:
+        local = {}
+
     out = []
     for name, pair in GUILDS:
         allowed = set(pair)
@@ -864,8 +878,16 @@ def cube_opportunities(con, cube_id, contention=0.35, players=8, pack_size=15, r
             # depth times the quality of what's in it
             "opportunity": round(top / 1000.0 * len(nonland), 2),
         })
+        seen = local.get(canon(pair))
+        if seen:
+            out[-1]["local"] = {
+                "w": seen["w"], "l": seen["l"], "d": seen["d"],
+                "matches": seen["matches"], "decks": seen["decks"],
+                "score_pct": seen["score_pct"],
+            }
     out.sort(key=lambda r: -r["opportunity"])
-    return {"cube_id": cube_id, "cube_size": n, "lanes": out, "per_card_odds": round(per, 4)}
+    return {"cube_id": cube_id, "cube_size": n, "lanes": out,
+            "has_local": bool(local), "per_card_odds": round(per, 4)}
 
 
 def lane_picks(con, cube_id, colors, limit=15, contention=0.35,

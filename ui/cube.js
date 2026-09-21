@@ -176,17 +176,31 @@ async function runCube() {
       <tbody>${comboRows(combos.candidates, true)}</tbody></table>` : ''}
 
     <h3 class="sec">Where the opportunity is</h3>
-    <p class="note">Two signals, and they are not equally trustworthy. <b>Depth</b> is a hard fact
+    <p class="note">Three signals, and they are not equally trustworthy. <b>Depth</b> is a hard fact
       about your list. <b>Power</b> is the average EDHREC play rate of the lane's twenty best spells —
       a proxy, since that data is multiplayer Commander, so it says "these cards are strong" far
-      better than "this archetype is strong"; EDHREC archetype data is deliberately not used here.</p>
+      better than "this archetype is strong"; EDHREC archetype data is deliberately not used here.
+      ${(opp && opp.has_local)
+        ? `<b>Measured</b> is what this table has actually done with the lane, from the game-night
+           records — the only signal here drawn from your own cube rather than someone else's format.
+           It is also the smallest: a couple of dozen matches decides nothing on its own, so the
+           match count sits beside every rate. A three-colour deck counts toward each of its pairs.`
+        : `A third signal, what this table has actually done with each lane, appears here once
+           game-night results are recorded.`}</p>
     <table><thead><tr><th>Lane</th><th class="num">Spells</th><th class="num">Power</th>
-      <th class="num">Opportunity</th></tr></thead><tbody>
+      <th class="num">Opportunity</th>${opp && opp.has_local
+        ? '<th class="num">Measured</th><th class="num">Matches</th>' : ''}</tr></thead><tbody>
       ${((opp && opp.lanes) || []).map(l => `<tr>
         <td class="name" data-sort="${esc(l.colors)}">${manaLabel(l.colors)}</td>
         <td class="num" data-sort="${l.spells}">${l.spells}</td>
         <td class="num" data-sort="${l.top20_power}">${(l.top20_power/1000).toFixed(0)}k</td>
         <td class="num" data-sort="${l.opportunity}">${l.opportunity.toLocaleString()}</td>
+        ${opp && opp.has_local ? (l.local
+          ? `<td class="num" data-sort="${l.local.score_pct}">${l.local.score_pct.toFixed(1)}%
+               <div class="mini">${l.local.w}-${l.local.l}${l.local.d ? '-' + l.local.d : ''}</div></td>
+             <td class="num" data-sort="${l.local.matches}">${l.local.matches}
+               <div class="mini">${l.local.decks} deck${l.local.decks === 1 ? '' : 's'}</div></td>`
+          : '<td class="num dim">—</td><td class="num dim">never drafted</td>') : ''}
       </tr>`).join('')}</tbody></table>
 
     <h3 class="sec">Colour lanes</h3>

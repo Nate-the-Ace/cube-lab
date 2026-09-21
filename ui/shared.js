@@ -511,6 +511,7 @@ const GLOSSARY = {
   'filler': ['Filler', 'A slot the budget could not afford a played card for, filled with the cheapest legal option.'],
   'overlap': ['Overlap', "How strongly two cards share commanders: for every commander running your card, its other staples score by how often they're played."],
   // ─ cut picker ─
+  'measured': ['Measured here', 'How this lane has actually performed at your table, from the game-night records: wins plus half a draw each, over matches played. The only signal on this page taken from your own cube rather than someone else\u2019s format \u2014 and the smallest, so read it with the match count beside it. A three-colour deck counts toward each of its pairs.'],
   // game-night tracker
   'w': ['Wins', 'Matches won.'],
   'l': ['Losses', 'Matches lost.'],

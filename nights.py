@@ -106,6 +106,25 @@ def remove_player(doc, pid):
     return doc
 
 
+COLORS = "WUBRG"
+
+
+def norm_colors(raw):
+    """A colour identity in canonical WUBRG order, from LETTERS ONLY.
+
+    Do not feed this prose. Filtering letters out of free text looks like it
+    works - "black/red" happens to yield BR - and then "green" yields RG, because
+    the word contains an R. Names are resolved where they are read, not here; the
+    only shorthand accepted is K for black, which the table uses because B is
+    already spoken for by "bye".
+    """
+    raw = (raw or "").upper()
+    if any(c.isalpha() and c not in COLORS + "KC" for c in raw):
+        raise ValueError("colours must be letters (WUBRG, K for black), got %r" % raw)
+    letters = {("B" if c == "K" else c) for c in raw if c in COLORS + "K"}
+    return "".join(c for c in COLORS if c in letters)
+
+
 def _tally(raw):
     out = {}
     for k in ("w", "l", "d", "b"):
@@ -115,6 +134,14 @@ def _tally(raw):
         except (TypeError, ValueError):
             v = 0
         out[k] = max(0, v)
+    # what they were playing, when the record says. This is the half that can
+    # tell you something about the CUBE rather than about the players.
+    colors = norm_colors(raw.get("colors"))
+    if colors:
+        out["colors"] = colors
+    deck = (raw.get("deck") or "").strip()
+    if deck:
+        out["deck"] = deck
     return out
 
 
@@ -173,10 +200,72 @@ def standings(doc):
     return rows
 
 
+def lane_records(doc, min_matches=1):
+    """How each colour combination has actually performed at this table.
+
+    This is the part of the record that says something about the cube instead of
+    about the people: it is keyed by what was played, not by who played it. The
+    samples are tiny - a lane with four matches is an anecdote - so every row
+    carries its match count and callers are expected to show it.
+    """
+    lanes = {}
+    for n in doc["nights"]:
+        for r in n["results"].values():
+            ci = r.get("colors")
+            if not ci:
+                continue
+            row = lanes.setdefault(ci, {"colors": ci, "w": 0, "l": 0, "d": 0,
+                                        "decks": 0, "nights": set()})
+            for k in ("w", "l", "d"):
+                row[k] += r[k]
+            row["decks"] += 1
+            row["nights"].add(n["id"])
+    out = []
+    for row in lanes.values():
+        played = row["w"] + row["l"] + row["d"]
+        if played < min_matches:
+            continue
+        row["nights"] = len(row["nights"])
+        row["matches"] = played
+        row["score_pct"] = round(100.0 * (row["w"] + 0.5 * row["d"]) / played, 1)
+        out.append(row)
+    out.sort(key=lambda r: (-r["score_pct"], -r["matches"], r["colors"]))
+    return out
+
+
+def pair_records(doc, min_matches=1):
+    """The same, rolled up to the two-colour lanes a cube is drafted in.
+
+    A three-colour deck counts toward each of its pairs: someone playing Jund is
+    evidence about BR, BG and RG, which is the question a drafter actually has.
+    Mono decks and colourless are reported under their own single letter.
+    """
+    pairs = {}
+    for row in lane_records(doc):
+        ci = row["colors"]
+        keys = ([ci] if len(ci) == 1 else
+                [a + b for i, a in enumerate(ci) for b in ci[i + 1:]])
+        for key in keys:
+            p = pairs.setdefault(key, {"colors": key, "w": 0, "l": 0, "d": 0, "decks": 0})
+            for k in ("w", "l", "d", "decks"):
+                p[k] += row[k]
+    out = []
+    for p in pairs.values():
+        played = p["w"] + p["l"] + p["d"]
+        if played < min_matches:
+            continue
+        p["matches"] = played
+        p["score_pct"] = round(100.0 * (p["w"] + 0.5 * p["d"]) / played, 1)
+        out.append(p)
+    out.sort(key=lambda r: (-r["score_pct"], -r["matches"], r["colors"]))
+    return out
+
+
 def summary(doc):
     st = standings(doc)
     played = sum(r["matches"] for r in st)
     return {"players": st, "nights": doc["nights"],
+            "lanes": lane_records(doc), "pairs": pair_records(doc),
             "totals": {"players": len(st), "nights": len(doc["nights"]),
                        # each match has two sides in the totals above
                        "results_recorded": played,

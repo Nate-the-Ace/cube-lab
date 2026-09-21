@@ -877,6 +877,14 @@ def test_pages_and_privacy():
     check("no personal records remain in the project", not hits, str(hits[:4]))
 
 
+def _raises(fn, *a):
+    try:
+        fn(*a)
+        return False
+    except ValueError:
+        return True
+
+
 def test_game_nights():
     print("game night tracker")
     import nights as N
@@ -930,6 +938,32 @@ def test_game_nights():
     check("counts can't go negative",
           N.set_night(doc, {"date": "2026-09-22",
                             "results": {"ada": {"w": -5}}})["results"]["ada"]["w"] == 0)
+
+    # colours are resolved where the prose is read, never by filtering letters out
+    # of it: "black/red" happens to give BR, and then "green" gives RG
+    check("colour prose is refused, not guessed",
+          _raises(N.norm_colors, "green"))
+    check("K is black in the shorthand", N.norm_colors("rgk") == "BRG")
+    check("colours come back in WUBRG order", N.norm_colors("grw") == "WRG")
+
+    lanes = {"date": "2026-02-01", "results": {
+        "ada": {"w": 2, "l": 1, "colors": "rw"},
+        "bo":  {"w": 0, "l": 3, "colors": "U"}}}
+    d2 = {"players": [{"id": "ada", "name": "Ada"}, {"id": "bo", "name": "Bo"}], "nights": []}
+    N.set_night(d2, lanes)
+    lr = {r["colors"]: r for r in N.lane_records(d2)}
+    check("a lane record is keyed by what was played", lr["WR"]["score_pct"] == 66.7)
+    check("a lane with no colours recorded is left out",
+          "" not in lr and len(lr) == 2)
+
+    # a three-colour deck is evidence about each of its pairs, which is the
+    # question a drafter actually asks
+    N.set_night(d2, {"date": "2026-02-08",
+                     "results": {"ada": {"w": 3, "l": 0, "colors": "BRG"}}})
+    pr = {r["colors"]: r for r in N.pair_records(d2)}
+    check("a three-colour deck counts toward each of its pairs",
+          all(pr[k]["matches"] == 3 for k in ("BR", "BG", "RG")), str(sorted(pr)))
+    check("a mono deck stays under its own letter", pr["U"]["matches"] == 3)
 
     # the results file holds real people's names, so it must stay out of the repo
     here = os.path.dirname(os.path.abspath(__file__))
