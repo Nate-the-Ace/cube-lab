@@ -471,6 +471,27 @@ const ciRank = c => {
   return CI_ORDER.indexOf(ci[0]);
 };
 
+/* What each role is FOR, said in the hand rather than left to the label.
+
+   The role names are short enough to be ambiguous at a glance - "Tokens" is a
+   plan, not a card type - so each group says what it does for you underneath,
+   above the rule that marks where it ends. */
+const ROLE_DOES = {
+  'Removal': 'answers what they played',
+  'Creature': 'attacks, blocks, holds the board',
+  'Land': 'fixes your colours and fuels the curve',
+  'Card draw': 'refills your hand',
+  'Tokens': 'makes bodies out of nothing',
+  'Ramp': 'more mana, sooner',
+  'Counterspell': 'stops it before it happens',
+  'Planeswalker': 'value every turn it survives',
+  'Instant': 'a trick, on their turn',
+  'Sorcery': 'a one-shot effect, on yours',
+  'Enchantment': 'an effect that stays on the table',
+  'Artifact': 'colourless, and stays on the table',
+  'Other': 'does its own thing',
+};
+
 const P1_HAND_SORTS = {
   deal: {label: 'as dealt', by: null},
   score: {label: 'pick score', by: (a, b) => b.score - a.score},
@@ -507,8 +528,27 @@ function p1DrawHand() {
         : ''}</span>`;
     return;
   }
-  hand.className = 'hand fan';
-  hand.innerHTML = p1SortedPack().map(c => cardFace(c)).join('');
+  const grouped = P1_HAND_SORT === 'role';
+  hand.className = 'hand fan' + (grouped ? ' grouped' : '');
+  const inOrder = p1SortedPack();
+  if (grouped) {
+    const groups = [];
+    inOrder.forEach(c => {
+      const k = c.role || 'Other';
+      const last = groups[groups.length - 1];
+      if (last && last.key === k) last.cards.push(c);
+      else groups.push({key: k, cards: [c]});
+    });
+    hand.innerHTML = groups.map(g => `<div class="handgroup">
+      <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
+      <span class="gfoot"><span class="glabel"
+        title="${esc(g.key)} \u2014 ${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}"
+        ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
+        <em>${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}</em></span></span>
+    </div>`).join('');
+  } else {
+    hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+  }
   p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
@@ -811,6 +851,18 @@ function p1LayoutHand() {
     el.style.setProperty('--tilt', (d * 7).toFixed(2) + 'deg');
     el.style.setProperty('--lift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
     el.style.zIndex = String(i + 1);
+  });
+
+  /* The group names follow the hand rather than sitting flat under it: each
+     one takes the tilt and the drop of the point in the fan its cards are
+     centred on, so the run of them traces the same curve the cards do. */
+  hand.querySelectorAll('.handgroup').forEach(g => {
+    const mine = [...g.querySelectorAll('.dcard')].map(el => cards.indexOf(el));
+    if (!mine.length) return;
+    const centre = mine.reduce((a, b) => a + b, 0) / mine.length;
+    const d = mid ? (centre - mid) / mid : 0;
+    g.style.setProperty('--gtilt', (d * 7).toFixed(2) + 'deg');
+    g.style.setProperty('--glift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
   });
 }
 

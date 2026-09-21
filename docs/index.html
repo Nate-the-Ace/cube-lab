@@ -322,6 +322,42 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   transform:translateY(var(--lift,0px)) rotate(var(--tilt,0deg));
   box-shadow:-6px 4px 14px rgba(0,0,0,.45)}
 .hand.fan .dcard:first-child{margin-left:0}
+/* sorted by what it does: still one fan - the cards overlap across a boundary
+   exactly as they do inside a group - with a faint line and a name under each
+   run to show where it starts and stops */
+.hand.fan.grouped{gap:0;align-items:flex-end}
+/* The group is exactly as wide as its cards - the name is lifted out of the
+   flow so a long word cannot push the next group along and split the fan. */
+.handgroup{position:relative;display:flex;min-width:0;padding-bottom:26px}
+.handgroup .gcards{display:flex;align-items:flex-end;min-width:0}
+/* the name follows the curve the cards sit on - no rule under it; the run of
+   names is enough to show where one group ends and the next starts */
+.handgroup .gfoot{position:absolute;left:0;right:0;bottom:0;height:24px;
+  transform:translateY(var(--glift,0px)) rotate(var(--gtilt,0deg));
+  transform-origin:50% -60px}
+.handgroup .glabel{position:absolute;left:0;right:0;top:5px;
+  font-size:10px;color:var(--ink-dim);line-height:1.4;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;pointer-events:auto;cursor:help}
+.handgroup .glabel b{color:var(--accent);font-weight:600;letter-spacing:.02em}
+.handgroup .glabel > span{font-family:var(--mono);font-size:9px;opacity:.7}
+/* what the group does is there when you ask for it, floated clear of the row
+   so revealing it cannot move the cards it sits under */
+.handgroup .glabel em{position:absolute;left:0;top:calc(100% + 4px);z-index:6;
+  padding:3px 7px;border:1px solid var(--line);border-radius:5px;
+  background:var(--panel);box-shadow:0 6px 16px rgba(0,0,0,.45);
+  font-style:normal;white-space:nowrap;opacity:0;pointer-events:none;
+  transition:opacity .14s ease}
+.handgroup:last-child .glabel em{left:auto;right:0}
+.handgroup .glabel:hover em,.handgroup .glabel:focus-visible em{opacity:.85}
+/* hovering the name raises that run so you can read it without picking it up
+   card by card; the cards keep their own tilt and their place in the fan */
+.hand.fan.grouped .handgroup:has(.glabel:hover) .dcard,
+.hand.fan.grouped .handgroup:has(.glabel:focus-visible) .dcard{
+  transform:translateY(calc(var(--lift,0px) - 26px)) rotate(var(--tilt,0deg));
+  box-shadow:-6px 10px 22px rgba(0,0,0,.55)}
+.hand.fan.grouped .handgroup:has(.glabel:hover){z-index:4}
+.hand.fan.grouped .handgroup:has(.glabel:hover) .glabel b{color:var(--accent)}
+
 .hand.fan .dcard:hover,.hand.fan .dcard:focus-visible{
   transform:translateY(calc(var(--lift,0px) - 30px)) rotate(0deg) scale(1.1);
   z-index:5;box-shadow:0 20px 44px rgba(0,0,0,.62)}
@@ -2615,6 +2651,27 @@ const ciRank = c => {
   return CI_ORDER.indexOf(ci[0]);
 };
 
+/* What each role is FOR, said in the hand rather than left to the label.
+
+   The role names are short enough to be ambiguous at a glance - "Tokens" is a
+   plan, not a card type - so each group says what it does for you underneath,
+   above the rule that marks where it ends. */
+const ROLE_DOES = {
+  'Removal': 'answers what they played',
+  'Creature': 'attacks, blocks, holds the board',
+  'Land': 'fixes your colours and fuels the curve',
+  'Card draw': 'refills your hand',
+  'Tokens': 'makes bodies out of nothing',
+  'Ramp': 'more mana, sooner',
+  'Counterspell': 'stops it before it happens',
+  'Planeswalker': 'value every turn it survives',
+  'Instant': 'a trick, on their turn',
+  'Sorcery': 'a one-shot effect, on yours',
+  'Enchantment': 'an effect that stays on the table',
+  'Artifact': 'colourless, and stays on the table',
+  'Other': 'does its own thing',
+};
+
 const P1_HAND_SORTS = {
   deal: {label: 'as dealt', by: null},
   score: {label: 'pick score', by: (a, b) => b.score - a.score},
@@ -2651,8 +2708,27 @@ function p1DrawHand() {
         : ''}</span>`;
     return;
   }
-  hand.className = 'hand fan';
-  hand.innerHTML = p1SortedPack().map(c => cardFace(c)).join('');
+  const grouped = P1_HAND_SORT === 'role';
+  hand.className = 'hand fan' + (grouped ? ' grouped' : '');
+  const inOrder = p1SortedPack();
+  if (grouped) {
+    const groups = [];
+    inOrder.forEach(c => {
+      const k = c.role || 'Other';
+      const last = groups[groups.length - 1];
+      if (last && last.key === k) last.cards.push(c);
+      else groups.push({key: k, cards: [c]});
+    });
+    hand.innerHTML = groups.map(g => `<div class="handgroup">
+      <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
+      <span class="gfoot"><span class="glabel"
+        title="${esc(g.key)} \u2014 ${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}"
+        ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
+        <em>${esc(ROLE_DOES[g.key] || ROLE_DOES.Other)}</em></span></span>
+    </div>`).join('');
+  } else {
+    hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+  }
   p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
@@ -2955,6 +3031,18 @@ function p1LayoutHand() {
     el.style.setProperty('--tilt', (d * 7).toFixed(2) + 'deg');
     el.style.setProperty('--lift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
     el.style.zIndex = String(i + 1);
+  });
+
+  /* The group names follow the hand rather than sitting flat under it: each
+     one takes the tilt and the drop of the point in the fan its cards are
+     centred on, so the run of them traces the same curve the cards do. */
+  hand.querySelectorAll('.handgroup').forEach(g => {
+    const mine = [...g.querySelectorAll('.dcard')].map(el => cards.indexOf(el));
+    if (!mine.length) return;
+    const centre = mine.reduce((a, b) => a + b, 0) / mine.length;
+    const d = mid ? (centre - mid) / mid : 0;
+    g.style.setProperty('--gtilt', (d * 7).toFixed(2) + 'deg');
+    g.style.setProperty('--glift', (Math.abs(d) * Math.abs(d) * 16).toFixed(1) + 'px');
   });
 }
 

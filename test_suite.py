@@ -1123,6 +1123,24 @@ def test_hand_sort():
     check("colourless sorts last and gold after the mono colours",
           "if (!ci) return 99;" in js and "if (ci.length > 1) return 90;" in js)
 
+    # sorted by what it does, the fan stays one fan: the runs are named along
+    # the curve rather than pulled apart
+    css = open(os.path.join(here, "ui", "shared.css")).read()
+    check("every role says what it is for", len(
+        [k for k in ("Removal", "Ramp", "Tokens", "Counterspell", "Card draw",
+                     "Planeswalker") if "'%s':" % k in js]) == 6)
+    check("the groups are not separated", ".hand.fan.grouped{gap:0" in css)
+    check("a group is as wide as its cards, whatever its name is",
+          ".handgroup .glabel{position:absolute" in css)
+    check("the names follow the curve the cards sit on",
+          "--gtilt" in js and "rotate(var(--gtilt,0deg))" in css)
+    check("there is no rule under a group", ".gfoot::before" not in css)
+    check("what a group does shows on hover, not at rest",
+          ".handgroup .glabel em{position:absolute" in css
+          and ".glabel:hover em" in css)
+    check("hovering a group's name raises that run",
+          ":has(.glabel:hover) .dcard" in css)
+
 
 def test_pack_art():
     print("pack art")
