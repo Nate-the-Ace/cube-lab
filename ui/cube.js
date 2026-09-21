@@ -484,6 +484,7 @@ function p1DrawHand() {
       if (e.key === 'Enter') { e.preventDefault(); p1Take(el.dataset.pick, el); }
       else if (e.key === ' ') { e.preventDefault(); p1Zoom(card); }
     };
+    p1Swipe(el, card);
   });
 }
 
@@ -650,6 +651,57 @@ function CARD_NOTE(d) {
     : [['', `Not in the cube${d.type_line ? ' \u2014 ' + esc(d.type_line.split(' \u2014')[0]) : ''}.`]];
   return `<div class="whybox">${lines.map(([tone, text]) =>
     `<div class="whyline ${tone}">${text}</div>`).join('')}</div>`;
+}
+
+/* Swipe a card up to take it.
+
+   Double-click has no equivalent on a phone, so the gesture is the pick: drag
+   the card up and it follows your finger, let go past the line and it flies to
+   the deck. Everything else about the card still works - a tap zooms it.
+
+   The page must still scroll. The gesture only takes over once the finger has
+   moved further up than sideways AND past a threshold, so a scroll that happens
+   to start on a card is still a scroll. */
+const SWIPE_TAKE = 64;            // how far up before the card is taken
+
+function p1Swipe(el, card) {
+  if (!('ontouchstart' in window)) return;
+  let x0 = 0, y0 = 0, dy = 0, locked = false, active = false;
+
+  el.addEventListener('touchstart', e => {
+    if (P1_ANIMATING || e.touches.length !== 1) return;
+    active = true; locked = false; dy = 0;
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, {passive: true});
+
+  el.addEventListener('touchmove', e => {
+    if (!active) return;
+    const dx = e.touches[0].clientX - x0;
+    dy = e.touches[0].clientY - y0;
+    if (!locked) {
+      if (dy > 6 || Math.abs(dx) > Math.abs(dy)) { active = false; return; }  // a scroll
+      if (dy < -10) locked = true;
+      else return;
+    }
+    e.preventDefault();                       // now it is a pick, not a scroll
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${dy}px) scale(${1 + Math.min(0.08, -dy / 900)})`;
+    el.style.zIndex = '20';
+    el.classList.toggle('willtake', dy <= -SWIPE_TAKE);
+  }, {passive: false});
+
+  const release = () => {
+    if (!active) return;
+    active = false;
+    el.classList.remove('willtake');
+    el.style.transition = '';
+    el.style.transform = '';
+    el.style.zIndex = '';
+    if (locked && dy <= -SWIPE_TAKE) p1Take(el.dataset.pick, el);
+  };
+  el.addEventListener('touchend', release, {passive: true});
+  el.addEventListener('touchcancel', release, {passive: true});
 }
 
 function p1LayoutHand() {

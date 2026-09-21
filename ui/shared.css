@@ -504,3 +504,11 @@ tr.deckrow{cursor:pointer}
 tr.deckrow:hover td{background:var(--bg-soft)}
 tr.deckrow.picked td{background:rgba(207,169,78,.10)}
 tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+
+/* a card being swiped far enough up to be taken */
+.dcard.willtake{outline:2px solid var(--accent);outline-offset:2px;
+  box-shadow:0 0 0 5px rgba(207,169,78,.2),0 18px 36px rgba(0,0,0,.6)}
+/* on a touch screen the hand is a surface you drag on, not one you scroll */
+@media (hover:none){
+  .hand.fan .dcard{touch-action:pan-x}
+}

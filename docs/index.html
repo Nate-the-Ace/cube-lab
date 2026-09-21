@@ -516,6 +516,14 @@ tr.deckrow:hover td{background:var(--bg-soft)}
 tr.deckrow.picked td{background:rgba(207,169,78,.10)}
 tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
+/* a card being swiped far enough up to be taken */
+.dcard.willtake{outline:2px solid var(--accent);outline-offset:2px;
+  box-shadow:0 0 0 5px rgba(207,169,78,.2),0 18px 36px rgba(0,0,0,.6)}
+/* on a touch screen the hand is a surface you drag on, not one you scroll */
+@media (hover:none){
+  .hand.fan .dcard{touch-action:pan-x}
+}
+
 </style>
 <style>
   header .sub{color:var(--ink-dim);font-size:12px}
@@ -1641,7 +1649,7 @@ const GLOSSARY = {
   'odds': ['Draft odds', 'The chance you draft every piece in one draft, shown as a headline plus its range. Two things have to happen: the card has to be opened at the table at all (fixed by pod size and pack count), and it has to survive the drafters between its opener and your seat. That second part depends on how much everyone else wants it, so the number is given three ways: the large figure is a normal amount of competition, and the pair beneath it is uncontested (nobody else in your lane) first, then contested (everyone first-picks it).<span class="warn">Pieces are treated as independent, which slightly overstates it — they compete for your own picks and for pack space. Read it as an upper bound.</span>'],
   'p(draft': ['Chance of drafting enough', 'The chance you draft at least the number of cards the tactic needs, shown with its range — the large figure at normal competition, then uncontested and contested beneath. A broad archetype holds up even when contested; a thin one only works when nobody else is in your lane, which is what the spread tells you.'],
   'odds on any one card': ['Per-card odds', 'Chance you end up with one specific cube card: it has to be opened at all, then survive the drafters between its pack\'s opener and your seat.'],
-  'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one \u2014 and on Pack 1 Pick 1 it sets the wheel, since the pack returns to you after this many picks.'],
+  'players': ['Players', 'Seats at the table. More seats means more cards opened but more competition for each one \u2014 and on Pack 1 Pick 1 it sets the wheel, since the pack returns to you after this many picks. On a phone, swipe a card up to take it.'],
   'pack size': ['Pack size', 'Cards per pack. Bigger packs mean a card has to survive fewer picks before it wheels back to you.'],
   'packs each': ['Packs per player', 'How many packs each drafter opens over the draft.'],
   'cards in cube': ['Cards in cube', 'How many cards in your list serve this tactic.'],
@@ -2482,6 +2490,7 @@ function p1DrawHand() {
       if (e.key === 'Enter') { e.preventDefault(); p1Take(el.dataset.pick, el); }
       else if (e.key === ' ') { e.preventDefault(); p1Zoom(card); }
     };
+    p1Swipe(el, card);
   });
 }
 
@@ -2648,6 +2657,57 @@ function CARD_NOTE(d) {
     : [['', `Not in the cube${d.type_line ? ' \u2014 ' + esc(d.type_line.split(' \u2014')[0]) : ''}.`]];
   return `<div class="whybox">${lines.map(([tone, text]) =>
     `<div class="whyline ${tone}">${text}</div>`).join('')}</div>`;
+}
+
+/* Swipe a card up to take it.
+
+   Double-click has no equivalent on a phone, so the gesture is the pick: drag
+   the card up and it follows your finger, let go past the line and it flies to
+   the deck. Everything else about the card still works - a tap zooms it.
+
+   The page must still scroll. The gesture only takes over once the finger has
+   moved further up than sideways AND past a threshold, so a scroll that happens
+   to start on a card is still a scroll. */
+const SWIPE_TAKE = 64;            // how far up before the card is taken
+
+function p1Swipe(el, card) {
+  if (!('ontouchstart' in window)) return;
+  let x0 = 0, y0 = 0, dy = 0, locked = false, active = false;
+
+  el.addEventListener('touchstart', e => {
+    if (P1_ANIMATING || e.touches.length !== 1) return;
+    active = true; locked = false; dy = 0;
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, {passive: true});
+
+  el.addEventListener('touchmove', e => {
+    if (!active) return;
+    const dx = e.touches[0].clientX - x0;
+    dy = e.touches[0].clientY - y0;
+    if (!locked) {
+      if (dy > 6 || Math.abs(dx) > Math.abs(dy)) { active = false; return; }  // a scroll
+      if (dy < -10) locked = true;
+      else return;
+    }
+    e.preventDefault();                       // now it is a pick, not a scroll
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${dy}px) scale(${1 + Math.min(0.08, -dy / 900)})`;
+    el.style.zIndex = '20';
+    el.classList.toggle('willtake', dy <= -SWIPE_TAKE);
+  }, {passive: false});
+
+  const release = () => {
+    if (!active) return;
+    active = false;
+    el.classList.remove('willtake');
+    el.style.transition = '';
+    el.style.transform = '';
+    el.style.zIndex = '';
+    if (locked && dy <= -SWIPE_TAKE) p1Take(el.dataset.pick, el);
+  };
+  el.addEventListener('touchend', release, {passive: true});
+  el.addEventListener('touchcancel', release, {passive: true});
 }
 
 function p1LayoutHand() {
