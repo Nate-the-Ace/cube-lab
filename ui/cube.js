@@ -409,6 +409,10 @@ $('#cubeSel').onchange = () => { syncRefreshButton(LOADED_CUBES); runCube(); };
    raw card power (see pick_scores in cube.py), so where it is wrong it should
    be obviously wrong, and you should be able to see which component did it. */
 let P1 = null, P1_PACK = [], P1_PICK = null, P1_REVEALED = false;
+// what you have taken across the whole session, so the watchlist can grow with
+// the draft instead of resetting every pack
+let P1_TAKEN = [];
+const p1Card = oid => (P1 && P1.cards || []).find(c => c.oracle_id === oid);
 
 async function p1Data() {
   if (P1) return P1;
@@ -431,6 +435,7 @@ function p1Deal() {
   P1_REVEALED = false;
   $('#p1Reveal').disabled = true;
   p1Render();
+  p1Watchlist();
 }
 
 const p1Sign = v => (v > 0 ? '+' : '') + v.toFixed(1);
@@ -496,8 +501,11 @@ function p1Render() {
   $('#p1Out').querySelectorAll('[data-pick]').forEach(b => {
     b.onclick = () => {
       P1_PICK = b.dataset.pick;
+      const card = p1Card(P1_PICK);
+      if (card && !P1_TAKEN.some(c => c.oracle_id === card.oracle_id)) P1_TAKEN.push(card);
       $('#p1Reveal').disabled = false;
       p1Render();
+      p1Watchlist();
     };
   });
   sortable('#p1Out');
@@ -539,6 +547,103 @@ function p1Why(best, mine) {
   ].sort((a, b) => b[1] - a[1]);
   return parts[0][0];
 }
+
+/* ── keep a look out for ──
+   The running answer to "what should I be taking next". It is the union of the
+   lift partners of everything you have taken, so it sharpens as the draft goes
+   on: one pick gives you that card's partners, four picks give you the cards
+   several of them point at, which is a far stronger signal than any single pair.
+   Cards already taken drop off. */
+// Not every high-lift pair is advice. Decks that play one cheap burn spell play
+// the others, so lift happily reports Shock next to Lightning Strike - a true
+// correlation and a useless suggestion. The pair KIND separates the two: some
+// kinds describe an interaction, the rest only say "these are the same sort of
+// card", which is a reason they share decks, not a reason to draft both.
+const PAIR_WEIGHT = {
+  engine: 1.0, archetype: 0.9, tutors: 0.9, typal: 0.8, tokens: 0.8,
+  general: 0.5,
+  // same-type and same-role pairings: redundancy, not synergy
+  creatures: 0.2, instants: 0.2, sorceries: 0.2, 'creature removal': 0.2,
+  'card draw': 0.2, enchantments: 0.2, artifacts: 0.2, planeswalkers: 0.2,
+};
+const pairWeight = k => (k in PAIR_WEIGHT ? PAIR_WEIGHT[k] : 0.5);
+
+function p1Watchlist() {
+  const box = $('#p1Watch');
+  if (!box) return;
+  if (!P1_TAKEN.length) {
+    box.innerHTML = '<span class="dim">Take a card and this fills with what to watch for.</span>';
+    return;
+  }
+  const taken = new Set(P1_TAKEN.map(c => c.oracle_id));
+  const want = {};
+  P1_TAKEN.forEach(mine => {
+    (mine.partners || []).forEach(p => {
+      if (taken.has(p.oracle_id)) return;
+      const w = want[p.oracle_id] || (want[p.oracle_id] = {
+        oracle_id: p.oracle_id, name: p.name, lift: 0, weighted: 0, decks: 0,
+        from: [], kind: p.kind});
+      // several of your picks pointing at the same card is the real signal, so
+      // pulls are summed rather than maxed
+      w.lift += p.lift || 0;
+      w.weighted += (p.lift || 0) * pairWeight(p.kind);
+      w.decks = Math.max(w.decks, p.played_together || 0);
+      w.from.push(mine.name);
+      if (pairWeight(p.kind) > pairWeight(w.kind)) w.kind = p.kind;
+    });
+  });
+
+  // your colours so far, to say whether a card is even castable in this deck
+  const mineColours = {};
+  P1_TAKEN.forEach(c => [...(c.color_identity || '')].forEach(x => {
+    mineColours[x] = (mineColours[x] || 0) + 1;
+  }));
+  const main = Object.entries(mineColours).sort((a, b) => b[1] - a[1])
+    .slice(0, 2).map(x => x[0]).join('');
+
+  const rows = Object.values(want)
+    .sort((a, b) => b.weighted - a.weighted || b.from.length - a.from.length)
+    .slice(0, 15);
+
+  box.innerHTML = rows.length ? `<table><thead><tr>
+      <th>Keep a look out for</th><th>Why it pairs</th><th class="num">Pulled by</th>
+      <th class="num">Lift</th><th>Fits your colours</th><th>Because of</th></tr></thead><tbody>
+      ${rows.map(w => {
+        const card = p1Card(w.oracle_id) || {};
+        const ci = card.color_identity || '';
+        const castable = !ci || [...ci].every(x => main.includes(x));
+        return `<tr>
+          <td class="name"><span data-oracle="${esc(w.oracle_id)}">${esc(w.name)}</span>
+            <div class="mini dim">${esc((card.type_line || '').split(' —')[0])}</div></td>
+          <td><span class="badge">${esc(w.kind || 'general')}</span></td>
+          <td class="num">${w.from.length}</td>
+          <td class="num">${w.lift.toFixed(1)}×</td>
+          <td>${ciCell(ci)} ${castable ? '<span class="badge good">yes</span>'
+                                       : '<span class="badge">needs a splash</span>'}</td>
+          <td class="dim mini">${w.from.map(esc).join(', ')}</td>
+        </tr>`;
+      }).join('')}</tbody></table>
+      <p class="note">Ranked by lift weighted by <b>why it pairs</b>. Cards that merely share a
+      type or a role are pushed down: decks that play one cheap burn spell play the others, so
+      lift reports Shock beside Lightning Strike — true, and not a reason to draft both. Pairs
+      that describe an actual interaction (engine, archetype, typal) rank above them.
+      <b>Fits your colours</b> reads off the two colours you have most of so far —
+      ${main ? `<b>${esc(main)}</b>` : 'nothing yet'} — and is the only thing here that knows
+      what deck you are building. Nothing on this list is guaranteed to come round; it says
+      what to take when it does.</p>`
+    : '<span class="dim">Nothing in the cube pairs above chance with what you have taken.</span>';
+  sortable('#p1Watch');
+}
+
+$('#p1Restart').onclick = () => {
+  P1_TAKEN = [];
+  P1_PACK = [];
+  P1_PICK = null;
+  P1_REVEALED = false;
+  $('#p1Reveal').disabled = true;
+  $('#p1Out').innerHTML = '<span class="dim">Press \u201cDeal a pack\u201d.</span>';
+  p1Watchlist();
+};
 
 $('#p1Deal').onclick = async () => {
   $('#p1Out').innerHTML = '<span class="dim">dealing…</span>';
