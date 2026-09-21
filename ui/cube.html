@@ -134,6 +134,22 @@
     <div id="p1Tableau"></div>
   </div>
 
+  <details class="panel" id="p1DrillPanel">
+    <summary><strong>Signal drill</strong>
+      <span class="mini dim">read what came round, name the open lane</span></summary>
+    <div class="row" style="margin:8px 0">
+      <label class="seats">Seats above you
+        <select id="p1DrillSeats">
+          <option value="2">2 — barely touched</option>
+          <option value="4" selected>4 — normal</option>
+          <option value="6">6 — picked over</option>
+        </select>
+      </label>
+      <button id="p1DrillStart" class="mini">Deal a situation</button>
+    </div>
+    <div id="p1Drill"></div>
+  </details>
+
   <div class="panel" id="p1WantPanel">
     <div class="row"><strong>Most wanted</strong>
       <span class="mini dim">cards you have not seen yet</span></div>

@@ -391,6 +391,13 @@ $('#cubeGo').onclick = runCube;
 // The draft controls re-run the analysis themselves; typing in them fires
 // `input` per keystroke, hence the debounce.
 let draftTimer = null;
+$('#p1DrillStart') && ($('#p1DrillStart').onclick = () => {
+  const panel = $('#p1DrillPanel');
+  if (panel) panel.open = true;
+  p1DealDrill();
+});
+$('#p1DrillSeats') && ($('#p1DrillSeats').onchange = () => { if (P1_DRILL) p1DealDrill(); });
+
 $('#p1Share') && ($('#p1Share').onclick = async () => {
   p1WriteUrl();
   const url = location.href;
@@ -1404,6 +1411,218 @@ function p1ReadUrl() {
     packs: (q.get('packs') || '').split('.').filter(x => x !== '').map(Number),
     picks: (q.get('picks') || '').split('.').filter(x => x !== '').map(Number),
     seats: parseInt(q.get('seats'), 10) || 0,
+  };
+}
+
+/* ── the signal drill ──
+
+   The one thing a cube night turns on and the one thing you get eight reps a
+   year at: what came round tells you what the seats above you are NOT taking.
+   A strong red card still in the pack at pick five means nobody upstream is in
+   red, and the right move is to be in red by pick six.
+
+   The drill deals that situation on demand. A pack of fifteen; N seats above you
+   each take one card, each of them in a lane of their own; and one lane is given
+   to nobody, so its cards come round untouched. You say which lane is open. The
+   answer is checked against the lane that was withheld, and then the numbers are
+   shown: what each lane had in the pack, what survived, and what the tell was.
+
+   It has its own seed so a situation can be handed to someone else exactly as
+   you saw it, and its own random stream so dealing one never disturbs a draft
+   in progress. */
+let P1_LANES = null, P1_DRILL = null, P1_DRILL_RAND = null;
+let P1_DRILL_SCORE = {asked: 0, right: 0, near: 0};
+
+async function p1Lanes() {
+  if (P1_LANES) return P1_LANES;
+  const cube = $('#cubeSel') && $('#cubeSel').value;
+  const d = await fetch('/api/cube/opportunities?'
+    + new URLSearchParams({cube_id: cube || (LOADED_CUBES[0] || {}).id}))
+    .then(r => r.json()).catch(() => null);
+  P1_LANES = (d && d.lanes || []).filter(l => l.colors && l.colors.length === 2);
+  return P1_LANES;
+}
+
+// a card is playable in a lane when the lane can cast it; colourless goes
+// anywhere, which is why it is a weak signal and gets discounted below
+const laneFits = (card, colors) =>
+  [...(card.color_identity || '')].every(x => colors.includes(x));
+
+function p1LaneQuality(cards, colors) {
+  const mine = cards.filter(c => laneFits(c, colors));
+  if (!mine.length) return {n: 0, top: 0, sum: 0};
+  const weight = c => (c.color_identity ? 1 : 0.45) * (c.score || 0);
+  const scores = mine.map(weight).sort((a, b) => b - a);
+  return {n: mine.length, top: scores[0], sum: scores.slice(0, 3).reduce((a, b) => a + b, 0)};
+}
+
+/* How open a lane looks from what came round.
+
+   Two measures were tried and thrown away. Summing a lane's best three cards
+   barely moved when a removal took its top card, so the withheld lane came out
+   first only 20% of the time. Asking whether a lane's best card SURVIVED did
+   put the withheld lane first, but as a ratio it pinned four or five untouched
+   lanes at 100% together - the answer was right and unreadable, which is worse
+   than being wrong: nine hands in ten had no single lane the numbers pointed at.
+
+   What is actually left to read is how good the best thing still on the table is
+   for each lane, with a little credit for having more than one. Absolute, not a
+   ratio, so untouched lanes separate from each other by the cards they hold. */
+function p1LaneStrength(cards, colors) {
+  const q = p1LaneQuality(cards, colors);
+  if (!q.n) return 0;
+  return q.top + 0.35 * (q.sum - q.top);
+}
+
+function p1RankLanes(left) {
+  return (P1_LANES || []).map(l => ({lane: l, v: p1LaneStrength(left, l.colors)}))
+    .sort((a, b) => b.v - a.v);
+}
+
+function p1DrillDeal(rnd, seats) {
+  const pool = (P1.cards || []).slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const pack = pool.slice(0, PACK_SIZE);
+  const open = P1_LANES[Math.floor(rnd() * P1_LANES.length)];
+
+  const others = P1_LANES.filter(l => l.lane !== open.lane);
+  for (let i = others.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [others[i], others[j]] = [others[j], others[i]];
+  }
+  /* Seats that share a colour with the open lane eat into it by accident - a
+     red card taken for Rakdos is a red card gone from Boros - so the seats that
+     avoid it entirely go first. Only three of the ten guilds share no colour
+     with any given one, so past three seats the overlap is forced, which is
+     also true at a real table. */
+  others.sort((a, b) =>
+    [...a.colors].filter(x => open.colors.includes(x)).length
+    - [...b.colors].filter(x => open.colors.includes(x)).length);
+
+  const left = pack.slice();
+  const taken = [];
+  for (let i = 0; i < seats && others.length; i++) {
+    const lane = others[i % others.length];
+    const fits = left.filter(c => laneFits(c, lane.colors) && c.color_identity);
+    const from = fits.length ? fits : left;
+    const best = from.slice().sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+    if (!best) break;
+    left.splice(left.indexOf(best), 1);
+    taken.push({card: best, lane});
+  }
+  return {pack, left, taken, open, seats};
+}
+
+async function p1DealDrill(seedText) {
+  const lanes = await p1Lanes();
+  if (!lanes.length || !(P1 && P1.cards)) return;
+  const seed = (seedText || p1NewSeed()).toLowerCase();
+  const rnd = P1_DRILL_RAND = p1Rng(p1SeedNumber('drill:' + seed));
+  const seats = parseInt(($('#p1DrillSeats') || {}).value, 10) || 4;
+
+  /* Deal until the withheld lane is also the one the numbers point at. A hand
+     where the answer cannot be read off the cards is not a lesson, it is a
+     coin toss - and dealt at random it is a coin toss seven times in ten. The
+     retry costs a shuffle of 540 cards, which is nothing, and what it hands you
+     is always a pack with a real tell in it. */
+  let deal = null;
+  for (let tries = 0; tries < 200; tries++) {
+    deal = p1DrillDeal(rnd, seats);
+    const r = p1RankLanes(deal.left);
+    // first AND clear of the next one: a hand where two lanes are level is a
+    // coin toss wearing a right answer
+    if (r.length > 1 && r[0].lane.lane === deal.open.lane && r[0].v - r[1].v >= 1.5) break;
+  }
+
+  P1_DRILL = Object.assign({seed, answered: null}, deal);
+  p1DrillView();
+}
+
+function p1DrillView() {
+  const box = $('#p1Drill');
+  if (!box) return;
+  const d = P1_DRILL;
+  if (!d) { box.innerHTML = ''; return; }
+  const answered = !!d.answered;
+
+  const ranked = p1RankLanes(d.left);
+  const best = ranked[0] ? ranked[0].v : 1;
+  const share = l => Math.round(100 * ((ranked.find(r => r.lane.lane === l) || {v: 0}).v) / (best || 1));
+
+  const verdict = !answered ? '' : (() => {
+    const chosen = d.answered, right = chosen.lane === d.open.lane;
+    const shares = [...chosen.colors].some(x => d.open.colors.includes(x));
+    const where = ranked.findIndex(r => r.lane.lane === chosen.lane) + 1;
+    return `<p class="note ${right ? 'good' : shares ? '' : 'bad'}">
+      ${right ? `<b>Right.</b> Nobody above you was in ${esc(d.open.label)}.`
+        : shares ? `<b>Half right.</b> ${esc(chosen.label)} shares a colour with
+            ${esc(d.open.label)}, which is what was actually left open.`
+        : `<b>No.</b> ${esc(d.open.label)} was the open lane;
+            ${esc(chosen.label)} was being drafted above you.`}
+      ${esc(chosen.label)} came ${where}${where === 1 ? 'st' : where === 2 ? 'nd'
+        : where === 3 ? 'rd' : 'th'} of ${ranked.length} by what survived the pack.</p>`;
+  })();
+
+  box.innerHTML = `
+    <div class="row"><strong>What is open?</strong>
+      <span class="mini dim">${d.seats} seat${d.seats === 1 ? '' : 's'} above you
+        have taken a card each${answered ? '' : ' \u2014 read what came round'}</span>
+      <span class="spacer"></span>
+      ${P1_DRILL_SCORE.asked ? `<span class="mini dim">${P1_DRILL_SCORE.right} of
+        ${P1_DRILL_SCORE.asked} right${P1_DRILL_SCORE.near ? `, ${P1_DRILL_SCORE.near} close` : ''}</span>` : ''}
+      <label class="seats" title="This situation's name. Give it to someone else and they get the same pack, minus the same cards.">Situation
+        <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
+          value="${esc(d.seed)}"></label>
+      <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
+    </div>
+
+    <div class="stacks"><div class="stack"><div class="pile">${
+      d.left.map(c => cardFace(c)).join('')}</div></div></div>
+
+    <div class="wants lanepick">${(P1_LANES || []).map(l => `
+      <button class="lanechip${answered && l.lane === d.open.lane ? ' istrue' : ''}${
+        answered && d.answered.lane === l.lane ? ' mine' : ''}"
+        data-lane="${esc(l.lane)}"${answered ? ' disabled' : ''}>
+        ${ciCell(l.colors)} ${esc(l.lane)}
+        ${answered ? `<span class="mini">${share(l.lane)}%</span>` : ''}
+      </button>`).join('')}</div>
+    ${verdict}
+    ${answered ? `
+      <div class="row" style="margin-top:6px"><strong>What they took</strong></div>
+      <div class="stacks"><div class="stack"><div class="pile">${
+        d.taken.map(t => cardFace(t.card)).join('')}</div></div></div>
+      <p class="note">Each seat took the best card its own lane could use, and no
+        seat was in <b>${esc(d.open.label)}</b> \u2014 so ${esc(d.open.lane)} kept
+        ${Math.round((ranked.find(r => r.lane.lane === d.open.lane) || {held: 0}).held * 100)}%
+        of what it started the pack with, against
+        ${Math.round(100 * ranked.reduce((a, r) => a + r.held, 0) / (ranked.length || 1))}%
+        across the ten lanes. The percentage on each chip is that number: how much
+        of a lane's best three cards were still there when the pack reached you.</p>`
+      : ''}`;
+
+  box.querySelectorAll('[data-pick]').forEach(el => {
+    const card = p1Card(el.dataset.oracle);
+    el.removeAttribute('data-pick');
+    el.onclick = () => p1Zoom(card);
+  });
+  box.querySelectorAll('.lanechip').forEach(el => {
+    el.onclick = () => {
+      if (P1_DRILL.answered) return;
+      const l = (P1_LANES || []).find(x => x.lane === el.dataset.lane);
+      P1_DRILL.answered = l;
+      P1_DRILL_SCORE.asked++;
+      if (l.lane === P1_DRILL.open.lane) P1_DRILL_SCORE.right++;
+      else if ([...l.colors].some(x => P1_DRILL.open.colors.includes(x))) P1_DRILL_SCORE.near++;
+      p1DrillView();
+    };
+  });
+  $('#p1DrillDeal').onclick = () => p1DealDrill();
+  $('#p1DrillSeed').onchange = e => {
+    const want = e.target.value.trim();
+    if (want && want.toLowerCase() !== P1_DRILL.seed) p1DealDrill(want);
   };
 }
 

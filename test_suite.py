@@ -1105,6 +1105,32 @@ def test_game_nights():
                   '<a href="draft.html" class="badge">Draft table</a>' in open(idx, encoding="utf-8").read())
 
 
+def test_signal_drill():
+    print("signal drill")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    html = open(os.path.join(here, "ui", "cube.html")).read()
+    check("the drill has a panel of its own", 'id="p1DrillPanel"' in html
+          and 'id="p1Drill"' in html)
+    check("difficulty is how many seats picked before you",
+          'id="p1DrillSeats"' in html and 'value="6">6' in html)
+    # the seats that share a colour with the open lane eat into it by accident
+    check("seats that avoid the open lane's colours go first",
+          "[...a.colors].filter(x => open.colors.includes(x)).length" in js)
+    # a hand whose answer cannot be read off the cards is a coin toss
+    check("a hand is dealt until its answer is readable",
+          "for (let tries = 0; tries < 200; tries++)" in js
+          and "r[0].v - r[1].v >= 1.5" in js)
+    check("lane strength is absolute, not a ratio",
+          "function p1LaneStrength" in js and "q.top + 0.35 * (q.sum - q.top)" in js)
+    check("the drill draws from its own stream, so it cannot disturb a draft",
+          "p1Rng(p1SeedNumber('drill:' + seed))" in js)
+    check("a situation can be handed to someone else by name",
+          'id="p1DrillSeed"' in js)
+    check("answers are scored, including the half-right ones",
+          "P1_DRILL_SCORE" in js and "some(x => P1_DRILL.open.colors.includes(x))" in js)
+
+
 def test_shared_drafts():
     print("shared drafts")
     here = os.path.dirname(os.path.abspath(__file__))
@@ -1505,6 +1531,7 @@ def main():
     test_pack_art()
     test_hand_sort()
     test_shared_drafts()
+    test_signal_drill()
     test_color_names()
     test_draft_math()
     test_cube_parsing()

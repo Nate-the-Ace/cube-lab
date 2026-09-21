@@ -323,6 +323,27 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 #p1Shared .pile .dcard + .dcard{margin-top:0}     /* the pool view stacks; this reads across */
 #p1Shared .pile .dcard:hover{transform:translateY(-6px) scale(1.06);z-index:3}
 
+/* the signal drill: a pack to read, and ten lanes to accuse */
+#p1DrillPanel > summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:baseline}
+#p1DrillPanel > summary::-webkit-details-marker{display:none}
+#p1DrillPanel > summary::before{content:"\25B8";color:var(--accent);font-size:10px;
+  transition:transform .12s ease;display:inline-block}
+#p1DrillPanel[open] > summary::before{transform:rotate(90deg)}
+#p1Drill .pile{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px}
+#p1Drill .pile .dcard{width:96px}
+#p1Drill .pile .dcard + .dcard{margin-top:0}
+#p1Drill .pile .dcard:hover{transform:translateY(-6px) scale(1.06);z-index:3}
+.lanepick{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.lanechip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  font-size:12px;background:var(--panel-2)}
+.lanechip:disabled{cursor:default;opacity:.75}
+.lanechip .mini{font-family:var(--mono);color:var(--ink-dim)}
+.lanechip.istrue{border-color:var(--good);opacity:1;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+.lanechip.mine{outline:2px solid var(--accent);outline-offset:1px;opacity:1}
+.note.good{color:var(--good)}
+.note.bad{color:var(--bad)}
+
 /* the seed box and its copy button, in the table's own toolbar */
 .tabletools .seats input{width:7em;background:var(--bg-soft);color:var(--ink);
   border:1px solid var(--line);border-radius:6px;padding:3px 6px;
