@@ -1136,6 +1136,13 @@ def test_deck_build():
           "'no removal at all'" in js and "slow: fewer than five cards cost one or two" in js)
     check("the list can be copied out",
           "p1DeckCopy" in js and "BASIC = {W: 'Plains'" in js)
+    # the same colour pips filter the pool AND drive what gets built, so any
+    # number of colours - not just the ten fixed guild pairs - can be built
+    check("the pool's own colour pips can build with, not just filter",
+          "id=\"poolBuild\"" in js
+          and "p1BuildView(chosenColours.join(''))" in js)
+    check("the build button is not offered for zero colours",
+          "chosenColours.length ? `<button id=\"poolBuild\"" in js)
 
 
 def test_signal_drill():

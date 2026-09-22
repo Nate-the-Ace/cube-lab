@@ -4492,6 +4492,9 @@ function p1PoolView() {
   const names = g.order.filter(k => groups[k])
     .concat(Object.keys(groups).filter(k => !g.order.includes(k)).sort());
   const roles = [...new Set(P1_TAKEN.map(c => c.role || 'Other'))].sort();
+  // the same pips drive "Build" as drive the pool filter, so picking colours
+  // here to look at the pool is the same move as picking them to build with
+  const chosenColours = 'WUBRG'.split('').filter(x => P1_FILTER.colours.has(x));
 
   box.innerHTML = `
     <div class="poolbar">
@@ -4513,6 +4516,8 @@ function p1PoolView() {
       <input id="poolQ" placeholder="find a card" value="${esc(P1_FILTER.q)}">
       <span class="spacer"></span>
       <span class="mini dim">${cards.length} of ${P1_TAKEN.length}</span>
+      ${chosenColours.length ? `<button id="poolBuild" class="mini primary">
+        Build ${esc(ciName(chosenColours.join('')) || chosenColours.join(''))}</button>` : ''}
       ${cards.length < P1_TAKEN.length ? '<button id="poolClear">clear</button>' : ''}
     </div>
     ${cards.length ? `<div class="stacks">${names.map(name => {
@@ -4547,6 +4552,7 @@ function p1PoolView() {
       p1PoolView();
     }, 200);
   };
+  if ($('#poolBuild')) $('#poolBuild').onclick = () => p1BuildView(chosenColours.join(''));
   if ($('#poolClear')) $('#poolClear').onclick = () => {
     P1_FILTER = {colours: new Set(), role: '', q: ''};
     document.querySelectorAll('.deckrow.picked').forEach(r => r.classList.remove('picked'));
