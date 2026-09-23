@@ -802,10 +802,18 @@ function p1Take(oid, el) {
   el.style.setProperty('--dy', (deck.top + deck.height / 2 - me.top - me.height / 2) + 'px');
   el.classList.add('flying');
 
-  const cls = passDir() === 'left' ? 'passing-l' : 'passing-r';
-  $('#p1Hand').querySelectorAll('.dcard').forEach(other => {
-    if (other !== el) other.classList.add(cls);
-  });
+  const hand = $('#p1Hand');
+  // the rest of the pack sliding off past the screen edge reads fine when
+  // every card sits in one visible row (the fan); in a coverflow almost
+  // all of them are already scrolled out of view, so animating each one to
+  // fly further off a screen it isn't on just looked broken - only the
+  // picked card's own flight to the deckpile applies there
+  if (!hand.classList.contains('coverflow')) {
+    const cls = passDir() === 'left' ? 'passing-l' : 'passing-r';
+    hand.querySelectorAll('.dcard').forEach(other => {
+      if (other !== el) other.classList.add(cls);
+    });
+  }
 
   const settle = () => {
     P1_ANIMATING = false;
@@ -1051,6 +1059,10 @@ function p1MeasureTools() {
    only their contents - so this can safely be called on every render. */
 function p1WireCoverflow(track, groups) {
   if (!track) return;
+  // a fresh track should always open on its first card - relying on a new
+  // scrollable element simply defaulting to scrollLeft 0 left this at the
+  // mercy of the browser's own scroll-anchoring, which doesn't always agree
+  track.scrollLeft = 0;
   const update = () => {
     const items = [...track.children];
     if (!items.length) return;

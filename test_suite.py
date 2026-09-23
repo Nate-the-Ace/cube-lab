@@ -1329,6 +1329,11 @@ def test_mobile_coverflow():
           ".tabletop{padding-bottom:90px}" in css)
     check("a hard flick can't skip past the card you were aiming for",
           "scroll-snap-stop:always" in css)
+    check("a fresh coverflow always opens on its first card",
+          "track.scrollLeft = 0;" in js)
+    check("picking a card in a coverflow doesn't fly the rest off a screen they aren't on",
+          "if (!hand.classList.contains('coverflow')) {" in js
+          and "hand.querySelectorAll('.dcard').forEach(other => {" in js)
 
     check("the coverflow helper exists and is generic over its track",
           "function p1WireCoverflow(track, groups)" in js)
