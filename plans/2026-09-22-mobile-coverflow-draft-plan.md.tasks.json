@@ -25,7 +25,7 @@
     {
       "id": 3,
       "subject": "Task 4: Coverflow for the signal drill",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** On mobile, the drill's main pack pile (d.left) renders as a browse-only coverflow; after-answer reveal pile and everything else in the drill unchanged.\n\n**Files:** Modify ui/cube.js:1591-1592 and the wiring block right after box.innerHTML in p1DrillView (~line 1615-1619).\n\n**Acceptance Criteria:**\n- <=560px: d.left renders as .hand.coverflow, no group label, no pick gesture\n- >560px: unchanged (.stacks > .stack > .pile)\n- d.taken pile unaffected at any width\n- Tapping a coverflow card still opens zoom preview only\n\n**Verify:** python3 test_suite.py all green; live check at 375x812 (drill pack browses, tap zooms, no swipe-pick affordance) and desktop (unchanged stacked pile).\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 4 for exact diff.",
       "blockedBy": [2]
     },
