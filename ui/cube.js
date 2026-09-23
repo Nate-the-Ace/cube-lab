@@ -1250,7 +1250,25 @@ window.addEventListener('resize', () => {
 /* A card big enough to actually read, over everything else. Clicking anywhere
    off the card closes it, as does Escape; taking the card from here is the same
    pick as double-clicking it in the hand. */
+/* position:fixed alone does not stop the page behind it from scrolling on a
+   touch swipe - iOS Safari happily scrolls whatever is under a fixed overlay
+   unless the body itself is pinned. Locking to a fixed position at the
+   negative of the current scroll, then restoring both the position and the
+   scroll offset on close, is the standard fix for that. */
 let P1_ZOOM = null;
+let P1_ZOOM_SCROLLY = 0;
+function p1LockScroll() {
+  P1_ZOOM_SCROLLY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = (-P1_ZOOM_SCROLLY) + 'px';
+  document.body.style.width = '100%';
+}
+function p1UnlockScroll() {
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  window.scrollTo(0, P1_ZOOM_SCROLLY);
+}
 function p1Zoom(card) {
   if (!card) return;
   p1Unzoom();
@@ -1281,6 +1299,7 @@ function p1Zoom(card) {
   });
   document.body.appendChild(veil);
   P1_ZOOM = veil;
+  p1LockScroll();
 
   if (card.oracle_id) {
     cardData(card.oracle_id, true).then(d => {
@@ -1294,7 +1313,7 @@ function p1Zoom(card) {
   }
 }
 function p1Unzoom() {
-  if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; }
+  if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; p1UnlockScroll(); }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); });
 

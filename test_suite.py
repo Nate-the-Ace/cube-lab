@@ -1334,6 +1334,9 @@ def test_mobile_coverflow():
     check("picking a card in a coverflow doesn't fly the rest off a screen they aren't on",
           "if (!hand.classList.contains('coverflow')) {" in js
           and "hand.querySelectorAll('.dcard').forEach(other => {" in js)
+    check("the zoom popup locks the page behind it instead of letting it scroll",
+          "function p1LockScroll() {" in js and "function p1UnlockScroll() {" in js
+          and "p1LockScroll();" in js and "p1UnlockScroll();" in js)
 
     check("the coverflow helper exists and is generic over its track",
           "function p1WireCoverflow(track, groups)" in js)
