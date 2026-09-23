@@ -1319,12 +1319,10 @@ def test_mobile_coverflow():
     check("the coverflow track scroll-snaps one card at a time",
           "scroll-snap-type:x mandatory" in css and ".cftrack{display:flex;overflow-x:auto" in css)
     check("the coverflow track is a real hit target, not inert like its .hand ancestor",
-          "min-width:0;pointer-events:auto;perspective:1000px;" in css)
-    check("the focused card faces flat, its neighbours turn away by side",
-          ".cftrack .dcard.focused{transform:none;opacity:1" in css
-          and ".cftrack .dcard.cf-left{" in css and ".cftrack .dcard.cf-right{" in css)
-    check("a card's turn and fade grow with its distance from centre",
-          "var(--cfd,1)" in css and "el.style.setProperty('--cfd', Math.min(Math.abs(d), 4));" in js)
+          "min-width:0;pointer-events:auto;" in css)
+    check("a coverflow card has three depth states",
+          ".cftrack .dcard.focused{" in css and ".cftrack .dcard.near{" in css
+          and ".cftrack .dcard:not(.focused):not(.near){" in css)
     check("coverflow cards get the same touch handling the fan's already have",
           ".hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}" in css)
     check("the deckpile gets room on a phone-width table",

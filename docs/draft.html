@@ -483,7 +483,15 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    Scroll-snap gives the settle-on-a-card behaviour and momentum for free, so
    there is no drag physics to hand-roll here. Picking is still the swipe-up
    gesture below it - it is wired per card, not per layout, so it needs
-   nothing new to keep working inside a coverflow. */
+   nothing new to keep working inside a coverflow.
+
+   A rotateY/perspective "classic Mac" tilt was tried here and pulled back
+   out: the CSS spec explicitly leaves undefined how perspective and an
+   ancestor's scroll position interact, and real iOS Safari rendered it as
+   three flat, equal-width, non-overlapping cards with no tilt at all - a
+   passing desktop-Chrome emulator check never caught it. Plain scale and
+   opacity below has no such interaction and is what's actually confirmed
+   working on a real phone. */
 /* the stowed, not-yet-opened packs float above the table at a fixed spot
    near the toolbar - the fan needs clearance from them, but the coverflow's
    own card already covers that same spot, so let it sit on top instead of
@@ -494,35 +502,18 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
 .cflabel:empty{visibility:hidden}
 .cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
-  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;perspective:1000px;
+  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;
   padding:20px 11vw 10px;-webkit-overflow-scrolling:touch}
-/* the classic Mac coverflow: the card you're on faces you flat, everything
-   either side is turned away into the screen toward a vanishing point -
-   --cfd (set in cube.js) is how many cards off centre this one is, so the
-   turn and the fade both grow with distance rather than being the same for
-   every card off to a side */
-/* cards are plain flex siblings with no overlap by default, so turning a
-   neighbour away with rotateY alone leaves it sitting fully off to the side
-   of the focused card rather than tucked behind it - --cfw is the card's
-   own width, reused here so each one overlaps the last by a fixed fraction
-   of itself regardless of viewport, the same trick the desktop fan uses
-   with its own --overlap custom property. */
-.cftrack .dcard{--cfw:min(78vw,340px);flex:0 0 auto;width:var(--cfw);
-  margin-left:calc(var(--cfw) * -0.44);scroll-snap-align:center;
+.cftrack .dcard{flex:0 0 auto;width:min(78vw,340px);scroll-snap-align:center;
   /* mandatory snap alone still lets a hard flick sail past several cards
      at once and land wherever the momentum runs out - scroll-snap-stop
      forces the browser to stop at every card it passes, one at a time,
      so a fling can't skip over the one you were actually aiming for */
   scroll-snap-stop:always;
-  transform-style:preserve-3d;transition:transform .2s ease,opacity .2s ease}
-.cftrack .dcard:first-child{margin-left:0}
-.cftrack .dcard.focused{transform:none;opacity:1;z-index:5}
-.cftrack .dcard.cf-left{
-  transform-origin:100% 50%;transform:rotateY(52deg) translateZ(-40px);
-  opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
-.cftrack .dcard.cf-right{
-  transform-origin:0% 50%;transform:rotateY(-52deg) translateZ(-40px);
-  opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
+  transition:transform .15s ease,opacity .15s ease}
+.cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
+.cftrack .dcard.near{transform:scale(.82);opacity:.65}
+.cftrack .dcard:not(.focused):not(.near){transform:scale(.7);opacity:.4}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
 .zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
@@ -3443,11 +3434,8 @@ function p1WireCoverflow(track, groups) {
       if (d < bestD) { bestD = d; bestI = i; }
     });
     items.forEach((el, i) => {
-      const d = i - bestI;
-      el.classList.toggle('focused', d === 0);
-      el.classList.toggle('cf-left', d < 0);
-      el.classList.toggle('cf-right', d > 0);
-      if (d !== 0) el.style.setProperty('--cfd', Math.min(Math.abs(d), 4));
+      el.classList.toggle('focused', i === bestI);
+      el.classList.toggle('near', Math.abs(i - bestI) === 1);
     });
     const label = track.parentElement.querySelector('.cflabel');
     if (label) label.textContent = groups ? (groups[bestI] || '') : '';

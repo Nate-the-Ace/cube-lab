@@ -1061,11 +1061,8 @@ function p1WireCoverflow(track, groups) {
       if (d < bestD) { bestD = d; bestI = i; }
     });
     items.forEach((el, i) => {
-      const d = i - bestI;
-      el.classList.toggle('focused', d === 0);
-      el.classList.toggle('cf-left', d < 0);
-      el.classList.toggle('cf-right', d > 0);
-      if (d !== 0) el.style.setProperty('--cfd', Math.min(Math.abs(d), 4));
+      el.classList.toggle('focused', i === bestI);
+      el.classList.toggle('near', Math.abs(i - bestI) === 1);
     });
     const label = track.parentElement.querySelector('.cflabel');
     if (label) label.textContent = groups ? (groups[bestI] || '') : '';
