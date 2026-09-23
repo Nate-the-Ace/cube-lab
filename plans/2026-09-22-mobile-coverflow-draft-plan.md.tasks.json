@@ -39,7 +39,7 @@
     {
       "id": 5,
       "subject": "Task 6: Full mobile verification pass",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Confirm the whole feature end-to-end in the browser pane, across both tabs and every affected state.\n\n**Files:** none (verification only; fixes if anything surfaces go in the relevant file).\n\n**Acceptance Criteria:**\n- python3 test_suite.py all green\n- 375x812: pack-choosing screen has no deckpile/text overlap\n- 375x812: Pack 1 Pick 1 coverflow browses correctly incl. colour sort group label\n- 375x812: swipe-up-to-pick works (card taken, pack advances, deckpile increments)\n- 375x812: Signal Drill pack browses as coverflow, tap zooms, answering a lane works\n- Desktop width: both tabs render exactly as before this plan\n\n**Verify:** all boxes checked by direct browser-pane observation (screenshots), not by reading code.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 6 for the full walkthrough.",
       "blockedBy": [4]
     }
