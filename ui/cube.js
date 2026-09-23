@@ -1633,8 +1633,11 @@ function p1DrillView() {
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
     </div>
 
-    <div class="stacks"><div class="stack"><div class="pile">${
-      d.left.map(c => cardFace(c)).join('')}</div></div></div>
+    ${matchMedia('(max-width:560px)').matches
+      ? `<div class="hand coverflow"><div class="cflabel" hidden></div>
+           <div class="cftrack">${d.left.map(c => cardFace(c)).join('')}</div></div>`
+      : `<div class="stacks"><div class="stack"><div class="pile">${
+           d.left.map(c => cardFace(c)).join('')}</div></div></div>`}
 
     <div class="wants lanepick">${(P1_LANES || []).map(l => `
       <button class="lanechip${answered && l.lane === d.open.lane ? ' istrue' : ''}${
@@ -1662,6 +1665,8 @@ function p1DrillView() {
     el.removeAttribute('data-pick');
     el.onclick = () => p1Zoom(card);
   });
+  const cfTrack = box.querySelector('.cftrack');
+  if (cfTrack) p1WireCoverflow(cfTrack, null);
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;
