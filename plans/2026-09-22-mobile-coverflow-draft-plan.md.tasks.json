@@ -1,0 +1,48 @@
+{
+  "planPath": "plans/2026-09-22-mobile-coverflow-draft-plan.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: Fix the deckpile overlapping content on mobile",
+      "status": "pending",
+      "description": "**Goal:** .deckpile never overlaps the pack-selection text or other flow content at <=560px.\n\n**Files:** Modify ui/shared.css:614-617\n\n**Acceptance Criteria:**\n- .tabletop reserves enough bottom padding at <=560px to clear .deckpile's full footprint\n- Desktop (>560px) unaffected\n\n**Verify:** rebuild docs/draft.html, screenshot at 375x812, confirm no overlap.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 1 for exact diff.",
+      "blockedBy": []
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: Coverflow CSS foundation",
+      "status": "pending",
+      "description": "**Goal:** CSS for .hand.coverflow / .cftrack / depth classes / group label / touch handling exists, inert until wired.\n\n**Files:** Modify ui/shared.css (after line 440; and line 658 touch-action rule)\n\n**Acceptance Criteria:**\n- .hand.coverflow lays out a label above a snap-scrolling track\n- .dcard has .focused / .near / neither depth states\n- .cftrack .dcard gets touch-action:pan-x alongside the existing fan rule\n\n**Verify:** grep -c \"cftrack\" ui/shared.css >= 5; python3 test_suite.py all green.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 2 for exact CSS.",
+      "blockedBy": []
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: Coverflow for Pack 1 Pick 1",
+      "status": "pending",
+      "description": "**Goal:** On mobile, p1DrawHand() renders the pack as a coverflow instead of a fan; swipe-up-to-pick keeps working unchanged; colour-sort groups show as a label above the focused card.\n\n**Files:** Modify ui/cube.js:696-758 (p1DrawHand), ui/cube.js:1024-1029 (p1LayoutHand), new function p1WireCoverflow(track, groups) above p1LayoutHand.\n\n**Acceptance Criteria:**\n- <=560px renders .hand.coverflow with flat .cftrack cards, no .handgroup boxing even when colour-sorted\n- >560px behaviour byte-for-byte unchanged (fan, grouped runs, p1LayoutHand sizing)\n- Horizontal swipe browses; centered card full-size, neighbours smaller\n- Swipe-up on focused card still picks it via unmodified p1Swipe/p1Take\n- Colour sort shows/updates a group label above the focused card\n- p1LayoutHand is a no-op when #p1Hand has class coverflow\n\n**Verify:** python3 test_suite.py all green; live browser-pane check at 375x812 (open pack, browse, swipe-pick, colour sort label) and at desktop width (fan unchanged).\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 3 for exact diffs and full p1WireCoverflow code.",
+      "blockedBy": [1]
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: Coverflow for the signal drill",
+      "status": "pending",
+      "description": "**Goal:** On mobile, the drill's main pack pile (d.left) renders as a browse-only coverflow; after-answer reveal pile and everything else in the drill unchanged.\n\n**Files:** Modify ui/cube.js:1591-1592 and the wiring block right after box.innerHTML in p1DrillView (~line 1615-1619).\n\n**Acceptance Criteria:**\n- <=560px: d.left renders as .hand.coverflow, no group label, no pick gesture\n- >560px: unchanged (.stacks > .stack > .pile)\n- d.taken pile unaffected at any width\n- Tapping a coverflow card still opens zoom preview only\n\n**Verify:** python3 test_suite.py all green; live check at 375x812 (drill pack browses, tap zooms, no swipe-pick affordance) and desktop (unchanged stacked pile).\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 4 for exact diff.",
+      "blockedBy": [2]
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: Regression checks",
+      "status": "pending",
+      "description": "**Goal:** test_suite.py locks in the coverflow markup/CSS/wiring added in Tasks 1-4, matching the existing grep-style convention.\n\n**Files:** Modify test_suite.py, new function test_mobile_coverflow() called from main() after test_signal_drill().\n\n**Acceptance Criteria:**\n- Checks confirm coverflow CSS exists (.hand.coverflow, .cftrack, depth classes, deckpile padding-bottom)\n- Checks confirm p1DrawHand's mobile branch and matchMedia usage\n- Checks confirm p1WireCoverflow exists and is called from both p1DrawHand and p1DrillView\n- Checks confirm p1LayoutHand bails early for coverflow\n- python3 test_suite.py reports all green including new checks\n\n**Verify:** python3 test_suite.py all green; temporarily break one check to confirm it can fail, then revert.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 5 for the full test function.",
+      "blockedBy": [0, 2, 3]
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: Full mobile verification pass",
+      "status": "pending",
+      "description": "**Goal:** Confirm the whole feature end-to-end in the browser pane, across both tabs and every affected state.\n\n**Files:** none (verification only; fixes if anything surfaces go in the relevant file).\n\n**Acceptance Criteria:**\n- python3 test_suite.py all green\n- 375x812: pack-choosing screen has no deckpile/text overlap\n- 375x812: Pack 1 Pick 1 coverflow browses correctly incl. colour sort group label\n- 375x812: swipe-up-to-pick works (card taken, pack advances, deckpile increments)\n- 375x812: Signal Drill pack browses as coverflow, tap zooms, answering a lane works\n- Desktop width: both tabs render exactly as before this plan\n\n**Verify:** all boxes checked by direct browser-pane observation (screenshots), not by reading code.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 6 for the full walkthrough.",
+      "blockedBy": [4]
+    }
+  ],
+  "lastUpdated": "2026-09-22T00:00:00Z"
+}
