@@ -439,6 +439,26 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
 
+/* ── the hand, as a coverflow (mobile) ──
+   A fan this narrow buries most of a pack under an unreadable sliver of its
+   neighbours - measured live, fifteen cards in ~280px left each one about
+   18px wide. Browsing one card at a time instead keeps every one legible.
+   Scroll-snap gives the settle-on-a-card behaviour and momentum for free, so
+   there is no drag physics to hand-roll here. Picking is still the swipe-up
+   gesture below it - it is wired per card, not per layout, so it needs
+   nothing new to keep working inside a coverflow. */
+.hand.coverflow{display:flex;flex-direction:column;gap:6px}
+.cflabel{text-align:center;font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
+.cflabel:empty{visibility:hidden}
+.cftrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+  padding:20px 45vw 10px;-webkit-overflow-scrolling:touch}
+.cftrack .dcard{flex:0 0 auto;width:150px;scroll-snap-align:center;
+  transition:transform .15s ease,opacity .15s ease}
+.cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
+.cftrack .dcard.near{transform:scale(.82);opacity:.65}
+.cftrack .dcard:not(.focused):not(.near){transform:scale(.7);opacity:.4}
+
 /* click-to-zoom, dismissed by clicking anywhere off the card */
 .zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
   justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);
@@ -661,7 +681,7 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   box-shadow:0 0 0 5px rgba(207,169,78,.2),0 18px 36px rgba(0,0,0,.6)}
 /* on a touch screen the hand is a surface you drag on, not one you scroll */
 @media (hover:none){
-  .hand.fan .dcard{touch-action:pan-x}
+  .hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}
 }
 
 /* a two-faced card is two cards: show them together, not one at a time */
