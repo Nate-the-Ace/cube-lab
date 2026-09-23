@@ -18,7 +18,7 @@
     {
       "id": 2,
       "subject": "Task 3: Coverflow for Pack 1 Pick 1",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** On mobile, p1DrawHand() renders the pack as a coverflow instead of a fan; swipe-up-to-pick keeps working unchanged; colour-sort groups show as a label above the focused card.\n\n**Files:** Modify ui/cube.js:696-758 (p1DrawHand), ui/cube.js:1024-1029 (p1LayoutHand), new function p1WireCoverflow(track, groups) above p1LayoutHand.\n\n**Acceptance Criteria:**\n- <=560px renders .hand.coverflow with flat .cftrack cards, no .handgroup boxing even when colour-sorted\n- >560px behaviour byte-for-byte unchanged (fan, grouped runs, p1LayoutHand sizing)\n- Horizontal swipe browses; centered card full-size, neighbours smaller\n- Swipe-up on focused card still picks it via unmodified p1Swipe/p1Take\n- Colour sort shows/updates a group label above the focused card\n- p1LayoutHand is a no-op when #p1Hand has class coverflow\n\n**Verify:** python3 test_suite.py all green; live browser-pane check at 375x812 (open pack, browse, swipe-pick, colour sort label) and at desktop width (fan unchanged).\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 3 for exact diffs and full p1WireCoverflow code.",
       "blockedBy": [1]
     },
