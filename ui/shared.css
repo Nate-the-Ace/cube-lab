@@ -12,6 +12,7 @@
   --ink:#241f1a; --ink-dim:#6d6257; --accent:#9a6a12; --accent-ink:#fffdf9;
 }
 *{box-sizing:border-box}
+html,body{overflow-x:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;}
 header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
@@ -467,13 +468,30 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
 .cflabel:empty{visibility:hidden}
 .cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
-  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;
+  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;perspective:1000px;
   padding:20px 11vw 10px;-webkit-overflow-scrolling:touch}
-.cftrack .dcard{flex:0 0 auto;width:min(78vw,340px);scroll-snap-align:center;
-  transition:transform .15s ease,opacity .15s ease}
-.cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
-.cftrack .dcard.near{transform:scale(.82);opacity:.65}
-.cftrack .dcard:not(.focused):not(.near){transform:scale(.7);opacity:.4}
+/* the classic Mac coverflow: the card you're on faces you flat, everything
+   either side is turned away into the screen toward a vanishing point -
+   --cfd (set in cube.js) is how many cards off centre this one is, so the
+   turn and the fade both grow with distance rather than being the same for
+   every card off to a side */
+/* cards are plain flex siblings with no overlap by default, so turning a
+   neighbour away with rotateY alone leaves it sitting fully off to the side
+   of the focused card rather than tucked behind it - --cfw is the card's
+   own width, reused here so each one overlaps the last by a fixed fraction
+   of itself regardless of viewport, the same trick the desktop fan uses
+   with its own --overlap custom property. */
+.cftrack .dcard{--cfw:min(78vw,340px);flex:0 0 auto;width:var(--cfw);
+  margin-left:calc(var(--cfw) * -0.44);scroll-snap-align:center;
+  transform-style:preserve-3d;transition:transform .2s ease,opacity .2s ease}
+.cftrack .dcard:first-child{margin-left:0}
+.cftrack .dcard.focused{transform:none;opacity:1;z-index:5}
+.cftrack .dcard.cf-left{
+  transform-origin:100% 50%;transform:rotateY(-52deg) translateZ(-40px);
+  opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
+.cftrack .dcard.cf-right{
+  transform-origin:0% 50%;transform:rotateY(52deg) translateZ(-40px);
+  opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
 .zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
@@ -648,6 +666,17 @@ details.numbers>summary:hover{color:var(--accent)}
 .pile .dcard + .dcard{margin-top:-128px}          /* leave the title bar showing */
 .pile .dcard:hover{transform:translateY(-4px) scale(1.03);z-index:6;
   box-shadow:0 14px 30px rgba(0,0,0,.6)}
+/* main, panel and tabletop each add their own border and padding, which on
+   a desktop-width column reads as one section inside another but on a phone
+   is three concentric outlines eating real width from the one thing on
+   screen that wants it. Panels already stack vertically, so a top/bottom
+   line still separates them - the side borders and radius are the part that
+   was never doing anything but taking width. */
+@media (max-width:560px){
+  main{padding-left:6px;padding-right:6px}
+  .panel{padding-left:6px;padding-right:6px;border-left:0;border-right:0;border-radius:0}
+  .tabletop{padding-left:4px;padding-right:4px;border-left:0;border-right:0;border-radius:0}
+}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
