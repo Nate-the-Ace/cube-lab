@@ -1675,6 +1675,8 @@ function p1DrillView() {
         <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
           value="${esc(d.seed)}"></label>
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
+      <button class="iconbtn mobmenu-btn" id="p1DrillMobMenuBtn" title="Menu"
+        aria-label="Menu" aria-haspopup="true">☰</button>
     </div>
 
     ${matchMedia('(max-width:560px)').matches
@@ -1711,6 +1713,8 @@ function p1DrillView() {
   });
   const cfTrack = box.querySelector('.cftrack');
   if (cfTrack) p1WireCoverflow(cfTrack, null);
+  const drillMenuBtn = box.querySelector('#p1DrillMobMenuBtn');
+  if (drillMenuBtn) drillMenuBtn.onclick = () => p1MobMenuToggle();
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;
@@ -2942,4 +2946,32 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
   if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();
   explain();
+});
+
+/* Mobile hides the header and tab row to save vertical space; a hamburger
+   button beside each tab's own toolbar opens this one shared panel instead,
+   which just clicks the real, hidden tab buttons and the real theme button
+   rather than re-implementing either. The drill's own hamburger is inside
+   a template that's rebuilt from scratch on every redraw, so it's rewired
+   on every p1DrillView() call rather than once here. */
+function p1MobMenuToggle(open) {
+  const menu = $('#p1MobMenu');
+  if (menu) menu.hidden = open === undefined ? !menu.hidden : !open;
+}
+$('#p1MobMenuBtn') && ($('#p1MobMenuBtn').onclick = () => p1MobMenuToggle());
+$('#p1MobMenu') && $('#p1MobMenu').querySelectorAll('[data-tab]').forEach(b => {
+  b.onclick = () => {
+    document.querySelector(`.tab[data-tab="${b.dataset.tab}"]`).click();
+    p1MobMenuToggle(false);
+  };
+});
+$('#p1MobMenuTheme') && ($('#p1MobMenuTheme').onclick = () => {
+  $('#themeBtn').click();
+  p1MobMenuToggle(false);
+});
+document.addEventListener('click', e => {
+  const menu = $('#p1MobMenu');
+  if (!menu || menu.hidden) return;
+  if (e.target.closest('#p1MobMenu') || e.target.closest('.mobmenu-btn')) return;
+  p1MobMenuToggle(false);
 });

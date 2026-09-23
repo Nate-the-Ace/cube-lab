@@ -42,6 +42,18 @@
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
+<!-- On mobile the header and tab row are hidden to save vertical space; a
+     hamburger button beside each tab's own toolbar (one static here, one in
+     the signal drill's own row) opens this one shared panel instead. It's
+     position:fixed and not a child of either toolbar, since the drill's row
+     is rebuilt from scratch on every redraw and would destroy anything
+     nested inside it. -->
+<div class="mobmenu" id="p1MobMenu" hidden>
+  <button data-tab="p1p1">Pack 1 Pick 1</button>
+  <button data-tab="signal">Signal drill</button>
+  <button id="p1MobMenuTheme">Toggle theme</button>
+</div>
+
 <section id="tab-cube">
   <div class="panel">
     <div class="row">
@@ -112,6 +124,8 @@
             <option value="artist">artist</option>
           </select>
         </label>
+        <button class="iconbtn mobmenu-btn" id="p1MobMenuBtn" title="Menu"
+          aria-label="Menu" aria-haspopup="true">☰</button>
         <label class="seats">Players
           <select id="p1Players">
             <option>2</option><option>3</option><option>4</option><option>5</option>

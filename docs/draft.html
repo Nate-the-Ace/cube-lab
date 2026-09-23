@@ -698,6 +698,23 @@ details.numbers>summary:hover{color:var(--accent)}
   .panel{padding-left:6px;padding-right:6px;border-left:0;border-right:0;border-radius:0}
   .tabletop{padding-left:4px;padding-right:4px;border-left:0;border-right:0;border-radius:0}
 }
+/* the title bar and the tab row are the next things to go: neither earns
+   its height on a phone once there's a hamburger sitting right in the
+   toolbar that does what both of them did (switch tabs, reach the theme
+   button) without needing a header or a row of its own above the fold. */
+@media (max-width:560px){
+  header,.tabs[role=tablist]{display:none}
+}
+.mobmenu-btn{display:none}
+@media (max-width:560px){.mobmenu-btn{display:inline-flex}}
+.mobmenu[hidden]{display:none}
+.mobmenu{position:fixed;top:14px;right:14px;z-index:200;display:flex;
+  flex-direction:column;min-width:170px;padding:6px;border-radius:10px;
+  background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.mobmenu button{text-align:left;background:none;border:0;padding:9px 10px;
+  border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer}
+.mobmenu button:hover{background:var(--panel-2)}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
@@ -814,6 +831,18 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
+<!-- On mobile the header and tab row are hidden to save vertical space; a
+     hamburger button beside each tab's own toolbar (one static here, one in
+     the signal drill's own row) opens this one shared panel instead. It's
+     position:fixed and not a child of either toolbar, since the drill's row
+     is rebuilt from scratch on every redraw and would destroy anything
+     nested inside it. -->
+<div class="mobmenu" id="p1MobMenu" hidden>
+  <button data-tab="p1p1">Pack 1 Pick 1</button>
+  <button data-tab="signal">Signal drill</button>
+  <button id="p1MobMenuTheme">Toggle theme</button>
+</div>
+
 <section id="tab-cube">
   <div class="panel">
     <div class="row">
@@ -884,6 +913,8 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
             <option value="artist">artist</option>
           </select>
         </label>
+        <button class="iconbtn mobmenu-btn" id="p1MobMenuBtn" title="Menu"
+          aria-label="Menu" aria-haspopup="true">☰</button>
         <label class="seats">Players
           <select id="p1Players">
             <option>2</option><option>3</option><option>4</option><option>5</option>
@@ -4048,6 +4079,8 @@ function p1DrillView() {
         <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
           value="${esc(d.seed)}"></label>
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
+      <button class="iconbtn mobmenu-btn" id="p1DrillMobMenuBtn" title="Menu"
+        aria-label="Menu" aria-haspopup="true">☰</button>
     </div>
 
     ${matchMedia('(max-width:560px)').matches
@@ -4084,6 +4117,8 @@ function p1DrillView() {
   });
   const cfTrack = box.querySelector('.cftrack');
   if (cfTrack) p1WireCoverflow(cfTrack, null);
+  const drillMenuBtn = box.querySelector('#p1DrillMobMenuBtn');
+  if (drillMenuBtn) drillMenuBtn.onclick = () => p1MobMenuToggle();
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;
@@ -5315,6 +5350,34 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
   if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();
   explain();
+});
+
+/* Mobile hides the header and tab row to save vertical space; a hamburger
+   button beside each tab's own toolbar opens this one shared panel instead,
+   which just clicks the real, hidden tab buttons and the real theme button
+   rather than re-implementing either. The drill's own hamburger is inside
+   a template that's rebuilt from scratch on every redraw, so it's rewired
+   on every p1DrillView() call rather than once here. */
+function p1MobMenuToggle(open) {
+  const menu = $('#p1MobMenu');
+  if (menu) menu.hidden = open === undefined ? !menu.hidden : !open;
+}
+$('#p1MobMenuBtn') && ($('#p1MobMenuBtn').onclick = () => p1MobMenuToggle());
+$('#p1MobMenu') && $('#p1MobMenu').querySelectorAll('[data-tab]').forEach(b => {
+  b.onclick = () => {
+    document.querySelector(`.tab[data-tab="${b.dataset.tab}"]`).click();
+    p1MobMenuToggle(false);
+  };
+});
+$('#p1MobMenuTheme') && ($('#p1MobMenuTheme').onclick = () => {
+  $('#themeBtn').click();
+  p1MobMenuToggle(false);
+});
+document.addEventListener('click', e => {
+  const menu = $('#p1MobMenu');
+  if (!menu || menu.hidden) return;
+  if (e.target.closest('#p1MobMenu') || e.target.closest('.mobmenu-btn')) return;
+  p1MobMenuToggle(false);
 });
 
 </script>

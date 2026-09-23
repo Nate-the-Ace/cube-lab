@@ -677,6 +677,23 @@ details.numbers>summary:hover{color:var(--accent)}
   .panel{padding-left:6px;padding-right:6px;border-left:0;border-right:0;border-radius:0}
   .tabletop{padding-left:4px;padding-right:4px;border-left:0;border-right:0;border-radius:0}
 }
+/* the title bar and the tab row are the next things to go: neither earns
+   its height on a phone once there's a hamburger sitting right in the
+   toolbar that does what both of them did (switch tabs, reach the theme
+   button) without needing a header or a row of its own above the fold. */
+@media (max-width:560px){
+  header,.tabs[role=tablist]{display:none}
+}
+.mobmenu-btn{display:none}
+@media (max-width:560px){.mobmenu-btn{display:inline-flex}}
+.mobmenu[hidden]{display:none}
+.mobmenu{position:fixed;top:14px;right:14px;z-index:200;display:flex;
+  flex-direction:column;min-width:170px;padding:6px;border-radius:10px;
+  background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.mobmenu button{text-align:left;background:none;border:0;padding:9px 10px;
+  border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer}
+.mobmenu button:hover{background:var(--panel-2)}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}

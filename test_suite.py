@@ -1361,6 +1361,20 @@ def test_mobile_coverflow():
     check("a thumbnail jumps the coverflow to that card rather than picking it",
           "img.onclick = () => track.children[i].scrollIntoView(" in js)
 
+    check("the header and tab row give way to a hamburger on a phone",
+          "header,.tabs[role=tablist]{display:none}" in css)
+    check("the menu's hidden attribute isn't lost to a specificity tie",
+          ".mobmenu[hidden]{display:none}" in css)
+    check("a hamburger sits in pack 1 pick 1's own toolbar",
+          'id="p1MobMenuBtn"' in html)
+    check("the drill gets its own hamburger, rewired on every redraw",
+          'id="p1DrillMobMenuBtn"' in js
+          and "if (drillMenuBtn) drillMenuBtn.onclick = () => p1MobMenuToggle();" in js)
+    check("the shared menu switches tabs by clicking the real tab button",
+          "document.querySelector(`.tab[data-tab=\"${b.dataset.tab}\"]`).click();" in js)
+    check("the shared menu's theme option clicks the real theme button",
+          "$('#themeBtn').click();" in js)
+
     check("the fan's own layout math steps aside for a coverflow hand",
           "if (hand.classList.contains('coverflow')) return;" in js)
 
