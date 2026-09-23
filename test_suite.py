@@ -1335,6 +1335,9 @@ def test_mobile_coverflow():
           and "hand.className = 'hand coverflow';" in js)
     check("the mobile branch renders flat cards, not boxed runs",
           "p1WireCoverflow(hand.querySelector('.cftrack')," in js)
+    mobile_branch = js.split("const mobile = matchMedia")[1].split("  } else {")[0]
+    check("the mobile branch never wraps cards in a handgroup",
+          ".handgroup" not in mobile_branch)
     check("the signal drill's pack coverflows too, browse-only",
           "if (cfTrack) p1WireCoverflow(cfTrack, null);" in js)
 
