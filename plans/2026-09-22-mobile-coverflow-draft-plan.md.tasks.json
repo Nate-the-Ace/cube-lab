@@ -11,7 +11,7 @@
     {
       "id": 1,
       "subject": "Task 2: Coverflow CSS foundation",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** CSS for .hand.coverflow / .cftrack / depth classes / group label / touch handling exists, inert until wired.\n\n**Files:** Modify ui/shared.css (after line 440; and line 658 touch-action rule)\n\n**Acceptance Criteria:**\n- .hand.coverflow lays out a label above a snap-scrolling track\n- .dcard has .focused / .near / neither depth states\n- .cftrack .dcard gets touch-action:pan-x alongside the existing fan rule\n\n**Verify:** grep -c \"cftrack\" ui/shared.css >= 5; python3 test_suite.py all green.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 2 for exact CSS.",
       "blockedBy": []
     },
