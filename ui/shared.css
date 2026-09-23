@@ -614,6 +614,11 @@ details.numbers>summary:hover{color:var(--accent)}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
+  /* six rows here is taller than the twelve-across desktop grid ever gets, so
+     the table's own height now reaches exactly as far as .deckpile's corner -
+     which used to sit in slack the desktop grid never fills. Reserve that
+     corner instead of overlapping whatever the table renders last. */
+  .tabletop{padding-bottom:90px}
 }
 @media (max-width:560px){
   .stack{min-width:96px}
