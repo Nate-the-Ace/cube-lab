@@ -713,11 +713,24 @@ function p1DrawHand() {
   const inOrder = p1SortedPack();
   const mobile = matchMedia('(max-width:560px)').matches;
   if (mobile) {
+    // the hand still sorts on mobile; it just never boxes cards into named
+    // runs - a coverflow browses one card at a time, so there is nowhere for
+    // a run's own width to matter, and no need for its label either
     hand.className = 'hand coverflow';
     hand.innerHTML = `<div class="cflabel"></div>
       <div class="cftrack">${inOrder.map(c => cardFace(c)).join('')}</div>`;
-    p1WireCoverflow(hand.querySelector('.cftrack'),
-      grouped ? inOrder.map(c => sorter.groupBy(c)) : null);
+    const track = hand.querySelector('.cftrack');
+    p1WireCoverflow(track, null);
+    const mini = $('#p1HandMini');
+    if (mini) {
+      mini.innerHTML = inOrder.map(c => c.image
+        ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">` : '').join('');
+      // a thumbnail is a shortcut into the coverflow, not a second pick surface
+      [...mini.children].forEach((img, i) => {
+        img.onclick = () => track.children[i].scrollIntoView(
+          {behavior: 'smooth', inline: 'center', block: 'nearest'});
+      });
+    }
   } else {
     hand.className = 'hand fan' + (grouped ? ' grouped' : '');
     if (grouped) {
