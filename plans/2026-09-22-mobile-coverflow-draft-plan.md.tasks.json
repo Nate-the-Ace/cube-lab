@@ -32,7 +32,7 @@
     {
       "id": 4,
       "subject": "Task 5: Regression checks",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** test_suite.py locks in the coverflow markup/CSS/wiring added in Tasks 1-4, matching the existing grep-style convention.\n\n**Files:** Modify test_suite.py, new function test_mobile_coverflow() called from main() after test_signal_drill().\n\n**Acceptance Criteria:**\n- Checks confirm coverflow CSS exists (.hand.coverflow, .cftrack, depth classes, deckpile padding-bottom)\n- Checks confirm p1DrawHand's mobile branch and matchMedia usage\n- Checks confirm p1WireCoverflow exists and is called from both p1DrawHand and p1DrillView\n- Checks confirm p1LayoutHand bails early for coverflow\n- python3 test_suite.py reports all green including new checks\n\n**Verify:** python3 test_suite.py all green; temporarily break one check to confirm it can fail, then revert.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 5 for the full test function.",
       "blockedBy": [0, 2, 3]
     },
