@@ -1309,6 +1309,39 @@ def test_hand_sort():
           ".hand.fan.grouped .handgroup.up{z-index:50}" in css)
 
 
+def test_mobile_coverflow():
+    print("mobile coverflow")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    css = open(os.path.join(here, "ui", "shared.css")).read()
+
+    check("the coverflow track scroll-snaps one card at a time",
+          ".cftrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory" in css)
+    check("a coverflow card has three depth states",
+          ".cftrack .dcard.focused{" in css and ".cftrack .dcard.near{" in css
+          and ".cftrack .dcard:not(.focused):not(.near){" in css)
+    check("coverflow cards get the same touch handling the fan's already have",
+          ".hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}" in css)
+    check("the deckpile gets room on a phone-width table",
+          ".tabletop{padding-bottom:90px}" in css)
+
+    check("the coverflow helper exists and is generic over its track",
+          "function p1WireCoverflow(track, groups)" in js)
+    check("the coverflow helper is wired once, not re-listened on every render",
+          "if (!track.dataset.cfWired) {" in js)
+
+    check("pack 1 pick 1 switches to a coverflow under the mobile breakpoint",
+          "const mobile = matchMedia('(max-width:560px)').matches;" in js
+          and "hand.className = 'hand coverflow';" in js)
+    check("the mobile branch renders flat cards, not boxed runs",
+          "p1WireCoverflow(hand.querySelector('.cftrack')," in js)
+    check("the signal drill's pack coverflows too, browse-only",
+          "if (cfTrack) p1WireCoverflow(cfTrack, null);" in js)
+
+    check("the fan's own layout math steps aside for a coverflow hand",
+          "if (hand.classList.contains('coverflow')) return;" in js)
+
+
 def test_english_faces():
     print("card faces")
     con = mtgdb.connect()
@@ -1582,6 +1615,7 @@ def main():
     test_shared_drafts()
     test_deck_build()
     test_signal_drill()
+    test_mobile_coverflow()
     test_color_names()
     test_draft_math()
     test_cube_parsing()
