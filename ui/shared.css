@@ -452,7 +452,7 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
 .cflabel:empty{visibility:hidden}
 .cftrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
-  padding:20px 45vw 10px;-webkit-overflow-scrolling:touch}
+  padding:20px calc(50vw - 75px) 10px;-webkit-overflow-scrolling:touch}
 .cftrack .dcard{flex:0 0 auto;width:150px;scroll-snap-align:center;
   transition:transform .15s ease,opacity .15s ease}
 .cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
