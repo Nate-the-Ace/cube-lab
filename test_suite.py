@@ -1329,6 +1329,8 @@ def test_mobile_coverflow():
           ".hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}" in css)
     check("the deckpile gets room on a phone-width table",
           ".tabletop{padding-bottom:90px}" in css)
+    check("a hard flick can't skip past the card you were aiming for",
+          "scroll-snap-stop:always" in css)
 
     check("the coverflow helper exists and is generic over its track",
           "function p1WireCoverflow(track, groups)" in js)

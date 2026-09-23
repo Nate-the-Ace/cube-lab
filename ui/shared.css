@@ -463,7 +463,12 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    there is no drag physics to hand-roll here. Picking is still the swipe-up
    gesture below it - it is wired per card, not per layout, so it needs
    nothing new to keep working inside a coverflow. */
-.hand.coverflow{display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px}
+/* the stowed, not-yet-opened packs float above the table at a fixed spot
+   near the toolbar - the fan needs clearance from them, but the coverflow's
+   own card already covers that same spot, so let it sit on top instead of
+   being pushed down under something it's about to hide anyway */
+.hand.coverflow{display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px;
+  position:relative;z-index:1}
 .cflabel{text-align:center;font-size:11px;text-transform:uppercase;
   letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
 .cflabel:empty{visibility:hidden}
@@ -483,14 +488,19 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    with its own --overlap custom property. */
 .cftrack .dcard{--cfw:min(78vw,340px);flex:0 0 auto;width:var(--cfw);
   margin-left:calc(var(--cfw) * -0.44);scroll-snap-align:center;
+  /* mandatory snap alone still lets a hard flick sail past several cards
+     at once and land wherever the momentum runs out - scroll-snap-stop
+     forces the browser to stop at every card it passes, one at a time,
+     so a fling can't skip over the one you were actually aiming for */
+  scroll-snap-stop:always;
   transform-style:preserve-3d;transition:transform .2s ease,opacity .2s ease}
 .cftrack .dcard:first-child{margin-left:0}
 .cftrack .dcard.focused{transform:none;opacity:1;z-index:5}
 .cftrack .dcard.cf-left{
-  transform-origin:100% 50%;transform:rotateY(-52deg) translateZ(-40px);
+  transform-origin:100% 50%;transform:rotateY(52deg) translateZ(-40px);
   opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
 .cftrack .dcard.cf-right{
-  transform-origin:0% 50%;transform:rotateY(52deg) translateZ(-40px);
+  transform-origin:0% 50%;transform:rotateY(-52deg) translateZ(-40px);
   opacity:calc(1 - var(--cfd,1) * .12);z-index:calc(5 - var(--cfd,1))}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
@@ -542,8 +552,7 @@ button.big{font-size:15px;padding:10px 26px}
 .boosters:not(.spread){position:absolute;top:calc(var(--tools-h, 34px) + 6px);
   left:50%;transform:translateX(-50%);z-index:0;padding:0;pointer-events:none}
 .boosters:not(.spread) .booster{pointer-events:auto}
-.tabletop:has(.boosters:not(.spread)) .hand.fan,
-.tabletop:has(.boosters:not(.spread)) .hand.coverflow{
+.tabletop:has(.boosters:not(.spread)) .hand.fan{
   padding-top:calc(var(--tools-h, 34px) - 4px);min-height:222px}
 .booster{position:relative;width:62px;aspect-ratio:1/1.5;border-radius:4px;cursor:default;
   background:
@@ -709,6 +718,14 @@ details.numbers>summary:hover{color:var(--accent)}
 .want .why{font-size:10.5px;color:var(--ink-dim);line-height:1.35}
 .want.offcolour .dcard{filter:saturate(.55) brightness(.82)}
 @media (max-width:560px){.want,.want .dcard{width:104px}}
+/* the card zoom popup: at 78vh the image alone left no room for the name,
+   the why-lines and the take button without scrolling inside the popup -
+   shrinking the image is what buys the rest of it back onto one screen */
+@media (max-width:560px){
+  .zoomveil{padding:12px}
+  .zoomveil img{max-height:42vh}
+  .zwhy .whyline{font-size:11px;line-height:1.3}
+}
 
 /* filters over the finished pool */
 .poolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
