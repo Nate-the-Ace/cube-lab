@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: Fix the deckpile overlapping content on mobile",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** .deckpile never overlaps the pack-selection text or other flow content at <=560px.\n\n**Files:** Modify ui/shared.css:614-617\n\n**Acceptance Criteria:**\n- .tabletop reserves enough bottom padding at <=560px to clear .deckpile's full footprint\n- Desktop (>560px) unaffected\n\n**Verify:** rebuild docs/draft.html, screenshot at 375x812, confirm no overlap.\n\nSee plans/2026-09-22-mobile-coverflow-draft-plan.md Task 1 for exact diff.",
       "blockedBy": []
     },
@@ -44,5 +44,5 @@
       "blockedBy": [4]
     }
   ],
-  "lastUpdated": "2026-09-22T00:00:00Z"
+  "lastUpdated": "2026-09-22T21:45:00Z"
 }
