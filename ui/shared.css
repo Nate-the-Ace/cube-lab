@@ -291,6 +291,21 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .deckpile b{font-size:15px;color:var(--accent);line-height:1}
 .deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
 
+/* the coverflow shows one card at a time, which loses the fan's one thing a
+   fan is good for: seeing the whole pack at a glance. The deckpile never
+   fills the width of the table it sits against, so the gap beside it is
+   dead space either way - a thumbnail per card, in whatever order the
+   coverflow is currently browsing, gives that glance back. Tapping one is a
+   shortcut into the coverflow, not a second pick surface - there is no
+   pick, no zoom, nothing here beyond jumping the big card to match. */
+.handmini{display:none}
+.tabletop:has(.hand.coverflow) .handmini{
+  display:flex;position:absolute;left:70px;right:14px;bottom:14px;height:67px;
+  gap:3px;overflow-x:auto;align-items:center}
+.handmini img{height:100%;aspect-ratio:1/1.396;border-radius:2px;
+  object-fit:cover;opacity:.8;flex:0 0 auto;cursor:pointer;transition:opacity .12s}
+.handmini img:active{opacity:1}
+
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
@@ -447,13 +462,14 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
    there is no drag physics to hand-roll here. Picking is still the swipe-up
    gesture below it - it is wired per card, not per layout, so it needs
    nothing new to keep working inside a coverflow. */
-.hand.coverflow{display:flex;flex-direction:column;gap:6px}
+.hand.coverflow{display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px}
 .cflabel{text-align:center;font-size:11px;text-transform:uppercase;
   letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
 .cflabel:empty{visibility:hidden}
-.cftrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
-  padding:20px calc(50vw - 75px) 10px;-webkit-overflow-scrolling:touch}
-.cftrack .dcard{flex:0 0 auto;width:150px;scroll-snap-align:center;
+.cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;
+  padding:20px 11vw 10px;-webkit-overflow-scrolling:touch}
+.cftrack .dcard{flex:0 0 auto;width:min(78vw,340px);scroll-snap-align:center;
   transition:transform .15s ease,opacity .15s ease}
 .cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
 .cftrack .dcard.near{transform:scale(.82);opacity:.65}
@@ -508,7 +524,8 @@ button.big{font-size:15px;padding:10px 26px}
 .boosters:not(.spread){position:absolute;top:calc(var(--tools-h, 34px) + 6px);
   left:50%;transform:translateX(-50%);z-index:0;padding:0;pointer-events:none}
 .boosters:not(.spread) .booster{pointer-events:auto}
-.tabletop:has(.boosters:not(.spread)) .hand.fan{
+.tabletop:has(.boosters:not(.spread)) .hand.fan,
+.tabletop:has(.boosters:not(.spread)) .hand.coverflow{
   padding-top:calc(var(--tools-h, 34px) - 4px);min-height:222px}
 .booster{position:relative;width:62px;aspect-ratio:1/1.5;border-radius:4px;cursor:default;
   background:
