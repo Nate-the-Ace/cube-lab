@@ -312,6 +312,21 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .deckpile b{font-size:15px;color:var(--accent);line-height:1}
 .deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
 
+/* the coverflow shows one card at a time, which loses the fan's one thing a
+   fan is good for: seeing the whole pack at a glance. The deckpile never
+   fills the width of the table it sits against, so the gap beside it is
+   dead space either way - a thumbnail per card, in whatever order the
+   coverflow is currently browsing, gives that glance back. Tapping one is a
+   shortcut into the coverflow, not a second pick surface - there is no
+   pick, no zoom, nothing here beyond jumping the big card to match. */
+.handmini{display:none}
+.tabletop:has(.hand.coverflow) .handmini{
+  display:flex;position:absolute;left:70px;right:14px;bottom:14px;height:67px;
+  gap:3px;overflow-x:auto;align-items:center}
+.handmini img{height:100%;aspect-ratio:1/1.396;border-radius:2px;
+  object-fit:cover;opacity:.8;flex:0 0 auto;cursor:pointer;transition:opacity .12s}
+.handmini img:active{opacity:1}
+
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
@@ -460,6 +475,27 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
 
+/* ── the hand, as a coverflow (mobile) ──
+   A fan this narrow buries most of a pack under an unreadable sliver of its
+   neighbours - measured live, fifteen cards in ~280px left each one about
+   18px wide. Browsing one card at a time instead keeps every one legible.
+   Scroll-snap gives the settle-on-a-card behaviour and momentum for free, so
+   there is no drag physics to hand-roll here. Picking is still the swipe-up
+   gesture below it - it is wired per card, not per layout, so it needs
+   nothing new to keep working inside a coverflow. */
+.hand.coverflow{display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px}
+.cflabel{text-align:center;font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
+.cflabel:empty{visibility:hidden}
+.cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;
+  padding:20px 11vw 10px;-webkit-overflow-scrolling:touch}
+.cftrack .dcard{flex:0 0 auto;width:min(78vw,340px);scroll-snap-align:center;
+  transition:transform .15s ease,opacity .15s ease}
+.cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
+.cftrack .dcard.near{transform:scale(.82);opacity:.65}
+.cftrack .dcard:not(.focused):not(.near){transform:scale(.7);opacity:.4}
+
 /* click-to-zoom, dismissed by clicking anywhere off the card */
 .zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
   justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);
@@ -509,7 +545,8 @@ button.big{font-size:15px;padding:10px 26px}
 .boosters:not(.spread){position:absolute;top:calc(var(--tools-h, 34px) + 6px);
   left:50%;transform:translateX(-50%);z-index:0;padding:0;pointer-events:none}
 .boosters:not(.spread) .booster{pointer-events:auto}
-.tabletop:has(.boosters:not(.spread)) .hand.fan{
+.tabletop:has(.boosters:not(.spread)) .hand.fan,
+.tabletop:has(.boosters:not(.spread)) .hand.coverflow{
   padding-top:calc(var(--tools-h, 34px) - 4px);min-height:222px}
 .booster{position:relative;width:62px;aspect-ratio:1/1.5;border-radius:4px;cursor:default;
   background:
@@ -635,6 +672,11 @@ details.numbers>summary:hover{color:var(--accent)}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
+  /* six rows here is taller than the twelve-across desktop grid ever gets, so
+     the table's own height now reaches exactly as far as .deckpile's corner -
+     which used to sit in slack the desktop grid never fills. Reserve that
+     corner instead of overlapping whatever the table renders last. */
+  .tabletop{padding-bottom:90px}
 }
 @media (max-width:560px){
   .stack{min-width:96px}
@@ -677,7 +719,7 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   box-shadow:0 0 0 5px rgba(207,169,78,.2),0 18px 36px rgba(0,0,0,.6)}
 /* on a touch screen the hand is a surface you drag on, not one you scroll */
 @media (hover:none){
-  .hand.fan .dcard{touch-action:pan-x}
+  .hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}
 }
 
 /* a two-faced card is two cards: show them together, not one at a time */
@@ -822,6 +864,7 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
       <div class="hand" id="p1Hand"></div>
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
+      <div class="handmini" id="p1HandMini"></div>
     </div>
     <div id="p1Shared" class="panel inner" hidden></div>
     <div id="p1Out"></div>
@@ -3003,28 +3046,50 @@ function p1DrawHand() {
   const sorter = P1_HAND_SORTS[P1_HAND_SORT] || {};
   const grouped = !!sorter.groupBy;
   p1DropRun();                   // the groups it pointed at are about to go
-  hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
-  if (grouped) {
-    const groups = [];
-    inOrder.forEach(c => {
-      const k = sorter.groupBy(c);
-      const last = groups[groups.length - 1];
-      if (last && last.key === k) last.cards.push(c);
-      else groups.push({key: k, cards: [c]});
-    });
-    hand.innerHTML = groups.map(g => `<div class="handgroup">
-      <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
-      <span class="gfoot"><span class="glabel"
-        title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
-        ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
-        <em>${esc(sorter.does(g.key))}</em></span></span>
-    </div>`).join('');
+  const mobile = matchMedia('(max-width:560px)').matches;
+  if (mobile) {
+    // the hand still sorts on mobile; it just never boxes cards into named
+    // runs - a coverflow browses one card at a time, so there is nowhere for
+    // a run's own width to matter, and no need for its label either
+    hand.className = 'hand coverflow';
+    hand.innerHTML = `<div class="cflabel"></div>
+      <div class="cftrack">${inOrder.map(c => cardFace(c)).join('')}</div>`;
+    const track = hand.querySelector('.cftrack');
+    p1WireCoverflow(track, null);
+    const mini = $('#p1HandMini');
+    if (mini) {
+      mini.innerHTML = inOrder.map(c => c.image
+        ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">` : '').join('');
+      // a thumbnail is a shortcut into the coverflow, not a second pick surface
+      [...mini.children].forEach((img, i) => {
+        img.onclick = () => track.children[i].scrollIntoView(
+          {behavior: 'smooth', inline: 'center', block: 'nearest'});
+      });
+    }
   } else {
-    hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    hand.className = 'hand fan' + (grouped ? ' grouped' : '');
+    if (grouped) {
+      const groups = [];
+      inOrder.forEach(c => {
+        const k = sorter.groupBy(c);
+        const last = groups[groups.length - 1];
+        if (last && last.key === k) last.cards.push(c);
+        else groups.push({key: k, cards: [c]});
+      });
+      hand.innerHTML = groups.map(g => `<div class="handgroup">
+        <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
+        <span class="gfoot"><span class="glabel"
+          title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
+          ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
+          <em>${esc(sorter.does(g.key))}</em></span></span>
+      </div>`).join('');
+    } else {
+      hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    }
+    if (grouped) p1WireRuns(hand);
+    p1LayoutHand();
   }
-  if (grouped) p1WireRuns(hand);
-  p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
   $('#p1PassL').textContent = '';
@@ -3314,9 +3379,45 @@ function p1MeasureTools() {
   table.style.setProperty('--tools-h', Math.round(t.bottom - box.top) + 'px');
 }
 
+/* Wires one coverflow track: as it scrolls, whichever card sits nearest the
+   centre gets .focused, its immediate neighbours get .near, and (if `groups`
+   was given - one label per card, same order as the track's children) the
+   label above the track is updated to that card's group. Attaching the
+   scroll listener is idempotent, since #p1Hand/#p1Drill are never replaced,
+   only their contents - so this can safely be called on every render. */
+function p1WireCoverflow(track, groups) {
+  if (!track) return;
+  const update = () => {
+    const items = [...track.children];
+    if (!items.length) return;
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let bestI = 0, bestD = Infinity;
+    items.forEach((el, i) => {
+      const d = Math.abs((el.offsetLeft + el.offsetWidth / 2) - mid);
+      if (d < bestD) { bestD = d; bestI = i; }
+    });
+    items.forEach((el, i) => {
+      el.classList.toggle('focused', i === bestI);
+      el.classList.toggle('near', Math.abs(i - bestI) === 1);
+    });
+    const label = track.parentElement.querySelector('.cflabel');
+    if (label) label.textContent = groups ? (groups[bestI] || '') : '';
+  };
+  if (!track.dataset.cfWired) {
+    track.dataset.cfWired = '1';
+    let raf = null;
+    track.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; update(); });
+    }, {passive: true});
+  }
+  update();
+}
+
 function p1LayoutHand() {
   p1MeasureTools();
   const hand = $('#p1Hand');
+  if (hand.classList.contains('coverflow')) return;   // no fan to size
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
   if (!n) return;
@@ -3881,8 +3982,11 @@ function p1DrillView() {
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
     </div>
 
-    <div class="stacks"><div class="stack"><div class="pile">${
-      d.left.map(c => cardFace(c)).join('')}</div></div></div>
+    ${matchMedia('(max-width:560px)').matches
+      ? `<div class="hand coverflow"><div class="cflabel" hidden></div>
+           <div class="cftrack">${d.left.map(c => cardFace(c)).join('')}</div></div>`
+      : `<div class="stacks"><div class="stack"><div class="pile">${
+           d.left.map(c => cardFace(c)).join('')}</div></div></div>`}
 
     <div class="wants lanepick">${(P1_LANES || []).map(l => `
       <button class="lanechip${answered && l.lane === d.open.lane ? ' istrue' : ''}${
@@ -3910,6 +4014,8 @@ function p1DrillView() {
     el.removeAttribute('data-pick');
     el.onclick = () => p1Zoom(card);
   });
+  const cfTrack = box.querySelector('.cftrack');
+  if (cfTrack) p1WireCoverflow(cfTrack, null);
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;

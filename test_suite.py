@@ -1314,9 +1314,13 @@ def test_mobile_coverflow():
     here = os.path.dirname(os.path.abspath(__file__))
     js = open(os.path.join(here, "ui", "cube.js")).read()
     css = open(os.path.join(here, "ui", "shared.css")).read()
+    html = open(os.path.join(here, "ui", "cube.html")).read()
 
     check("the coverflow track scroll-snaps one card at a time",
-          ".cftrack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory" in css)
+          "scroll-snap-type:x mandatory" in css and ".cftrack{display:flex;overflow-x:auto" in css)
+    check("the coverflow track is a real hit target, not inert like its .hand ancestor",
+          ".cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;\n"
+          "  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;" in css)
     check("a coverflow card has three depth states",
           ".cftrack .dcard.focused{" in css and ".cftrack .dcard.near{" in css
           and ".cftrack .dcard:not(.focused):not(.near){" in css)
@@ -1334,12 +1338,19 @@ def test_mobile_coverflow():
           "const mobile = matchMedia('(max-width:560px)').matches;" in js
           and "hand.className = 'hand coverflow';" in js)
     check("the mobile branch renders flat cards, not boxed runs",
-          "p1WireCoverflow(hand.querySelector('.cftrack')," in js)
+          "const track = hand.querySelector('.cftrack');" in js
+          and "p1WireCoverflow(track, null);" in js)
     mobile_branch = js.split("const mobile = matchMedia")[1].split("  } else {")[0]
     check("the mobile branch never wraps cards in a handgroup",
           ".handgroup" not in mobile_branch)
     check("the signal drill's pack coverflows too, browse-only",
           "if (cfTrack) p1WireCoverflow(cfTrack, null);" in js)
+
+    check("a thumbnail strip fills the dead space beside the deckpile",
+          '<div class="handmini" id="p1HandMini"></div>' in html
+          and ".tabletop:has(.hand.coverflow) .handmini{" in css)
+    check("a thumbnail jumps the coverflow to that card rather than picking it",
+          "img.onclick = () => track.children[i].scrollIntoView(" in js)
 
     check("the fan's own layout math steps aside for a coverflow hand",
           "if (hand.classList.contains('coverflow')) return;" in js)
