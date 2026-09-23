@@ -710,28 +710,37 @@ function p1DrawHand() {
   const sorter = P1_HAND_SORTS[P1_HAND_SORT] || {};
   const grouped = !!sorter.groupBy;
   p1DropRun();                   // the groups it pointed at are about to go
-  hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
-  if (grouped) {
-    const groups = [];
-    inOrder.forEach(c => {
-      const k = sorter.groupBy(c);
-      const last = groups[groups.length - 1];
-      if (last && last.key === k) last.cards.push(c);
-      else groups.push({key: k, cards: [c]});
-    });
-    hand.innerHTML = groups.map(g => `<div class="handgroup">
-      <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
-      <span class="gfoot"><span class="glabel"
-        title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
-        ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
-        <em>${esc(sorter.does(g.key))}</em></span></span>
-    </div>`).join('');
+  const mobile = matchMedia('(max-width:560px)').matches;
+  if (mobile) {
+    hand.className = 'hand coverflow';
+    hand.innerHTML = `<div class="cflabel"></div>
+      <div class="cftrack">${inOrder.map(c => cardFace(c)).join('')}</div>`;
+    p1WireCoverflow(hand.querySelector('.cftrack'),
+      grouped ? inOrder.map(c => sorter.groupBy(c)) : null);
   } else {
-    hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    hand.className = 'hand fan' + (grouped ? ' grouped' : '');
+    if (grouped) {
+      const groups = [];
+      inOrder.forEach(c => {
+        const k = sorter.groupBy(c);
+        const last = groups[groups.length - 1];
+        if (last && last.key === k) last.cards.push(c);
+        else groups.push({key: k, cards: [c]});
+      });
+      hand.innerHTML = groups.map(g => `<div class="handgroup">
+        <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
+        <span class="gfoot"><span class="glabel"
+          title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
+          ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
+          <em>${esc(sorter.does(g.key))}</em></span></span>
+      </div>`).join('');
+    } else {
+      hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    }
+    if (grouped) p1WireRuns(hand);
+    p1LayoutHand();
   }
-  if (grouped) p1WireRuns(hand);
-  p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
   $('#p1PassL').textContent = '';
@@ -1021,9 +1030,45 @@ function p1MeasureTools() {
   table.style.setProperty('--tools-h', Math.round(t.bottom - box.top) + 'px');
 }
 
+/* Wires one coverflow track: as it scrolls, whichever card sits nearest the
+   centre gets .focused, its immediate neighbours get .near, and (if `groups`
+   was given - one label per card, same order as the track's children) the
+   label above the track is updated to that card's group. Attaching the
+   scroll listener is idempotent, since #p1Hand/#p1Drill are never replaced,
+   only their contents - so this can safely be called on every render. */
+function p1WireCoverflow(track, groups) {
+  if (!track) return;
+  const update = () => {
+    const items = [...track.children];
+    if (!items.length) return;
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let bestI = 0, bestD = Infinity;
+    items.forEach((el, i) => {
+      const d = Math.abs((el.offsetLeft + el.offsetWidth / 2) - mid);
+      if (d < bestD) { bestD = d; bestI = i; }
+    });
+    items.forEach((el, i) => {
+      el.classList.toggle('focused', i === bestI);
+      el.classList.toggle('near', Math.abs(i - bestI) === 1);
+    });
+    const label = track.parentElement.querySelector('.cflabel');
+    if (label) label.textContent = groups ? (groups[bestI] || '') : '';
+  };
+  if (!track.dataset.cfWired) {
+    track.dataset.cfWired = '1';
+    let raf = null;
+    track.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; update(); });
+    }, {passive: true});
+  }
+  update();
+}
+
 function p1LayoutHand() {
   p1MeasureTools();
   const hand = $('#p1Hand');
+  if (hand.classList.contains('coverflow')) return;   // no fan to size
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
   if (!n) return;
