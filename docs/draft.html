@@ -3077,11 +3077,19 @@ function p1DrawHand() {
   if (sortWrap) sortWrap.hidden = !P1_PACK.length;
   if (!P1_PACK.length) {
     const left = 3 - P1_CHOSEN.length;
+    hand.className = 'hand';
     hand.innerHTML = `<span class="dim">${
       !P1_ALL.length ? 'Cutting the cube into packs\u2026'
       : left > 0
         ? `The cube, cut into ${P1_ALL.length} packs. Choose <b>${left}</b> more.`
         : ''}</span>`;
+    // the mini strip is gated on #p1Hand still carrying the coverflow class
+    // (see .tabletop:has(.hand.coverflow) .handmini in shared.css) - between
+    // packs there is no pack for it to summarise, but the class reset above
+    // wasn't enough on its own to hide a leftover thumbnail from the pack
+    // that just finished, since nothing here ever emptied its own markup
+    const mini = $('#p1HandMini');
+    if (mini) mini.innerHTML = '';
     return;
   }
   p1SyncSortOptions();
@@ -3442,6 +3450,12 @@ function p1WireCoverflow(track, groups) {
   // mercy of the browser's own scroll-anchoring, which doesn't always agree
   track.scrollLeft = 0;
   const update = () => {
+    // a render since this was scheduled (the scroll listener's own rAF
+    // debounce, or the belt-and-suspenders one below) may already have
+    // replaced #p1Hand's innerHTML, detaching this exact track - a detached
+    // node's parentElement is null, which the .cflabel lookup below would
+    // otherwise throw on every single time that race is lost
+    if (!track.isConnected) return;
     const items = [...track.children];
     if (!items.length) return;
     const mid = track.scrollLeft + track.clientWidth / 2;
@@ -4598,8 +4612,17 @@ function p1NextPack() {
   P1_PACK = [];
   p1Boosters();
   if (P1_OPENED.size < 3) {
-    // a round boundary is a real pause at a table, so it takes a press
-    $('#p1Hand').innerHTML = '';
+    // a round boundary is a real pause at a table, so it takes a press.
+    // This bypasses p1DrawHand entirely, so it also has to do that
+    // function's own between-packs cleanup: drop the stale "coverflow"
+    // class (the mini strip's CSS is gated on #p1Hand still carrying it)
+    // and empty the mini strip itself, or its last thumbnail lingers
+    // right through the pause.
+    const hand = $('#p1Hand');
+    hand.className = 'hand';
+    hand.innerHTML = '';
+    const mini = $('#p1HandMini');
+    if (mini) mini.innerHTML = '';
     p1Boosters();
     return;
   }

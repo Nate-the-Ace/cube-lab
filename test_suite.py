@@ -1337,6 +1337,8 @@ def test_mobile_coverflow():
           "track.scrollLeft = 0;" in js)
     check("the reset survives a layout shift landing right after it",
           "if (track.scrollLeft !== 0) track.scrollLeft = 0;" in js)
+    check("a deferred update on an already-replaced track doesn't crash",
+          "if (!track.isConnected) return;" in js)
     check("scroll-anchoring can't quietly move the coverflow off its own reset",
           "overflow-anchor:none" in css)
     check("the pack's foil-peel skips the phone, where it read as visual flutter",
@@ -1372,6 +1374,12 @@ def test_mobile_coverflow():
     check("a thumbnail strip fills the dead space beside the deckpile",
           '<div class="handmini" id="p1HandMini"></div>' in html
           and ".tabletop:has(.hand.coverflow) .handmini{" in css)
+    check("between packs, the mini strip drops its last thumbnail rather than keep it",
+          "hand.className = 'hand';" in js
+          and "if (mini) mini.innerHTML = '';" in js)
+    check("the round-boundary pause does its own cleanup, since it bypasses p1DrawHand",
+          "// a round boundary is a real pause at a table, so it takes a press.\n"
+          "    // This bypasses p1DrawHand entirely" in js)
     check("a thumbnail jumps the coverflow to that card rather than picking it",
           "img.onclick = () => track.children[i].scrollIntoView(" in js)
 
