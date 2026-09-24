@@ -501,6 +501,54 @@ def test_cube_explainers(con):
     check("every parser primitive has its own wording", not generic, str(generic))
 
 
+def test_pick_scores(con):
+    print("pick scores")
+    import cube as cube_mod
+    from itertools import combinations
+    cubes = cube_mod.list_cubes(con)
+    if not cubes:
+        print("  (no cubes imported, skipped)")
+        return
+    cid = cubes[0]["id"]
+    d = cube_mod.pick_scores(con, cid)
+    cards = d.get("cards") or []
+    check("pick scores come back", bool(cards))
+    check("results are sorted by score",
+          all(cards[i]["score"] >= cards[i + 1]["score"] for i in range(len(cards) - 1)))
+
+    lanes, baseline = d["lane_pct"], d["lane_baseline"]
+    tri = [c for c in cards if len(c["color_identity"]) == 3]
+    if tri and lanes:
+        # lanes only has two-colour keys, so a naive "is my whole identity a
+        # lane" check can never match a three-colour card - it has to be
+        # scored on the best TWO of its three colours instead, the same way
+        # a mono card is scored on the best of every lane its one colour
+        # touches. If this regresses, every one of them goes back to lane 0,
+        # which is what sent a tri-land under an off-colour removal spell in
+        # a two-card pack despite lane carrying 2.0 of the score's weight.
+        check("a three-colour card is not silently scored on zero lanes",
+              any(c["lane"] != 0 for c in tri),
+              str([c["name"] for c in tri[:5]]))
+
+        def expected_lane(ci):
+            subs = {"".join(p) for p in combinations(ci, 2)}
+            fits = [pct for pair, pct in lanes.items() if pair in subs]
+            return round(max(fits) - baseline, 1) if fits else 0.0
+
+        mismatched = [c["name"] for c in tri if c["lane"] != expected_lane(c["color_identity"])]
+        check("a three-colour card's lane is the best of its own three sub-pairs",
+              not mismatched, str(mismatched[:5]))
+
+    # the same subset check applies to two-colour cards too, just against
+    # their one exact pair rather than a choice of three
+    two = [c for c in cards if len(c["color_identity"]) == 2 and c["color_identity"] in lanes]
+    if two:
+        mismatched = [c["name"] for c in two
+                      if c["lane"] != round(lanes[c["color_identity"]] - baseline, 1)]
+        check("a two-colour card's lane is its own pair's measured score",
+              not mismatched, str(mismatched[:5]))
+
+
 def test_targeting(con):
     print("ability targeting")
 
@@ -1407,6 +1455,24 @@ def test_mobile_coverflow():
           "if (hand.classList.contains('coverflow')) return;" in js)
 
 
+def test_pick_recommendation():
+    print("pick recommendation")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+
+    check("the live recommendation carries a colour-fit term, not just synergy",
+          "function p1ColorFit(card)" in js
+          and "const p1Total = c => c.score + 0.35 * p1DeckFit(c) + 0.45 * p1ColorFit(c);" in js)
+    check("colour fit stays neutral with an empty pool, same as deck fit",
+          "if (!P1_TAKEN.length) return 0;" in js)
+    check("a land bringing in a colour you don't have yet still counts as fixing",
+          "return card.is_land ? known * 12 - 2 : known * 6 - foreign * 16;" in js)
+    check("a non-land asking for a third colour is penalised, not just unrewarded",
+          "known * 6 - foreign * 16" in js)
+    check("the crown's tooltip explains the colour-fit signal when it applies",
+          "colorFit > 0 ? ', and how well it fits your colours' : ''" in js)
+
+
 def test_english_faces():
     print("card faces")
     con = mtgdb.connect()
@@ -1662,6 +1728,7 @@ def main():
     test_sets(con)
     test_wildcards_and_kinds(con)
     test_cube_explainers(con)
+    test_pick_scores(con)
     test_cube_synergies(con)
     test_cube_opportunities(con)
     test_cube_balance_and_swaps(con)
@@ -1677,6 +1744,7 @@ def main():
     test_english_faces()
     test_pack_art()
     test_hand_sort()
+    test_pick_recommendation()
     test_shared_drafts()
     test_deck_build()
     test_signal_drill()

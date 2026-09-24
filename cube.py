@@ -10,6 +10,7 @@ A cube is a closed pool, which changes the problem in two useful ways:
     rather than vibes.
 """
 import csv, io, math, os, re, sqlite3, time, urllib.request
+from itertools import combinations
 
 import mtgdb
 
@@ -1595,7 +1596,18 @@ def pick_scores(con, cube_id):
         ci = "".join(c for c in "WUBRG" if c in (r["color_identity"] or ""))
         n_col = len(ci)
 
-        fits = [pct for pair, pct in lanes.items() if set(ci) <= set(pair)]
+        # lanes only has two-colour keys, so a 3+ colour identity can never be
+        # a subset of one and always fell through to fits=[] - a WUR triland
+        # scored exactly 0 whether it fixed your exact two colours or your
+        # worst two, which is what sent it under an off-colour removal spell
+        # despite the 2.0 weight lane carries. For those, check the best of
+        # its own 2-colour sub-pairs instead, same as a mono card already
+        # does across every pair its one colour touches.
+        if n_col <= 2:
+            fits = [pct for pair, pct in lanes.items() if set(ci) <= set(pair)]
+        else:
+            subs = {"".join(p) for p in combinations(ci, 2)}
+            fits = [pct for pair, pct in lanes.items() if pair in subs]
         lane = (max(fits) - baseline) if fits else 0.0
 
         # Openness is about COLOUR COMMITMENT, and a land is not keeping your

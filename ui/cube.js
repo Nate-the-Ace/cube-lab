@@ -851,7 +851,34 @@ function p1DeckFit(card) {
   return pull;
 }
 
-const p1Total = c => c.score + 0.35 * p1DeckFit(c);
+/* How well a card's colours line up with what you've actually taken so far -
+   the one signal p1DeckFit never carries, since it is entirely EDHREC
+   synergy pairs and knows nothing about mana. This cube is built for two
+   colours plus a splash, not three real colours, so the two things it
+   rewards are staying in your established pair and a LAND bringing in a
+   colour you don't have yet - a splash enabler, not a commitment. A
+   non-land asking for a third colour is the one thing this deliberately
+   does not reward, for the same reason a third real colour is discouraged
+   everywhere else in this app. Empty pool: no colours are "established"
+   yet, so this stays out of the way the same way p1DeckFit does. */
+function p1ColorFit(card) {
+  if (!P1_TAKEN.length) return 0;
+  const counts = {};
+  P1_TAKEN.forEach(c => {
+    if (c.is_land) return;
+    for (const ch of (c.color_identity || '')) counts[ch] = (counts[ch] || 0) + 1;
+  });
+  const main = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 2);
+  if (!main.length) return 0;
+  const ci = [...(card.color_identity || '')];
+  if (!ci.length) return 8;                            // colourless always fits
+  const known = ci.filter(c => main.includes(c)).length;
+  const foreign = ci.length - known;
+  if (!foreign) return known * 12;                     // squarely in your two colours
+  return card.is_land ? known * 12 - 2 : known * 6 - foreign * 16;
+}
+
+const p1Total = c => c.score + 0.35 * p1DeckFit(c) + 0.45 * p1ColorFit(c);
 
 /* A card off the want list has just been dealt to you. The star already says
    what the numbers would take; this says "and this is the one you were waiting
@@ -897,12 +924,15 @@ function p1MarkBest() {
   });
   if (!bestEl) return;
   bestEl.classList.add('best');
-  const fit = p1DeckFit(p1Card(bestEl.dataset.oracle));
+  const best = p1Card(bestEl.dataset.oracle);
+  const fit = p1DeckFit(best);
+  const colorFit = p1ColorFit(best);
   bestEl.insertAdjacentHTML('beforeend',
     `<span class="crown" title="${esc(P1_TAKEN.length
       ? 'What the numbers would take, counting how it pairs with your ' + P1_TAKEN.length
         + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
         + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
+        + (colorFit > 0 ? ', and how well it fits your colours' : '')
       : 'What the numbers would take')}">\u2605</span>`);
 }
 
