@@ -12,10 +12,11 @@
   --ink:#241f1a; --ink-dim:#6d6257; --accent:#9a6a12; --accent-ink:#fffdf9;
 }
 *{box-sizing:border-box}
+html,body{overflow-x:hidden}
 body{margin:0;background:var(--bg);color:var(--ink);
   font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;}
 header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  padding:14px 16px;border-bottom:1px solid var(--line);background:var(--panel);
+  padding:14px 16px 14px 56px;border-bottom:1px solid var(--line);background:var(--panel);
   position:sticky;top:0;z-index:5}
 h1{font-size:17px;margin:0;letter-spacing:.2px}
 h1 span{color:var(--accent)}
@@ -291,6 +292,21 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
 .deckpile b{font-size:15px;color:var(--accent);line-height:1}
 .deckpile span{font-size:7px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
 
+/* the coverflow shows one card at a time, which loses the fan's one thing a
+   fan is good for: seeing the whole pack at a glance. The deckpile never
+   fills the width of the table it sits against, so the gap beside it is
+   dead space either way - a thumbnail per card, in whatever order the
+   coverflow is currently browsing, gives that glance back. Tapping one is a
+   shortcut into the coverflow, not a second pick surface - there is no
+   pick, no zoom, nothing here beyond jumping the big card to match. */
+.handmini{display:none}
+.tabletop:has(.hand.coverflow) .handmini{
+  display:flex;position:absolute;left:70px;right:14px;bottom:14px;height:67px;
+  gap:3px;overflow-x:auto;align-items:center}
+.handmini img{height:100%;aspect-ratio:1/1.396;border-radius:2px;
+  object-fit:cover;opacity:.8;flex:0 0 auto;cursor:pointer;transition:opacity .12s}
+.handmini img:active{opacity:1}
+
 .tableau{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:10px;
   margin-top:12px}
 .tableau .dcard{width:100%;cursor:default}
@@ -438,6 +454,45 @@ input[type=range]{padding:0;background:none;border:0;min-width:150px;accent-colo
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .hand.fan .dcard.flying,.hand.fan .dcard.passing-l,.hand.fan .dcard.passing-r{z-index:6}
+
+/* ── the hand, as a coverflow (mobile) ──
+   A fan this narrow buries most of a pack under an unreadable sliver of its
+   neighbours - measured live, fifteen cards in ~280px left each one about
+   18px wide. Browsing one card at a time instead keeps every one legible.
+   Scroll-snap gives the settle-on-a-card behaviour and momentum for free, so
+   there is no drag physics to hand-roll here. Picking is still the swipe-up
+   gesture below it - it is wired per card, not per layout, so it needs
+   nothing new to keep working inside a coverflow.
+
+   A rotateY/perspective "classic Mac" tilt was tried here and pulled back
+   out: the CSS spec explicitly leaves undefined how perspective and an
+   ancestor's scroll position interact, and real iOS Safari rendered it as
+   three flat, equal-width, non-overlapping cards with no tilt at all - a
+   passing desktop-Chrome emulator check never caught it. Plain scale and
+   opacity below has no such interaction and is what's actually confirmed
+   working on a real phone. */
+/* the stowed, not-yet-opened packs float above the table at a fixed spot
+   near the toolbar - the fan needs clearance from them, but the coverflow's
+   own card already covers that same spot, so let it sit on top instead of
+   being pushed down under something it's about to hide anyway */
+.hand.coverflow{display:flex;flex-direction:column;flex-wrap:nowrap;gap:6px;
+  position:relative;z-index:1}
+.cflabel{text-align:center;font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--ink-dim);min-height:14px}
+.cflabel:empty{visibility:hidden}
+.cftrack{display:flex;overflow-x:auto;overscroll-behavior-x:contain;
+  scroll-snap-type:x mandatory;min-width:0;pointer-events:auto;overflow-anchor:none;
+  padding:20px 11vw 10px;-webkit-overflow-scrolling:touch}
+.cftrack .dcard{flex:0 0 auto;width:min(78vw,340px);scroll-snap-align:center;
+  /* mandatory snap alone still lets a hard flick sail past several cards
+     at once and land wherever the momentum runs out - scroll-snap-stop
+     forces the browser to stop at every card it passes, one at a time,
+     so a fling can't skip over the one you were actually aiming for */
+  scroll-snap-stop:always;
+  transition:transform .15s ease,opacity .15s ease}
+.cftrack .dcard.focused{transform:scale(1);opacity:1;z-index:2}
+.cftrack .dcard.near{transform:scale(.82);opacity:.65}
+.cftrack .dcard:not(.focused):not(.near){transform:scale(.7);opacity:.4}
 
 /* click-to-zoom, dismissed by clicking anywhere off the card */
 .zoomveil{position:fixed;inset:0;z-index:300;display:flex;align-items:center;
@@ -611,9 +666,43 @@ details.numbers>summary:hover{color:var(--accent)}
 .pile .dcard + .dcard{margin-top:-128px}          /* leave the title bar showing */
 .pile .dcard:hover{transform:translateY(-4px) scale(1.03);z-index:6;
   box-shadow:0 14px 30px rgba(0,0,0,.6)}
+/* main, panel and tabletop each add their own border and padding, which on
+   a desktop-width column reads as one section inside another but on a phone
+   is three concentric outlines eating real width from the one thing on
+   screen that wants it. Panels already stack vertically, so a top/bottom
+   line still separates them - the side borders and radius are the part that
+   was never doing anything but taking width. */
+@media (max-width:560px){
+  main{padding-left:6px;padding-right:6px}
+  .panel{padding-left:6px;padding-right:6px;border-left:0;border-right:0;border-radius:0}
+  .tabletop{padding-left:4px;padding-right:4px;border-left:0;border-right:0;border-radius:0}
+}
+/* The tab row is gone everywhere - a fixed hamburger in the usual top-left
+   spot is the only way to switch tabs now, on any screen size, not just a
+   phone-width fallback. The title bar still earns its keep on a wide screen
+   (it's the only place the theme button lived before this), so it only
+   drops out at mobile widths, same as the rest of the mobile layout. */
+.tabs[role=tablist]{display:none}
+@media (max-width:560px){
+  header{display:none}
+}
+.mobmenu-btn{display:inline-flex;position:fixed;top:14px;left:14px;z-index:201}
+.mobmenu[hidden]{display:none}
+.mobmenu{position:fixed;top:14px;left:14px;z-index:200;display:flex;
+  flex-direction:column;min-width:170px;padding:6px;padding-top:44px;
+  border-radius:10px;background:var(--panel);border:1px solid var(--line);
+  box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.mobmenu button{text-align:left;background:none;border:0;padding:9px 10px;
+  border-radius:6px;font-size:14px;color:var(--ink);cursor:pointer}
+.mobmenu button:hover{background:var(--panel-2)}
 /* a phone cannot hold twelve across; six by six keeps the shape rectangular */
 @media (max-width:560px){
   .boosters.spread{grid-template-columns:repeat(6,1fr);gap:6px;max-width:330px}
+  /* six rows here is taller than the twelve-across desktop grid ever gets, so
+     the table's own height now reaches exactly as far as .deckpile's corner -
+     which used to sit in slack the desktop grid never fills. Reserve that
+     corner instead of overlapping whatever the table renders last. */
+  .tabletop{padding-bottom:90px}
 }
 @media (max-width:560px){
   .stack{min-width:96px}
@@ -638,6 +727,14 @@ details.numbers>summary:hover{color:var(--accent)}
 .want .why{font-size:10.5px;color:var(--ink-dim);line-height:1.35}
 .want.offcolour .dcard{filter:saturate(.55) brightness(.82)}
 @media (max-width:560px){.want,.want .dcard{width:104px}}
+/* the card zoom popup: at 78vh the image alone left no room for the name,
+   the why-lines and the take button without scrolling inside the popup -
+   shrinking the image is what buys the rest of it back onto one screen */
+@media (max-width:560px){
+  .zoomveil{padding:12px}
+  .zoomveil img{max-height:42vh}
+  .zwhy .whyline{font-size:11px;line-height:1.3}
+}
 
 /* filters over the finished pool */
 .poolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
@@ -656,7 +753,7 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   box-shadow:0 0 0 5px rgba(207,169,78,.2),0 18px 36px rgba(0,0,0,.6)}
 /* on a touch screen the hand is a surface you drag on, not one you scroll */
 @media (hover:none){
-  .hand.fan .dcard{touch-action:pan-x}
+  .hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}
 }
 
 /* a two-faced card is two cards: show them together, not one at a time */

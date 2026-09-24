@@ -394,30 +394,6 @@ let draftTimer = null;
 $('#p1DrillStart') && ($('#p1DrillStart').onclick = () => p1DealDrill());
 $('#p1DrillSeats') && ($('#p1DrillSeats').onchange = () => { if (P1_DRILL) p1DealDrill(); });
 
-$('#p1Share') && ($('#p1Share').onclick = async () => {
-  p1WriteUrl();
-  const url = location.href;
-  const btn = $('#p1Share');
-  const said = t => { btn.dataset.said = t; setTimeout(() => delete btn.dataset.said, 1400); };
-  try {
-    await navigator.clipboard.writeText(url);
-    said('copied');
-  } catch (e) {
-    // clipboard needs a secure context, and this page is often opened from a file
-    said('in the address bar');
-  }
-});
-
-$('#p1Seed') && ($('#p1Seed').onchange = e => {
-  const want = e.target.value.trim();
-  if (!want || want.toLowerCase() === P1_SEED) return;
-  $('#p1Restart').onclick();          // a different seed is a different cube cut
-  p1SetSeed(want, true);              // the restart made its own; this one wins,
-  p1CutCube();                        // and it locks the seats it was cut for
-  p1Boosters();
-  p1DrawHand();
-});
-
 $('#p1HandSort') && $('#p1HandSort').addEventListener('change', e => {
   P1_HAND_SORT = e.target.value;
   p1DrawHand();
@@ -693,45 +669,84 @@ function p1WireRuns(hand) {
   });
 }
 
+/* Every place that shows #p1Hand something other than a real pack - here,
+   the round-boundary pause in p1NextPack, p1DraftOver, and a data-error
+   message - bypasses p1DrawHand's own rendering, so each is responsible for
+   the same cleanup: drop the "coverflow"/"fan" class the mini strip's CSS is
+   gated on (.tabletop:has(.hand.coverflow) .handmini in shared.css) and
+   empty the strip itself, or its last thumbnail lingers on screen with
+   nothing behind it. Missing this in three different places before it was
+   pulled out here is exactly why it's a function now. */
+function p1ClearHand(html) {
+  const hand = $('#p1Hand');
+  hand.className = 'hand';
+  hand.innerHTML = html || '';
+  const mini = $('#p1HandMini');
+  if (mini) mini.innerHTML = '';
+  return hand;
+}
+
 function p1DrawHand() {
   const hand = $('#p1Hand');
   const sortWrap = $('#p1SortWrap');
   if (sortWrap) sortWrap.hidden = !P1_PACK.length;
   if (!P1_PACK.length) {
     const left = 3 - P1_CHOSEN.length;
-    hand.innerHTML = `<span class="dim">${
+    p1ClearHand(`<span class="dim">${
       !P1_ALL.length ? 'Cutting the cube into packs\u2026'
       : left > 0
         ? `The cube, cut into ${P1_ALL.length} packs. Choose <b>${left}</b> more.`
-        : ''}</span>`;
+        : ''}</span>`);
     return;
   }
   p1SyncSortOptions();
   const sorter = P1_HAND_SORTS[P1_HAND_SORT] || {};
   const grouped = !!sorter.groupBy;
   p1DropRun();                   // the groups it pointed at are about to go
-  hand.className = 'hand fan' + (grouped ? ' grouped' : '');
   const inOrder = p1SortedPack();
-  if (grouped) {
-    const groups = [];
-    inOrder.forEach(c => {
-      const k = sorter.groupBy(c);
-      const last = groups[groups.length - 1];
-      if (last && last.key === k) last.cards.push(c);
-      else groups.push({key: k, cards: [c]});
-    });
-    hand.innerHTML = groups.map(g => `<div class="handgroup">
-      <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
-      <span class="gfoot"><span class="glabel"
-        title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
-        ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
-        <em>${esc(sorter.does(g.key))}</em></span></span>
-    </div>`).join('');
+  const mobile = matchMedia('(max-width:560px)').matches;
+  if (mobile) {
+    // the hand still sorts on mobile; it just never boxes cards into named
+    // runs - a coverflow browses one card at a time, so there is nowhere for
+    // a run's own width to matter, and no need for its label either
+    hand.className = 'hand coverflow';
+    hand.innerHTML = `<div class="cflabel"></div>
+      <div class="cftrack">${inOrder.map(c => cardFace(c)).join('')}</div>`;
+    const track = hand.querySelector('.cftrack');
+    p1WireCoverflow(track, null);
+    const mini = $('#p1HandMini');
+    if (mini) {
+      mini.innerHTML = inOrder.map(c => c.image
+        ? `<img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy">` : '').join('');
+      // a thumbnail is a shortcut into the coverflow, not a second pick surface
+      [...mini.children].forEach((img, i) => {
+        img.onclick = () => track.children[i].scrollIntoView(
+          {behavior: 'smooth', inline: 'center', block: 'nearest'});
+      });
+    }
   } else {
-    hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    hand.className = 'hand fan' + (grouped ? ' grouped' : '');
+    if (grouped) {
+      const groups = [];
+      inOrder.forEach(c => {
+        const k = sorter.groupBy(c);
+        const last = groups[groups.length - 1];
+        if (last && last.key === k) last.cards.push(c);
+        else groups.push({key: k, cards: [c]});
+      });
+      hand.innerHTML = groups.map(g => `<div class="handgroup">
+        <div class="gcards">${g.cards.map(c => cardFace(c)).join('')}</div>
+        <span class="gfoot"><span class="glabel"
+          title="${esc(g.key)} \u2014 ${esc(sorter.does(g.key))}"
+          ><b>${esc(g.key)}</b> <span>${g.cards.length}</span>
+          <em>${esc(sorter.does(g.key))}</em></span></span>
+      </div>`).join('');
+    } else {
+      hand.innerHTML = inOrder.map(c => cardFace(c)).join('');
+    }
+    if (grouped) p1WireRuns(hand);
+    p1LayoutHand();
   }
-  if (grouped) p1WireRuns(hand);
-  p1LayoutHand();
   p1MarkBest();
   p1MarkWanted();
   $('#p1PassL').textContent = '';
@@ -780,10 +795,18 @@ function p1Take(oid, el) {
   el.style.setProperty('--dy', (deck.top + deck.height / 2 - me.top - me.height / 2) + 'px');
   el.classList.add('flying');
 
-  const cls = passDir() === 'left' ? 'passing-l' : 'passing-r';
-  $('#p1Hand').querySelectorAll('.dcard').forEach(other => {
-    if (other !== el) other.classList.add(cls);
-  });
+  const hand = $('#p1Hand');
+  // the rest of the pack sliding off past the screen edge reads fine when
+  // every card sits in one visible row (the fan); in a coverflow almost
+  // all of them are already scrolled out of view, so animating each one to
+  // fly further off a screen it isn't on just looked broken - only the
+  // picked card's own flight to the deckpile applies there
+  if (!hand.classList.contains('coverflow')) {
+    const cls = passDir() === 'left' ? 'passing-l' : 'passing-r';
+    hand.querySelectorAll('.dcard').forEach(other => {
+      if (other !== el) other.classList.add(cls);
+    });
+  }
 
   const settle = () => {
     P1_ANIMATING = false;
@@ -828,7 +851,34 @@ function p1DeckFit(card) {
   return pull;
 }
 
-const p1Total = c => c.score + 0.35 * p1DeckFit(c);
+/* How well a card's colours line up with what you've actually taken so far -
+   the one signal p1DeckFit never carries, since it is entirely EDHREC
+   synergy pairs and knows nothing about mana. This cube is built for two
+   colours plus a splash, not three real colours, so the two things it
+   rewards are staying in your established pair and a LAND bringing in a
+   colour you don't have yet - a splash enabler, not a commitment. A
+   non-land asking for a third colour is the one thing this deliberately
+   does not reward, for the same reason a third real colour is discouraged
+   everywhere else in this app. Empty pool: no colours are "established"
+   yet, so this stays out of the way the same way p1DeckFit does. */
+function p1ColorFit(card) {
+  if (!P1_TAKEN.length) return 0;
+  const counts = {};
+  P1_TAKEN.forEach(c => {
+    if (c.is_land) return;
+    for (const ch of (c.color_identity || '')) counts[ch] = (counts[ch] || 0) + 1;
+  });
+  const main = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 2);
+  if (!main.length) return 0;
+  const ci = [...(card.color_identity || '')];
+  if (!ci.length) return 8;                            // colourless always fits
+  const known = ci.filter(c => main.includes(c)).length;
+  const foreign = ci.length - known;
+  if (!foreign) return known * 12;                     // squarely in your two colours
+  return card.is_land ? known * 12 - 2 : known * 6 - foreign * 16;
+}
+
+const p1Total = c => c.score + 0.35 * p1DeckFit(c) + 0.45 * p1ColorFit(c);
 
 /* A card off the want list has just been dealt to you. The star already says
    what the numbers would take; this says "and this is the one you were waiting
@@ -874,12 +924,15 @@ function p1MarkBest() {
   });
   if (!bestEl) return;
   bestEl.classList.add('best');
-  const fit = p1DeckFit(p1Card(bestEl.dataset.oracle));
+  const best = p1Card(bestEl.dataset.oracle);
+  const fit = p1DeckFit(best);
+  const colorFit = p1ColorFit(best);
   bestEl.insertAdjacentHTML('beforeend',
     `<span class="crown" title="${esc(P1_TAKEN.length
       ? 'What the numbers would take, counting how it pairs with your ' + P1_TAKEN.length
         + ' picked card' + (P1_TAKEN.length === 1 ? '' : 's')
         + (fit ? ' (pull ' + fit.toFixed(0) + ')' : ' (no pairs with them)')
+        + (colorFit > 0 ? ', and how well it fits your colours' : '')
       : 'What the numbers would take')}">\u2605</span>`);
 }
 
@@ -1021,9 +1074,64 @@ function p1MeasureTools() {
   table.style.setProperty('--tools-h', Math.round(t.bottom - box.top) + 'px');
 }
 
+/* Wires one coverflow track: as it scrolls, whichever card sits nearest the
+   centre gets .focused, its immediate neighbours get .near, and (if `groups`
+   was given - one label per card, same order as the track's children) the
+   label above the track is updated to that card's group. Attaching the
+   scroll listener is idempotent, since #p1Hand/#p1Drill are never replaced,
+   only their contents - so this can safely be called on every render. */
+function p1WireCoverflow(track, groups) {
+  if (!track) return;
+  // a fresh track should always open on its first card - relying on a new
+  // scrollable element simply defaulting to scrollLeft 0 left this at the
+  // mercy of the browser's own scroll-anchoring, which doesn't always agree
+  track.scrollLeft = 0;
+  const update = () => {
+    // a render since this was scheduled (the scroll listener's own rAF
+    // debounce, or the belt-and-suspenders one below) may already have
+    // replaced #p1Hand's innerHTML, detaching this exact track - a detached
+    // node's parentElement is null, which the .cflabel lookup below would
+    // otherwise throw on every single time that race is lost
+    if (!track.isConnected) return;
+    const items = [...track.children];
+    if (!items.length) return;
+    const mid = track.scrollLeft + track.clientWidth / 2;
+    let bestI = 0, bestD = Infinity;
+    items.forEach((el, i) => {
+      const d = Math.abs((el.offsetLeft + el.offsetWidth / 2) - mid);
+      if (d < bestD) { bestD = d; bestI = i; }
+    });
+    items.forEach((el, i) => {
+      el.classList.toggle('focused', i === bestI);
+      el.classList.toggle('near', Math.abs(i - bestI) === 1);
+    });
+    const label = track.parentElement.querySelector('.cflabel');
+    if (label) label.textContent = groups ? (groups[bestI] || '') : '';
+  };
+  if (!track.dataset.cfWired) {
+    track.dataset.cfWired = '1';
+    let raf = null;
+    track.addEventListener('scroll', () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; update(); });
+    }, {passive: true});
+  }
+  update();
+  // belt and suspenders: a layout shift landing just after this point (an
+  // image finishing its load, a still-running pack animation) can move
+  // scrollLeft again even with overflow-anchor off, so re-assert once more
+  // after the browser's own next layout pass rather than trusting one
+  // synchronous reset to be the last word.
+  requestAnimationFrame(() => {
+    if (track.scrollLeft !== 0) track.scrollLeft = 0;
+    update();
+  });
+}
+
 function p1LayoutHand() {
   p1MeasureTools();
   const hand = $('#p1Hand');
+  if (hand.classList.contains('coverflow')) return;   // no fan to size
   const cards = [...hand.querySelectorAll('.dcard')];
   const n = cards.length;
   if (!n) return;
@@ -1180,7 +1288,25 @@ window.addEventListener('resize', () => {
 /* A card big enough to actually read, over everything else. Clicking anywhere
    off the card closes it, as does Escape; taking the card from here is the same
    pick as double-clicking it in the hand. */
+/* position:fixed alone does not stop the page behind it from scrolling on a
+   touch swipe - iOS Safari happily scrolls whatever is under a fixed overlay
+   unless the body itself is pinned. Locking to a fixed position at the
+   negative of the current scroll, then restoring both the position and the
+   scroll offset on close, is the standard fix for that. */
 let P1_ZOOM = null;
+let P1_ZOOM_SCROLLY = 0;
+function p1LockScroll() {
+  P1_ZOOM_SCROLLY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = (-P1_ZOOM_SCROLLY) + 'px';
+  document.body.style.width = '100%';
+}
+function p1UnlockScroll() {
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+  window.scrollTo(0, P1_ZOOM_SCROLLY);
+}
 function p1Zoom(card) {
   if (!card) return;
   p1Unzoom();
@@ -1211,6 +1337,7 @@ function p1Zoom(card) {
   });
   document.body.appendChild(veil);
   P1_ZOOM = veil;
+  p1LockScroll();
 
   if (card.oracle_id) {
     cardData(card.oracle_id, true).then(d => {
@@ -1224,7 +1351,7 @@ function p1Zoom(card) {
   }
 }
 function p1Unzoom() {
-  if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; }
+  if (P1_ZOOM) { P1_ZOOM.remove(); P1_ZOOM = null; p1UnlockScroll(); }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') p1Unzoom(); });
 
@@ -1377,8 +1504,6 @@ function p1SetSeed(text, fixed) {
   P1_SEED_FIXED = !!fixed;
   P1_RAND = p1Rng(p1SeedNumber(P1_SEED));
   p1WriteUrl();
-  const box = $('#p1Seed');
-  if (box && box.value !== P1_SEED) box.value = P1_SEED;
   p1SeatsLock();
 }
 
@@ -1582,14 +1707,14 @@ function p1DrillView() {
       <span class="spacer"></span>
       ${P1_DRILL_SCORE.asked ? `<span class="mini dim">${P1_DRILL_SCORE.right} of
         ${P1_DRILL_SCORE.asked} right${P1_DRILL_SCORE.near ? `, ${P1_DRILL_SCORE.near} close` : ''}</span>` : ''}
-      <label class="seats" title="This situation's name. Give it to someone else and they get the same pack, minus the same cards.">Situation
-        <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
-          value="${esc(d.seed)}"></label>
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
     </div>
 
-    <div class="stacks"><div class="stack"><div class="pile">${
-      d.left.map(c => cardFace(c)).join('')}</div></div></div>
+    ${matchMedia('(max-width:560px)').matches
+      ? `<div class="hand coverflow"><div class="cflabel" hidden></div>
+           <div class="cftrack">${d.left.map(c => cardFace(c)).join('')}</div></div>`
+      : `<div class="stacks"><div class="stack"><div class="pile">${
+           d.left.map(c => cardFace(c)).join('')}</div></div></div>`}
 
     <div class="wants lanepick">${(P1_LANES || []).map(l => `
       <button class="lanechip${answered && l.lane === d.open.lane ? ' istrue' : ''}${
@@ -1617,6 +1742,8 @@ function p1DrillView() {
     el.removeAttribute('data-pick');
     el.onclick = () => p1Zoom(card);
   });
+  const cfTrack = box.querySelector('.cftrack');
+  if (cfTrack) p1WireCoverflow(cfTrack, null);
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;
@@ -1629,10 +1756,6 @@ function p1DrillView() {
     };
   });
   $('#p1DrillDeal').onclick = () => p1DealDrill();
-  $('#p1DrillSeed').onchange = e => {
-    const want = e.target.value.trim();
-    if (want && want.toLowerCase() !== P1_DRILL.seed) p1DealDrill(want);
-  };
 }
 
 /* ── cutting the cube into packs ──
@@ -1856,8 +1979,13 @@ function p1Boosters() {
         P1_CHOSEN.push(i);
         p1WriteUrl();
         p1HidePackTip();
-        // the third choice breaks up the cube, so remember where every pack was
-        const was = P1_CHOSEN.length === 3 ? p1PackRects() : null;
+        // the third choice breaks up the cube, so remember where every pack was.
+        // Flying the other ~33 packs out to their seats at once is the other
+        // half of the reported animation flutter, and a phone gets no real
+        // benefit from watching that many things move at once on a screen
+        // this size - the mobile hand just cuts straight to the three kept.
+        const was = P1_CHOSEN.length === 3 && !matchMedia('(max-width:560px)').matches
+          ? p1PackRects() : null;
         p1Boosters();
         p1DrawHand();
         if (was) p1CollectPacks(was);
@@ -1867,7 +1995,7 @@ function p1Boosters() {
       p1HidePackTip();
       await p1Data();
       if (P1 && P1.error) {
-        $('#p1Hand').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
+        p1ClearHand(`<span class="badge bad">${esc(P1.error)}</span>`);
         return;
       }
       p1StartRound(i);
@@ -2001,7 +2129,14 @@ function p1PeelPack(packNo) {
     setTimeout(() => lit.classList.remove('justopened'), 1400);
   }
   const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
-  if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+  // the peel is a 3D-rotated clone flying free of the flex/scroll layout it
+  // came from - real-phone testing found that combination genuinely unstable
+  // (see the coverflow's own rotateY revert), and most of a coverflow's
+  // fifteen cards are scrolled out of view anyway, so animating each one in
+  // from the pack read as a flurry of things flying toward nowhere visible.
+  // The little glow above is the only opening flourish that survives there.
+  if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches
+      || matchMedia('(max-width:560px)').matches) return 0;
   const r = src.getBoundingClientRect();
   const peel = document.createElement('div');
   peel.className = 'peel';
@@ -2025,6 +2160,12 @@ function p1DealFrom(packNo, after) {
   if (!src || !cards.length) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (!cards[0].animate) return;                 // no Web Animations: leave it be
+  // flying all fifteen cards in from the pack's mouth assumes a fan, where
+  // every card has a real, visible rest position; in a coverflow only one
+  // does and the rest are scrolled out of view, so this was animating most
+  // of a pack toward positions off to the side of the screen - the actual
+  // source of the reported "flutter of artifacts flying around"
+  if (matchMedia('(max-width:560px)').matches) return;
 
   const from = src.getBoundingClientRect();
   const mouth = from.top + 6;                    // the torn seam
@@ -2109,7 +2250,7 @@ function p1NextPack() {
   p1Boosters();
   if (P1_OPENED.size < 3) {
     // a round boundary is a real pause at a table, so it takes a press
-    $('#p1Hand').innerHTML = '';
+    p1ClearHand();
     p1Boosters();
     return;
   }
@@ -2448,7 +2589,7 @@ function p1DraftOver() {
   const decks = p1DeckOptions();
   if ($('#p1WantPanel')) $('#p1WantPanel').hidden = true;
 
-  $('#p1Hand').innerHTML = '';
+  p1ClearHand();
 
   $('#p1Out').innerHTML = `
     <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>
@@ -2848,4 +2989,33 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
     $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
   if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();
   explain();
+});
+
+/* The tab row is gone on every screen size; one fixed hamburger in the
+   usual top-left spot opens this shared panel instead, whatever tab is
+   active, which just clicks the real, hidden tab buttons and the real
+   theme button rather than re-implementing either. Both the button and
+   the panel live outside any tab's own content on purpose, since the
+   signal drill's toolbar is rebuilt from scratch on every redraw and
+   would destroy anything nested inside it. */
+function p1MobMenuToggle(open) {
+  const menu = $('#p1MobMenu');
+  if (menu) menu.hidden = open === undefined ? !menu.hidden : !open;
+}
+$('#p1MobMenuBtn') && ($('#p1MobMenuBtn').onclick = () => p1MobMenuToggle());
+$('#p1MobMenu') && $('#p1MobMenu').querySelectorAll('[data-tab]').forEach(b => {
+  b.onclick = () => {
+    document.querySelector(`.tab[data-tab="${b.dataset.tab}"]`).click();
+    p1MobMenuToggle(false);
+  };
+});
+$('#p1MobMenuTheme') && ($('#p1MobMenuTheme').onclick = () => {
+  $('#themeBtn').click();
+  p1MobMenuToggle(false);
+});
+document.addEventListener('click', e => {
+  const menu = $('#p1MobMenu');
+  if (!menu || menu.hidden) return;
+  if (e.target.closest('#p1MobMenu') || e.target.closest('.mobmenu-btn')) return;
+  p1MobMenuToggle(false);
 });

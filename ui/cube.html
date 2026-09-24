@@ -42,6 +42,21 @@
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
+<!-- The tab row is gone on every screen size; one fixed hamburger in the
+     usual top-left spot opens this shared panel instead, whatever tab is
+     active. Both are position:fixed and live outside any tab's own content
+     on purpose, since the signal drill's toolbar is rebuilt from scratch on
+     every redraw and would destroy anything nested inside it. -->
+<button class="iconbtn mobmenu-btn" id="p1MobMenuBtn" title="Menu"
+  aria-label="Menu" aria-haspopup="true">☰</button>
+<div class="mobmenu" id="p1MobMenu" hidden>
+  <button data-tab="cube">Cube analysis</button>
+  <button data-tab="p1p1">Pack 1 Pick 1</button>
+  <button data-tab="signal">Signal drill</button>
+  <button data-tab="swap">Propose a change</button>
+  <button id="p1MobMenuTheme">Toggle theme</button>
+</div>
+
 <section id="tab-cube">
   <div class="panel">
     <div class="row">
@@ -119,16 +134,13 @@
             <option>9</option><option>10</option><option>11</option><option>12</option>
           </select>
         </label>
-        <label class="seats" title="The draft this link opens. Type someone else’s in to draft their packs.">Seed
-          <input id="p1Seed" size="7" spellcheck="false" autocomplete="off"></label>
-        <button class="iconbtn" id="p1Share" title="Copy a link to this draft"
-          aria-label="Copy a link to this draft">⧉</button>
         <button class="iconbtn" id="p1Restart" title="Start over" aria-label="Start over">⟳</button>
       </div>
       <div class="boosters" id="p1Boosters"></div>
       <div class="hand" id="p1Hand"></div>
       <div class="deckpile" id="p1Deck" role="button" tabindex="0"
            title="Your picks — click to look through them"><b>0</b><span>picks</span></div>
+      <div class="handmini" id="p1HandMini"></div>
     </div>
     <div id="p1Shared" class="panel inner" hidden></div>
     <div id="p1Out"></div>

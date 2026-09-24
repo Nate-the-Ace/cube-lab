@@ -501,6 +501,54 @@ def test_cube_explainers(con):
     check("every parser primitive has its own wording", not generic, str(generic))
 
 
+def test_pick_scores(con):
+    print("pick scores")
+    import cube as cube_mod
+    from itertools import combinations
+    cubes = cube_mod.list_cubes(con)
+    if not cubes:
+        print("  (no cubes imported, skipped)")
+        return
+    cid = cubes[0]["id"]
+    d = cube_mod.pick_scores(con, cid)
+    cards = d.get("cards") or []
+    check("pick scores come back", bool(cards))
+    check("results are sorted by score",
+          all(cards[i]["score"] >= cards[i + 1]["score"] for i in range(len(cards) - 1)))
+
+    lanes, baseline = d["lane_pct"], d["lane_baseline"]
+    tri = [c for c in cards if len(c["color_identity"]) == 3]
+    if tri and lanes:
+        # lanes only has two-colour keys, so a naive "is my whole identity a
+        # lane" check can never match a three-colour card - it has to be
+        # scored on the best TWO of its three colours instead, the same way
+        # a mono card is scored on the best of every lane its one colour
+        # touches. If this regresses, every one of them goes back to lane 0,
+        # which is what sent a tri-land under an off-colour removal spell in
+        # a two-card pack despite lane carrying 2.0 of the score's weight.
+        check("a three-colour card is not silently scored on zero lanes",
+              any(c["lane"] != 0 for c in tri),
+              str([c["name"] for c in tri[:5]]))
+
+        def expected_lane(ci):
+            subs = {"".join(p) for p in combinations(ci, 2)}
+            fits = [pct for pair, pct in lanes.items() if pair in subs]
+            return round(max(fits) - baseline, 1) if fits else 0.0
+
+        mismatched = [c["name"] for c in tri if c["lane"] != expected_lane(c["color_identity"])]
+        check("a three-colour card's lane is the best of its own three sub-pairs",
+              not mismatched, str(mismatched[:5]))
+
+    # the same subset check applies to two-colour cards too, just against
+    # their one exact pair rather than a choice of three
+    two = [c for c in cards if len(c["color_identity"]) == 2 and c["color_identity"] in lanes]
+    if two:
+        mismatched = [c["name"] for c in two
+                      if c["lane"] != round(lanes[c["color_identity"]] - baseline, 1)]
+        check("a two-colour card's lane is its own pair's measured score",
+              not mismatched, str(mismatched[:5]))
+
+
 def test_targeting(con):
     print("ability targeting")
 
@@ -1167,8 +1215,6 @@ def test_signal_drill():
           "function p1LaneStrength" in js and "q.top + 0.35 * (q.sum - q.top)" in js)
     check("the drill draws from its own stream, so it cannot disturb a draft",
           "p1Rng(p1SeedNumber('drill:' + seed))" in js)
-    check("a situation can be handed to someone else by name",
-          'id="p1DrillSeed"' in js)
     check("answers are scored, including the half-right ones",
           "P1_DRILL_SCORE" in js and "some(x => P1_DRILL.open.colors.includes(x))" in js)
 
@@ -1194,9 +1240,8 @@ def test_shared_drafts():
     # the seat count changes how the sequence is consumed, so it travels with it
     check("a shared link carries its seat count",
           "q.set('seats', String(p1Wheel().players));" in js)
-    check("someone else's seed locks the seats it was cut for",
+    check("a shared link's seed locks the seats it was cut for",
           "P1_CHOSEN.length > 0 || P1_SEED_FIXED" in js
-          and "p1SetSeed(want, true);" in js
           and "if (link.seats) $('#p1Players').value" in html)
     # the first thing a draft does is write the URL, which used to wipe the
     # picks the link arrived with before anything read them
@@ -1206,6 +1251,13 @@ def test_shared_drafts():
           "(P1.cards || []).findIndex(c => c.oracle_id === oid)" in js)
     check("a shared draft shows what the sender took",
           "function p1SharedPicks" in js and 'id="p1Shared"' in html)
+    # seeding stayed as the internal mechanism a shared link relies on (above),
+    # but its own UI - type one in, copy a link, name a drill situation - was
+    # never used and came out entirely
+    check("no seed input or share-link button remain in pack 1 pick 1",
+          'id="p1Seed"' not in html and 'id="p1Share"' not in html)
+    check("the drill lost its situation-by-name input too",
+          'id="p1DrillSeed"' not in js)
     check("and it sits beside your own draft, not over it",
           "p1ShareClear" in js)
 
@@ -1307,6 +1359,118 @@ def test_hand_sort():
     # card carries its own z-index, one per card in the pack
     check("a raised run is above every other card",
           ".hand.fan.grouped .handgroup.up{z-index:50}" in css)
+
+
+def test_mobile_coverflow():
+    print("mobile coverflow")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+    css = open(os.path.join(here, "ui", "shared.css")).read()
+    html = open(os.path.join(here, "ui", "cube.html")).read()
+
+    check("the coverflow track scroll-snaps one card at a time",
+          "scroll-snap-type:x mandatory" in css and ".cftrack{display:flex;overflow-x:auto" in css)
+    check("the coverflow track is a real hit target, not inert like its .hand ancestor",
+          "min-width:0;pointer-events:auto;" in css)
+    check("a coverflow card has three depth states",
+          ".cftrack .dcard.focused{" in css and ".cftrack .dcard.near{" in css
+          and ".cftrack .dcard:not(.focused):not(.near){" in css)
+    check("coverflow cards get the same touch handling the fan's already have",
+          ".hand.fan .dcard,.cftrack .dcard{touch-action:pan-x}" in css)
+    check("the deckpile gets room on a phone-width table",
+          ".tabletop{padding-bottom:90px}" in css)
+    check("a hard flick can't skip past the card you were aiming for",
+          "scroll-snap-stop:always" in css)
+    check("a fresh coverflow always opens on its first card",
+          "track.scrollLeft = 0;" in js)
+    check("the reset survives a layout shift landing right after it",
+          "if (track.scrollLeft !== 0) track.scrollLeft = 0;" in js)
+    check("a deferred update on an already-replaced track doesn't crash",
+          "if (!track.isConnected) return;" in js)
+    check("scroll-anchoring can't quietly move the coverflow off its own reset",
+          "overflow-anchor:none" in css)
+    check("the pack's foil-peel skips the phone, where it read as visual flutter",
+          "matchMedia('(max-width:560px)').matches) return 0;" in js)
+    check("cards no longer fly in from the pack on a coverflow hand",
+          "source of the reported \"flutter of artifacts flying around\"" in js)
+    check("the 33-pack scatter to seats is skipped on a phone too",
+          "P1_CHOSEN.length === 3 && !matchMedia('(max-width:560px)').matches" in js)
+    check("picking a card in a coverflow doesn't fly the rest off a screen they aren't on",
+          "if (!hand.classList.contains('coverflow')) {" in js
+          and "hand.querySelectorAll('.dcard').forEach(other => {" in js)
+    check("the zoom popup locks the page behind it instead of letting it scroll",
+          "function p1LockScroll() {" in js and "function p1UnlockScroll() {" in js
+          and "p1LockScroll();" in js and "p1UnlockScroll();" in js)
+
+    check("the coverflow helper exists and is generic over its track",
+          "function p1WireCoverflow(track, groups)" in js)
+    check("the coverflow helper is wired once, not re-listened on every render",
+          "if (!track.dataset.cfWired) {" in js)
+
+    check("pack 1 pick 1 switches to a coverflow under the mobile breakpoint",
+          "const mobile = matchMedia('(max-width:560px)').matches;" in js
+          and "hand.className = 'hand coverflow';" in js)
+    check("the mobile branch renders flat cards, not boxed runs",
+          "const track = hand.querySelector('.cftrack');" in js
+          and "p1WireCoverflow(track, null);" in js)
+    mobile_branch = js.split("const mobile = matchMedia")[1].split("  } else {")[0]
+    check("the mobile branch never wraps cards in a handgroup",
+          ".handgroup" not in mobile_branch)
+    check("the signal drill's pack coverflows too, browse-only",
+          "if (cfTrack) p1WireCoverflow(cfTrack, null);" in js)
+
+    check("a thumbnail strip fills the dead space beside the deckpile",
+          '<div class="handmini" id="p1HandMini"></div>' in html
+          and ".tabletop:has(.hand.coverflow) .handmini{" in css)
+    check("one shared helper resets the hand and drops the mini strip's last thumbnail",
+          "function p1ClearHand(html) {" in js
+          and "hand.className = 'hand';" in js
+          and "if (mini) mini.innerHTML = '';" in js)
+    check("every non-pack #p1Hand message uses that helper, not its own inline reset",
+          js.count("p1ClearHand(") == 5)  # the definition, plus 4 call sites
+    check("a thumbnail jumps the coverflow to that card rather than picking it",
+          "img.onclick = () => track.children[i].scrollIntoView(" in js)
+
+    check("the tab row gives way to a hamburger on every screen size",
+          ".tabs[role=tablist]{display:none}" in css)
+    check("the title bar still only drops out at mobile widths",
+          "@media (max-width:560px){\n  header{display:none}" in css)
+    check("the menu's hidden attribute isn't lost to a specificity tie",
+          ".mobmenu[hidden]{display:none}" in css)
+    check("one fixed hamburger sits top-left, outside either tab's content",
+          'id="p1MobMenuBtn"' in html
+          and html.count('id="p1MobMenuBtn"') == 1
+          and html.count('id="p1DrillMobMenuBtn"') == 0)
+    check("the menu reaches all four tabs, not just the two this branch ships",
+          all('data-tab="%s"' % t in html for t in ('cube', 'p1p1', 'signal', 'swap')))
+    check("the hamburger and its panel are pinned to the same top-left corner",
+          ".mobmenu-btn{display:inline-flex;position:fixed;top:14px;left:14px;" in css
+          and ".mobmenu{position:fixed;top:14px;left:14px;" in css)
+    check("the shared menu switches tabs by clicking the real tab button",
+          "document.querySelector(`.tab[data-tab=\"${b.dataset.tab}\"]`).click();" in js)
+    check("the shared menu's theme option clicks the real theme button",
+          "$('#themeBtn').click();" in js)
+
+    check("the fan's own layout math steps aside for a coverflow hand",
+          "if (hand.classList.contains('coverflow')) return;" in js)
+
+
+def test_pick_recommendation():
+    print("pick recommendation")
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "ui", "cube.js")).read()
+
+    check("the live recommendation carries a colour-fit term, not just synergy",
+          "function p1ColorFit(card)" in js
+          and "const p1Total = c => c.score + 0.35 * p1DeckFit(c) + 0.45 * p1ColorFit(c);" in js)
+    check("colour fit stays neutral with an empty pool, same as deck fit",
+          "if (!P1_TAKEN.length) return 0;" in js)
+    check("a land bringing in a colour you don't have yet still counts as fixing",
+          "return card.is_land ? known * 12 - 2 : known * 6 - foreign * 16;" in js)
+    check("a non-land asking for a third colour is penalised, not just unrewarded",
+          "known * 6 - foreign * 16" in js)
+    check("the crown's tooltip explains the colour-fit signal when it applies",
+          "colorFit > 0 ? ', and how well it fits your colours' : ''" in js)
 
 
 def test_english_faces():
@@ -1564,6 +1728,7 @@ def main():
     test_sets(con)
     test_wildcards_and_kinds(con)
     test_cube_explainers(con)
+    test_pick_scores(con)
     test_cube_synergies(con)
     test_cube_opportunities(con)
     test_cube_balance_and_swaps(con)
@@ -1579,9 +1744,11 @@ def main():
     test_english_faces()
     test_pack_art()
     test_hand_sort()
+    test_pick_recommendation()
     test_shared_drafts()
     test_deck_build()
     test_signal_drill()
+    test_mobile_coverflow()
     test_color_names()
     test_draft_math()
     test_cube_parsing()
