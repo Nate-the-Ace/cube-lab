@@ -38,6 +38,7 @@
 <div class="tabs" role="tablist">
   <button class="tab" role="tab" data-tab="cube" aria-selected="false">Cube analysis</button>
   <button class="tab" role="tab" data-tab="p1p1" aria-selected="true">Pack 1 Pick 1</button>
+  <button class="tab" role="tab" data-tab="grid" aria-selected="false">Card grid</button>
   <button class="tab" role="tab" data-tab="signal" aria-selected="false">Signal drill</button>
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
@@ -52,6 +53,7 @@
 <div class="mobmenu" id="p1MobMenu" hidden>
   <button data-tab="cube">Cube analysis</button>
   <button data-tab="p1p1">Pack 1 Pick 1</button>
+  <button data-tab="grid">Card grid</button>
   <button data-tab="signal">Signal drill</button>
   <button data-tab="swap">Propose a change</button>
   <button id="p1MobMenuTheme">Toggle theme</button>
@@ -151,6 +153,23 @@
     <div class="row"><strong>Most wanted</strong>
       <span class="mini dim">cards you have not seen yet</span></div>
     <div id="p1Watch"><span class="dim">Take a card and this fills with what to watch for.</span></div>
+  </div>
+</section>
+
+<!-- Every card in the cube, face up. Filters and sorts are buttons, not
+     dropdowns; hovering a card (or tapping it) shows its place in the cube. -->
+<section id="tab-grid" class="hidden">
+  <div class="panel">
+    <div class="gridtools">
+      <input id="gridQ" type="search" placeholder="name, type or artist" aria-label="Search the cube">
+      <div class="gridpips" id="gridPips"></div>
+      <span class="spacer"></span>
+      <span class="dim" id="gridCount"></span>
+    </div>
+    <div class="gridchips" id="gridRoles"></div>
+    <div class="gridchips" id="gridMv"></div>
+    <div class="gridchips" id="gridSort"></div>
+    <div class="cubegrid" id="gridOut"><span class="dim">Loading the cube…</span></div>
   </div>
 </section>
 

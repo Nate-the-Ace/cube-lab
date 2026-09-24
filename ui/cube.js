@@ -1007,7 +1007,8 @@ function CARD_NOTE(d) {
   const lines = card
     ? p1WhyLines(card)
     : [['', `Not in the cube${d.type_line ? ' \u2014 ' + esc(d.type_line.split(' \u2014')[0]) : ''}.`]];
-  return `<div class="whybox">${lines.map(([tone, text]) =>
+  return (card && gridShown() ? gridStats(card) : '')
+    + `<div class="whybox">${lines.map(([tone, text]) =>
     `<div class="whyline ${tone}">${text}</div>`).join('')}</div>`;
 }
 
@@ -1318,9 +1319,10 @@ function p1Zoom(card) {
         ? `<img src="${esc(card.image)}" alt="${esc(card.name)}">`
         : `<div class="zname">${esc(card.name)}</div>`}</div>
       ${card.image ? '' : `<div class="zname">${esc(card.name)}</div>`}
+      ${gridShown() ? gridStats(card, true) : ''}
       <div class="whybox zwhy">${p1WhyLines(card).map(([tone, text]) =>
         `<div class="whyline ${tone}">${text}</div>`).join('')}</div>
-      ${P1_PACK.some(c => c.oracle_id === card.oracle_id)
+      ${!gridShown() && P1_PACK.some(c => c.oracle_id === card.oracle_id)
         ? `<button class="ztake">Take this card</button>
            <div class="zhint">or double-click it in the hand \u00b7 Esc to close</div>`
         : '<div class="zhint">Esc or click away to close</div>'}
@@ -2983,11 +2985,189 @@ $('#swapRemove').onkeydown = e => { if (e.key === 'Enter') $('#swapRemoveGo').cl
 attachTypeahead('#swapAdd', 'card', () => {});
 attachTypeahead('#swapRemove', 'card', () => {});
 
+/* ── the card grid ──
+   The whole cube face up. Every card carries the same numbers the draft table
+   ranks a pack by, but ranked against all 540 instead of fifteen - so the
+   hover (or a tap, on a phone) says where it stands in the cube as a whole.
+   Filters and sorts are buttons: nothing here hides behind a dropdown. */
+const GRID = {q: '', pips: new Set(), roles: new Set(), mv: new Set(), sort: 'rank', dir: 1};
+let GRID_RANK = null;          // oracle_id -> {all, n, col, colN, colName, role, roleN}
+
+const gridShown = () => !!$('#tab-grid') && !$('#tab-grid').classList.contains('hidden');
+const gridColKey = c => {
+  const ci = c.color_identity || '';
+  return c.is_land ? 'L' : !ci ? 'C' : ci.length > 1 ? 'M' : ci;
+};
+const GRID_COL_NAME = {W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green',
+                       C: 'colourless', M: 'multicolour', L: 'lands'};
+const gridMvKey = c => c.is_land ? null : Math.min(Math.floor(c.cmc || 0), 6);
+
+function gridRanks() {
+  if (GRID_RANK) return GRID_RANK;
+  const cards = (P1 && P1.cards) || [];
+  const byScore = (a, b) => b.score - a.score || a.name.localeCompare(b.name);
+  const place = (list, key) => {
+    const out = {};
+    list.slice().sort(byScore).forEach((c, i) => out[c.oracle_id] = [i + 1, list.length, key]);
+    return out;
+  };
+  const all = place(cards);
+  const groups = (keyOf) => {
+    const g = {};
+    cards.forEach(c => (g[keyOf(c)] = g[keyOf(c)] || []).push(c));
+    const out = {};
+    Object.entries(g).forEach(([k, list]) => Object.assign(out, place(list, k)));
+    return out;
+  };
+  const col = groups(gridColKey), role = groups(c => c.role || 'Other');
+  const pull = cards.slice().sort((a, b) => b.synergy - a.synergy);
+  GRID_RANK = {};
+  cards.forEach(c => GRID_RANK[c.oracle_id] = {
+    all: all[c.oracle_id], col: col[c.oracle_id], role: role[c.oracle_id],
+    pull: pull.findIndex(x => x.oracle_id === c.oracle_id) + 1,
+  });
+  return GRID_RANK;
+}
+
+// The block the hover and the zoom lead with: rank first, then the four
+// numbers the draft table's "How the pack in your hand ranks" shows.
+function gridStats(card, zoom) {
+  const r = gridRanks()[card.oracle_id];
+  if (!r) return '';
+  const [n, of] = r.all, [cn, cof, ck] = r.col, [rn, rof, rk] = r.role;
+  const cell = (label, v, sub) =>
+    `<div><b>${v}${sub ? ` <i>${sub}</i>` : ''}</b><span>${label}</span></div>`;
+  return `<div class="gridstats${zoom ? ' z' : ''}">
+    <div class="gsrank"><b>#${n}</b>of ${of} in the cube</div>
+    <div class="gssub">#${cn} of ${cof} ${esc(GRID_COL_NAME[ck] || ck)} ·
+      #${rn} of ${rof} ${esc(rk.toLowerCase())}</div>
+    <div class="gsnums">
+      ${cell('Pick score', card.score.toFixed(1))}
+      ${cell('Lane record', p1Sign(card.lane))}
+      ${cell('Keeps options open', card.open.toFixed(0))}
+      ${cell('Cube pull', card.synergy.toFixed(0), `#${r.pull} of ${of}`)}
+    </div>
+  </div>`;
+}
+
+const GRID_SORTS = {
+  rank:   {label: 'Cube rank', by: (a, b) => b.score - a.score},
+  name:   {label: 'Name', by: (a, b) => a.name.localeCompare(b.name)},
+  colour: {label: 'Colour', by: (a, b) => ciRank(a) - ciRank(b) || (a.cmc || 0) - (b.cmc || 0)},
+  mv:     {label: 'Mana value', by: (a, b) => (a.cmc || 0) - (b.cmc || 0)},
+  pull:   {label: 'Cube pull', by: (a, b) => b.synergy - a.synergy},
+  lane:   {label: 'Lane record', by: (a, b) => b.lane - a.lane},
+  open:   {label: 'Keeps options open', by: (a, b) => b.open - a.open},
+  price:  {label: 'Price', by: (a, b) => (b.price_usd || 0) - (a.price_usd || 0)},
+};
+
+function gridChips(sel, items, isOn, onClick) {
+  const box = $(sel);
+  box.innerHTML = items.map(([k, label]) =>
+    `<button class="gchip" data-k="${esc(k)}" aria-pressed="${isOn(k)}">${label}</button>`).join('');
+  box.querySelectorAll('.gchip').forEach(b => b.onclick = () => onClick(b.dataset.k));
+}
+const gridToggle = (set, k) => set.has(k) ? set.delete(k) : set.add(k);
+
+function gridTools() {
+  const cards = (P1 && P1.cards) || [];
+  gridChips('#gridPips', ['W', 'U', 'B', 'R', 'G', 'C', 'M', 'L'].map(k =>
+      [k, k === 'M' ? 'Gold' : k === 'L' ? 'Land' : k]),
+    k => GRID.pips.has(k), k => { gridToggle(GRID.pips, k); gridTools(); gridDraw(); });
+  $('#gridPips').querySelectorAll('.gchip').forEach(b => {
+    b.classList.add('pip', b.dataset.k);
+    b.title = 'Only ' + GRID_COL_NAME[b.dataset.k];
+  });
+  const n = {};
+  cards.forEach(c => { const r = c.role || 'Other'; n[r] = (n[r] || 0) + 1; });
+  gridChips('#gridRoles', Object.keys(n).sort().map(r => [r, `${esc(r)} <small>${n[r]}</small>`]),
+    k => GRID.roles.has(k), k => { gridToggle(GRID.roles, k); gridTools(); gridDraw(); });
+  gridChips('#gridMv', [0, 1, 2, 3, 4, 5, 6].map(v => [String(v), v === 6 ? 'MV 6+' : 'MV ' + v]),
+    k => GRID.mv.has(k), k => { gridToggle(GRID.mv, k); gridTools(); gridDraw(); });
+  gridChips('#gridSort', Object.entries(GRID_SORTS).map(([k, s]) =>
+      [k, esc(s.label) + (GRID.sort === k ? (GRID.dir > 0 ? ' ↓' : ' ↑') : '')]),
+    k => GRID.sort === k,
+    k => {
+      // the second press on the same sort flips it
+      if (GRID.sort === k) GRID.dir = -GRID.dir; else { GRID.sort = k; GRID.dir = 1; }
+      gridTools(); gridDraw();
+    });
+  $('#gridSort').insertAdjacentHTML('afterbegin', '<span class="dim">Sort</span>');
+  const any = GRID.q || GRID.pips.size || GRID.roles.size || GRID.mv.size;
+  if (any) $('#gridSort').insertAdjacentHTML('beforeend',
+    '<button class="gchip clear" id="gridClear">Clear filters</button>');
+  if ($('#gridClear')) $('#gridClear').onclick = () => {
+    GRID.q = ''; $('#gridQ').value = '';
+    GRID.pips.clear(); GRID.roles.clear(); GRID.mv.clear();
+    gridTools(); gridDraw();
+  };
+}
+
+function gridMatch(c) {
+  if (GRID.pips.size) {
+    const k = gridColKey(c), ci = c.color_identity || '';
+    // a colour button shows every card that uses that colour, gold included
+    const hit = GRID.pips.has(k) || [...ci].some(x => GRID.pips.has(x));
+    if (!hit) return false;
+  }
+  if (GRID.roles.size && !GRID.roles.has(c.role || 'Other')) return false;
+  if (GRID.mv.size && !GRID.mv.has(String(gridMvKey(c)))) return false;
+  if (GRID.q) {
+    const hay = `${c.name} ${c.type_line || ''} ${c.artist || ''}`.toLowerCase();
+    if (!GRID.q.split(/\s+/).every(w => hay.includes(w))) return false;
+  }
+  return true;
+}
+
+function gridDraw() {
+  const cards = (P1 && P1.cards) || [];
+  if (!cards.length) return;
+  const R = gridRanks(), s = GRID_SORTS[GRID.sort];
+  const list = cards.filter(gridMatch).sort((a, b) =>
+    GRID.dir * s.by(a, b) || b.score - a.score || a.name.localeCompare(b.name));
+  $('#gridCount').textContent = list.length === cards.length
+    ? `${cards.length} cards` : `${list.length} of ${cards.length} cards`;
+  $('#gridOut').innerHTML = list.length ? list.map(c =>
+    `<div class="gcell">${cardFace(c)}<span class="grank">#${R[c.oracle_id].all[0]}</span></div>`
+  ).join('') : '<span class="dim">Nothing in the cube matches.</span>';
+}
+
+let GRID_WIRED = false;
+function gridOpen() {
+  p1Data().then(() => {
+    if (!GRID_WIRED) {
+      GRID_WIRED = true;
+      let t = null;
+      $('#gridQ').oninput = () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          GRID.q = $('#gridQ').value.trim().toLowerCase();
+          gridTools(); gridDraw();
+        }, 200);
+      };
+      // a click (or a tap) opens the card large with its numbers
+      $('#gridOut').addEventListener('click', e => {
+        const el = e.target.closest('[data-oracle]');
+        if (el) p1Zoom(p1Card(el.dataset.oracle));
+      });
+      $('#gridOut').addEventListener('keydown', e => {
+        const el = e.target.closest('[data-oracle]');
+        if (el && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault(); p1Zoom(p1Card(el.dataset.oracle));
+        }
+      });
+      gridTools();
+    }
+    gridDraw();
+  }).catch(() => { $('#gridOut').innerHTML = '<span class="dim">No cube loaded.</span>'; });
+}
+
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === b));
-  ['cube', 'p1p1', 'signal', 'swap'].forEach(t =>
+  ['cube', 'p1p1', 'grid', 'signal', 'swap'].forEach(t =>
     $('#tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
   if (b.dataset.tab === 'signal' && !P1_DRILL) p1DealDrill();
+  if (b.dataset.tab === 'grid') gridOpen();
   explain();
 });
 

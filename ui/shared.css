@@ -777,3 +777,43 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 /* a seat count that is no longer yours to change */
 .seats.locked { opacity: .45; }
 .seats.locked select { cursor: not-allowed; }
+
+/* ── card grid: the whole cube face up ── */
+.gridtools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.gridtools input[type=search]{min-width:220px;flex:0 1 280px}
+.gridpips,.gridchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.gridchips{margin-top:8px}
+.gchip{padding:4px 10px;border-radius:999px;font-size:12px;background:var(--panel-2)}
+.gchip small{color:var(--ink-dim);font-family:var(--mono);margin-left:2px}
+.gchip:not(.pip)[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.gchip[aria-pressed="true"] small{color:inherit;opacity:.7}
+.gchip.clear{border-style:dashed}
+.gridpips .gchip.pip{width:auto;height:auto;min-width:32px;border-radius:999px;padding:5px 10px;outline:0}
+.gridpips .gchip.pip[aria-pressed="true"]{background:var(--panel);border-color:var(--accent);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+.cubegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px;margin-top:14px}
+.gcell{position:relative}
+.gcell .dcard{width:100%;cursor:zoom-in}
+.gcell .dcard:hover{transform:translateY(-4px) scale(1.03)}
+.grank{position:absolute;bottom:6px;left:6px;z-index:4;pointer-events:none;font:600 11px var(--mono);
+  padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.72);color:#fff}
+@media (max-width:600px){
+  .cubegrid{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+  .gridtools input[type=search]{min-width:0;flex:1 1 100%}
+}
+
+/* the card's place in the cube, leading the hover and the zoom */
+.gridstats{margin:8px 0 4px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)}
+.gsrank{font-size:13px;color:var(--ink-dim)}
+.gsrank b{font:700 24px var(--mono);color:var(--accent);margin-right:4px}
+.gssub{font-size:12px;color:var(--ink-dim);margin-top:1px}
+.gsnums{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}
+.gsnums div{display:flex;flex-direction:column}
+.gsnums b{font:600 15px var(--mono)}
+.gsnums span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim)}
+.gsnums i{font-style:normal;font-size:10px;font-weight:400;color:var(--ink-dim)}
+.gridstats.z{width:min(92vw,460px);box-sizing:border-box;background:rgba(0,0,0,.55);border-color:rgba(255,255,255,.18)}
+.gridstats.z .gsrank,.gridstats.z .gssub,.gridstats.z .gsnums span,.gridstats.z .gsnums i{color:rgba(255,255,255,.7)}
+.gridstats.z .gsnums b{color:#fff}
+.gridstats.z .gsnums{grid-template-columns:repeat(4,1fr)}
+@media (max-width:600px){.gridstats.z .gsnums{grid-template-columns:1fr 1fr}}
