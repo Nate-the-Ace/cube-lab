@@ -36,8 +36,8 @@
 
 <main>
 <div class="tabs" role="tablist">
-  <button class="tab" role="tab" data-tab="cube" aria-selected="true">Cube analysis</button>
-  <button class="tab" role="tab" data-tab="p1p1" aria-selected="false">Pack 1 Pick 1</button>
+  <button class="tab" role="tab" data-tab="cube" aria-selected="false">Cube analysis</button>
+  <button class="tab" role="tab" data-tab="p1p1" aria-selected="true">Pack 1 Pick 1</button>
   <button class="tab" role="tab" data-tab="signal" aria-selected="false">Signal drill</button>
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
@@ -57,7 +57,7 @@
   <button id="p1MobMenuTheme">Toggle theme</button>
 </div>
 
-<section id="tab-cube">
+<section id="tab-cube" class="hidden">
   <div class="panel">
     <div class="row">
       <label>Your cubes
@@ -108,7 +108,7 @@
 
 <!-- ───────────── brew ───────────── -->
 
-<section id="tab-p1p1" class="hidden">
+<section id="tab-p1p1">
   <div class="panel">
     <div class="tabletop" id="p1Table">
       <span class="passline l" id="p1PassL"></span>
