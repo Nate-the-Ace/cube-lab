@@ -1374,12 +1374,12 @@ def test_mobile_coverflow():
     check("a thumbnail strip fills the dead space beside the deckpile",
           '<div class="handmini" id="p1HandMini"></div>' in html
           and ".tabletop:has(.hand.coverflow) .handmini{" in css)
-    check("between packs, the mini strip drops its last thumbnail rather than keep it",
-          "hand.className = 'hand';" in js
+    check("one shared helper resets the hand and drops the mini strip's last thumbnail",
+          "function p1ClearHand(html) {" in js
+          and "hand.className = 'hand';" in js
           and "if (mini) mini.innerHTML = '';" in js)
-    check("the round-boundary pause does its own cleanup, since it bypasses p1DrawHand",
-          "// a round boundary is a real pause at a table, so it takes a press.\n"
-          "    // This bypasses p1DrawHand entirely" in js)
+    check("every non-pack #p1Hand message uses that helper, not its own inline reset",
+          js.count("p1ClearHand(") == 5)  # the definition, plus 4 call sites
     check("a thumbnail jumps the coverflow to that card rather than picking it",
           "img.onclick = () => track.children[i].scrollIntoView(" in js)
 

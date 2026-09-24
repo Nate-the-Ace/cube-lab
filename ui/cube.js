@@ -669,25 +669,34 @@ function p1WireRuns(hand) {
   });
 }
 
+/* Every place that shows #p1Hand something other than a real pack - here,
+   the round-boundary pause in p1NextPack, p1DraftOver, and a data-error
+   message - bypasses p1DrawHand's own rendering, so each is responsible for
+   the same cleanup: drop the "coverflow"/"fan" class the mini strip's CSS is
+   gated on (.tabletop:has(.hand.coverflow) .handmini in shared.css) and
+   empty the strip itself, or its last thumbnail lingers on screen with
+   nothing behind it. Missing this in three different places before it was
+   pulled out here is exactly why it's a function now. */
+function p1ClearHand(html) {
+  const hand = $('#p1Hand');
+  hand.className = 'hand';
+  hand.innerHTML = html || '';
+  const mini = $('#p1HandMini');
+  if (mini) mini.innerHTML = '';
+  return hand;
+}
+
 function p1DrawHand() {
   const hand = $('#p1Hand');
   const sortWrap = $('#p1SortWrap');
   if (sortWrap) sortWrap.hidden = !P1_PACK.length;
   if (!P1_PACK.length) {
     const left = 3 - P1_CHOSEN.length;
-    hand.className = 'hand';
-    hand.innerHTML = `<span class="dim">${
+    p1ClearHand(`<span class="dim">${
       !P1_ALL.length ? 'Cutting the cube into packs\u2026'
       : left > 0
         ? `The cube, cut into ${P1_ALL.length} packs. Choose <b>${left}</b> more.`
-        : ''}</span>`;
-    // the mini strip is gated on #p1Hand still carrying the coverflow class
-    // (see .tabletop:has(.hand.coverflow) .handmini in shared.css) - between
-    // packs there is no pack for it to summarise, but the class reset above
-    // wasn't enough on its own to hide a leftover thumbnail from the pack
-    // that just finished, since nothing here ever emptied its own markup
-    const mini = $('#p1HandMini');
-    if (mini) mini.innerHTML = '';
+        : ''}</span>`);
     return;
   }
   p1SyncSortOptions();
@@ -1956,7 +1965,7 @@ function p1Boosters() {
       p1HidePackTip();
       await p1Data();
       if (P1 && P1.error) {
-        $('#p1Hand').innerHTML = `<span class="badge bad">${esc(P1.error)}</span>`;
+        p1ClearHand(`<span class="badge bad">${esc(P1.error)}</span>`);
         return;
       }
       p1StartRound(i);
@@ -2210,17 +2219,8 @@ function p1NextPack() {
   P1_PACK = [];
   p1Boosters();
   if (P1_OPENED.size < 3) {
-    // a round boundary is a real pause at a table, so it takes a press.
-    // This bypasses p1DrawHand entirely, so it also has to do that
-    // function's own between-packs cleanup: drop the stale "coverflow"
-    // class (the mini strip's CSS is gated on #p1Hand still carrying it)
-    // and empty the mini strip itself, or its last thumbnail lingers
-    // right through the pause.
-    const hand = $('#p1Hand');
-    hand.className = 'hand';
-    hand.innerHTML = '';
-    const mini = $('#p1HandMini');
-    if (mini) mini.innerHTML = '';
+    // a round boundary is a real pause at a table, so it takes a press
+    p1ClearHand();
     p1Boosters();
     return;
   }
@@ -2559,7 +2559,7 @@ function p1DraftOver() {
   const decks = p1DeckOptions();
   if ($('#p1WantPanel')) $('#p1WantPanel').hidden = true;
 
-  $('#p1Hand').innerHTML = '';
+  p1ClearHand();
 
   $('#p1Out').innerHTML = `
     <h3 class="sec">Your pool <span class="count">${P1_TAKEN.length}</span></h3>
