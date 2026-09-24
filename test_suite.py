@@ -1167,8 +1167,6 @@ def test_signal_drill():
           "function p1LaneStrength" in js and "q.top + 0.35 * (q.sum - q.top)" in js)
     check("the drill draws from its own stream, so it cannot disturb a draft",
           "p1Rng(p1SeedNumber('drill:' + seed))" in js)
-    check("a situation can be handed to someone else by name",
-          'id="p1DrillSeed"' in js)
     check("answers are scored, including the half-right ones",
           "P1_DRILL_SCORE" in js and "some(x => P1_DRILL.open.colors.includes(x))" in js)
 
@@ -1194,9 +1192,8 @@ def test_shared_drafts():
     # the seat count changes how the sequence is consumed, so it travels with it
     check("a shared link carries its seat count",
           "q.set('seats', String(p1Wheel().players));" in js)
-    check("someone else's seed locks the seats it was cut for",
+    check("a shared link's seed locks the seats it was cut for",
           "P1_CHOSEN.length > 0 || P1_SEED_FIXED" in js
-          and "p1SetSeed(want, true);" in js
           and "if (link.seats) $('#p1Players').value" in html)
     # the first thing a draft does is write the URL, which used to wipe the
     # picks the link arrived with before anything read them
@@ -1206,6 +1203,13 @@ def test_shared_drafts():
           "(P1.cards || []).findIndex(c => c.oracle_id === oid)" in js)
     check("a shared draft shows what the sender took",
           "function p1SharedPicks" in js and 'id="p1Shared"' in html)
+    # seeding stayed as the internal mechanism a shared link relies on (above),
+    # but its own UI - type one in, copy a link, name a drill situation - was
+    # never used and came out entirely
+    check("no seed input or share-link button remain in pack 1 pick 1",
+          'id="p1Seed"' not in html and 'id="p1Share"' not in html)
+    check("the drill lost its situation-by-name input too",
+          'id="p1DrillSeed"' not in js)
     check("and it sits beside your own draft, not over it",
           "p1ShareClear" in js)
 
@@ -1361,17 +1365,21 @@ def test_mobile_coverflow():
     check("a thumbnail jumps the coverflow to that card rather than picking it",
           "img.onclick = () => track.children[i].scrollIntoView(" in js)
 
-    check("the header and tab row give way to a hamburger on a phone",
-          "header,.tabs[role=tablist]{display:none}" in css)
+    check("the tab row gives way to a hamburger on every screen size",
+          ".tabs[role=tablist]{display:none}" in css)
+    check("the title bar still only drops out at mobile widths",
+          "@media (max-width:560px){\n  header{display:none}" in css)
     check("the menu's hidden attribute isn't lost to a specificity tie",
           ".mobmenu[hidden]{display:none}" in css)
-    check("a hamburger sits in pack 1 pick 1's own toolbar",
-          'id="p1MobMenuBtn"' in html)
-    check("the drill's hamburger sits in its static intro row, above #p1Drill",
-          'id="p1DrillMobMenuBtn"' in html
-          and html.index('id="p1DrillMobMenuBtn"') < html.index('id="p1Drill"'))
-    check("both hamburgers wire up once, not re-found on every redraw",
-          "$('#p1DrillMobMenuBtn') && ($('#p1DrillMobMenuBtn').onclick = () => p1MobMenuToggle());" in js)
+    check("one fixed hamburger sits top-left, outside either tab's content",
+          'id="p1MobMenuBtn"' in html
+          and html.count('id="p1MobMenuBtn"') == 1
+          and html.count('id="p1DrillMobMenuBtn"') == 0)
+    check("the menu reaches all four tabs, not just the two this branch ships",
+          all('data-tab="%s"' % t in html for t in ('cube', 'p1p1', 'signal', 'swap')))
+    check("the hamburger and its panel are pinned to the same top-left corner",
+          ".mobmenu-btn{display:inline-flex;position:fixed;top:14px;left:14px;" in css
+          and ".mobmenu{position:fixed;top:14px;left:14px;" in css)
     check("the shared menu switches tabs by clicking the real tab button",
           "document.querySelector(`.tab[data-tab=\"${b.dataset.tab}\"]`).click();" in js)
     check("the shared menu's theme option clicks the real theme button",

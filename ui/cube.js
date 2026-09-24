@@ -394,30 +394,6 @@ let draftTimer = null;
 $('#p1DrillStart') && ($('#p1DrillStart').onclick = () => p1DealDrill());
 $('#p1DrillSeats') && ($('#p1DrillSeats').onchange = () => { if (P1_DRILL) p1DealDrill(); });
 
-$('#p1Share') && ($('#p1Share').onclick = async () => {
-  p1WriteUrl();
-  const url = location.href;
-  const btn = $('#p1Share');
-  const said = t => { btn.dataset.said = t; setTimeout(() => delete btn.dataset.said, 1400); };
-  try {
-    await navigator.clipboard.writeText(url);
-    said('copied');
-  } catch (e) {
-    // clipboard needs a secure context, and this page is often opened from a file
-    said('in the address bar');
-  }
-});
-
-$('#p1Seed') && ($('#p1Seed').onchange = e => {
-  const want = e.target.value.trim();
-  if (!want || want.toLowerCase() === P1_SEED) return;
-  $('#p1Restart').onclick();          // a different seed is a different cube cut
-  p1SetSeed(want, true);              // the restart made its own; this one wins,
-  p1CutCube();                        // and it locks the seats it was cut for
-  p1Boosters();
-  p1DrawHand();
-});
-
 $('#p1HandSort') && $('#p1HandSort').addEventListener('change', e => {
   P1_HAND_SORT = e.target.value;
   p1DrawHand();
@@ -1466,8 +1442,6 @@ function p1SetSeed(text, fixed) {
   P1_SEED_FIXED = !!fixed;
   P1_RAND = p1Rng(p1SeedNumber(P1_SEED));
   p1WriteUrl();
-  const box = $('#p1Seed');
-  if (box && box.value !== P1_SEED) box.value = P1_SEED;
   p1SeatsLock();
 }
 
@@ -1671,9 +1645,6 @@ function p1DrillView() {
       <span class="spacer"></span>
       ${P1_DRILL_SCORE.asked ? `<span class="mini dim">${P1_DRILL_SCORE.right} of
         ${P1_DRILL_SCORE.asked} right${P1_DRILL_SCORE.near ? `, ${P1_DRILL_SCORE.near} close` : ''}</span>` : ''}
-      <label class="seats" title="This situation's name. Give it to someone else and they get the same pack, minus the same cards.">Situation
-        <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
-          value="${esc(d.seed)}"></label>
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
     </div>
 
@@ -1723,10 +1694,6 @@ function p1DrillView() {
     };
   });
   $('#p1DrillDeal').onclick = () => p1DealDrill();
-  $('#p1DrillSeed').onchange = e => {
-    const want = e.target.value.trim();
-    if (want && want.toLowerCase() !== P1_DRILL.seed) p1DealDrill(want);
-  };
 }
 
 /* ── cutting the cube into packs ──
@@ -2944,19 +2911,18 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
   explain();
 });
 
-/* Mobile hides the header and tab row to save vertical space; a hamburger
-   button beside each tab's own toolbar opens this one shared panel instead,
-   which just clicks the real, hidden tab buttons and the real theme button
-   rather than re-implementing either. Both hamburgers live in each tab's
-   own STATIC row - p1p1's toolbar and the drill's intro row above #p1Drill
-   - neither of which is ever rebuilt from scratch, so both wire up once
-   here rather than needing to be found and rewired on every redraw. */
+/* The tab row is gone on every screen size; one fixed hamburger in the
+   usual top-left spot opens this shared panel instead, whatever tab is
+   active, which just clicks the real, hidden tab buttons and the real
+   theme button rather than re-implementing either. Both the button and
+   the panel live outside any tab's own content on purpose, since the
+   signal drill's toolbar is rebuilt from scratch on every redraw and
+   would destroy anything nested inside it. */
 function p1MobMenuToggle(open) {
   const menu = $('#p1MobMenu');
   if (menu) menu.hidden = open === undefined ? !menu.hidden : !open;
 }
 $('#p1MobMenuBtn') && ($('#p1MobMenuBtn').onclick = () => p1MobMenuToggle());
-$('#p1DrillMobMenuBtn') && ($('#p1DrillMobMenuBtn').onclick = () => p1MobMenuToggle());
 $('#p1MobMenu') && $('#p1MobMenu').querySelectorAll('[data-tab]').forEach(b => {
   b.onclick = () => {
     document.querySelector(`.tab[data-tab="${b.dataset.tab}"]`).click();

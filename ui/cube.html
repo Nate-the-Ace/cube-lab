@@ -42,15 +42,18 @@
   <button class="tab" role="tab" data-tab="swap" aria-selected="false">Propose a change</button>
 </div>
 
-<!-- On mobile the header and tab row are hidden to save vertical space; a
-     hamburger button beside each tab's own toolbar (one static here, one in
-     the signal drill's own row) opens this one shared panel instead. It's
-     position:fixed and not a child of either toolbar, since the drill's row
-     is rebuilt from scratch on every redraw and would destroy anything
-     nested inside it. -->
+<!-- The tab row is gone on every screen size; one fixed hamburger in the
+     usual top-left spot opens this shared panel instead, whatever tab is
+     active. Both are position:fixed and live outside any tab's own content
+     on purpose, since the signal drill's toolbar is rebuilt from scratch on
+     every redraw and would destroy anything nested inside it. -->
+<button class="iconbtn mobmenu-btn" id="p1MobMenuBtn" title="Menu"
+  aria-label="Menu" aria-haspopup="true">☰</button>
 <div class="mobmenu" id="p1MobMenu" hidden>
+  <button data-tab="cube">Cube analysis</button>
   <button data-tab="p1p1">Pack 1 Pick 1</button>
   <button data-tab="signal">Signal drill</button>
+  <button data-tab="swap">Propose a change</button>
   <button id="p1MobMenuTheme">Toggle theme</button>
 </div>
 
@@ -124,8 +127,6 @@
             <option value="artist">artist</option>
           </select>
         </label>
-        <button class="iconbtn mobmenu-btn" id="p1MobMenuBtn" title="Menu"
-          aria-label="Menu" aria-haspopup="true">☰</button>
         <label class="seats">Players
           <select id="p1Players">
             <option>2</option><option>3</option><option>4</option><option>5</option>
@@ -133,10 +134,6 @@
             <option>9</option><option>10</option><option>11</option><option>12</option>
           </select>
         </label>
-        <label class="seats" title="The draft this link opens. Type someone else’s in to draft their packs.">Seed
-          <input id="p1Seed" size="7" spellcheck="false" autocomplete="off"></label>
-        <button class="iconbtn" id="p1Share" title="Copy a link to this draft"
-          aria-label="Copy a link to this draft">⧉</button>
         <button class="iconbtn" id="p1Restart" title="Start over" aria-label="Start over">⟳</button>
       </div>
       <div class="boosters" id="p1Boosters"></div>
@@ -176,8 +173,6 @@
         </select>
       </label>
       <button id="p1DrillStart" class="primary">Deal a situation</button>
-      <button class="iconbtn mobmenu-btn" id="p1DrillMobMenuBtn" title="Menu"
-        aria-label="Menu" aria-haspopup="true">☰</button>
     </div>
     <div id="p1Drill"></div>
   </div>
