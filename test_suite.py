@@ -1335,6 +1335,16 @@ def test_mobile_coverflow():
           "scroll-snap-stop:always" in css)
     check("a fresh coverflow always opens on its first card",
           "track.scrollLeft = 0;" in js)
+    check("the reset survives a layout shift landing right after it",
+          "if (track.scrollLeft !== 0) track.scrollLeft = 0;" in js)
+    check("scroll-anchoring can't quietly move the coverflow off its own reset",
+          "overflow-anchor:none" in css)
+    check("the pack's foil-peel skips the phone, where it read as visual flutter",
+          "matchMedia('(max-width:560px)').matches) return 0;" in js)
+    check("cards no longer fly in from the pack on a coverflow hand",
+          "source of the reported \"flutter of artifacts flying around\"" in js)
+    check("the 33-pack scatter to seats is skipped on a phone too",
+          "P1_CHOSEN.length === 3 && !matchMedia('(max-width:560px)').matches" in js)
     check("picking a card in a coverflow doesn't fly the rest off a screen they aren't on",
           "if (!hand.classList.contains('coverflow')) {" in js
           and "hand.querySelectorAll('.dcard').forEach(other => {" in js)

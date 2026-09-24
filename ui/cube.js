@@ -1064,6 +1064,15 @@ function p1WireCoverflow(track, groups) {
     }, {passive: true});
   }
   update();
+  // belt and suspenders: a layout shift landing just after this point (an
+  // image finishing its load, a still-running pack animation) can move
+  // scrollLeft again even with overflow-anchor off, so re-assert once more
+  // after the browser's own next layout pass rather than trusting one
+  // synchronous reset to be the last word.
+  requestAnimationFrame(() => {
+    if (track.scrollLeft !== 0) track.scrollLeft = 0;
+    update();
+  });
 }
 
 function p1LayoutHand() {
@@ -1917,8 +1926,13 @@ function p1Boosters() {
         P1_CHOSEN.push(i);
         p1WriteUrl();
         p1HidePackTip();
-        // the third choice breaks up the cube, so remember where every pack was
-        const was = P1_CHOSEN.length === 3 ? p1PackRects() : null;
+        // the third choice breaks up the cube, so remember where every pack was.
+        // Flying the other ~33 packs out to their seats at once is the other
+        // half of the reported animation flutter, and a phone gets no real
+        // benefit from watching that many things move at once on a screen
+        // this size - the mobile hand just cuts straight to the three kept.
+        const was = P1_CHOSEN.length === 3 && !matchMedia('(max-width:560px)').matches
+          ? p1PackRects() : null;
         p1Boosters();
         p1DrawHand();
         if (was) p1CollectPacks(was);
@@ -2062,7 +2076,14 @@ function p1PeelPack(packNo) {
     setTimeout(() => lit.classList.remove('justopened'), 1400);
   }
   const src = $('#p1Boosters') && $('#p1Boosters').querySelector(`[data-pack="${packNo}"]`);
-  if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+  // the peel is a 3D-rotated clone flying free of the flex/scroll layout it
+  // came from - real-phone testing found that combination genuinely unstable
+  // (see the coverflow's own rotateY revert), and most of a coverflow's
+  // fifteen cards are scrolled out of view anyway, so animating each one in
+  // from the pack read as a flurry of things flying toward nowhere visible.
+  // The little glow above is the only opening flourish that survives there.
+  if (!src || matchMedia('(prefers-reduced-motion: reduce)').matches
+      || matchMedia('(max-width:560px)').matches) return 0;
   const r = src.getBoundingClientRect();
   const peel = document.createElement('div');
   peel.className = 'peel';
@@ -2086,6 +2107,12 @@ function p1DealFrom(packNo, after) {
   if (!src || !cards.length) return;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (!cards[0].animate) return;                 // no Web Animations: leave it be
+  // flying all fifteen cards in from the pack's mouth assumes a fan, where
+  // every card has a real, visible rest position; in a coverflow only one
+  // does and the rest are scrolled out of view, so this was animating most
+  // of a pack toward positions off to the side of the screen - the actual
+  // source of the reported "flutter of artifacts flying around"
+  if (matchMedia('(max-width:560px)').matches) return;
 
   const from = src.getBoundingClientRect();
   const mouth = from.top + 6;                    // the torn seam
