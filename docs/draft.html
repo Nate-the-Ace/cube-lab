@@ -965,6 +965,8 @@ tr.deckrow.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
         </select>
       </label>
       <button id="p1DrillStart" class="primary">Deal a situation</button>
+      <button class="iconbtn mobmenu-btn" id="p1DrillMobMenuBtn" title="Menu"
+        aria-label="Menu" aria-haspopup="true">☰</button>
     </div>
     <div id="p1Drill"></div>
   </div>
@@ -4079,8 +4081,6 @@ function p1DrillView() {
         <input id="p1DrillSeed" size="7" spellcheck="false" autocomplete="off"
           value="${esc(d.seed)}"></label>
       <button id="p1DrillDeal" class="mini">${answered ? 'another' : 'new situation'}</button>
-      <button class="iconbtn mobmenu-btn" id="p1DrillMobMenuBtn" title="Menu"
-        aria-label="Menu" aria-haspopup="true">☰</button>
     </div>
 
     ${matchMedia('(max-width:560px)').matches
@@ -4117,8 +4117,6 @@ function p1DrillView() {
   });
   const cfTrack = box.querySelector('.cftrack');
   if (cfTrack) p1WireCoverflow(cfTrack, null);
-  const drillMenuBtn = box.querySelector('#p1DrillMobMenuBtn');
-  if (drillMenuBtn) drillMenuBtn.onclick = () => p1MobMenuToggle();
   box.querySelectorAll('.lanechip').forEach(el => {
     el.onclick = () => {
       if (P1_DRILL.answered) return;
@@ -5355,14 +5353,16 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
 /* Mobile hides the header and tab row to save vertical space; a hamburger
    button beside each tab's own toolbar opens this one shared panel instead,
    which just clicks the real, hidden tab buttons and the real theme button
-   rather than re-implementing either. The drill's own hamburger is inside
-   a template that's rebuilt from scratch on every redraw, so it's rewired
-   on every p1DrillView() call rather than once here. */
+   rather than re-implementing either. Both hamburgers live in each tab's
+   own STATIC row - p1p1's toolbar and the drill's intro row above #p1Drill
+   - neither of which is ever rebuilt from scratch, so both wire up once
+   here rather than needing to be found and rewired on every redraw. */
 function p1MobMenuToggle(open) {
   const menu = $('#p1MobMenu');
   if (menu) menu.hidden = open === undefined ? !menu.hidden : !open;
 }
 $('#p1MobMenuBtn') && ($('#p1MobMenuBtn').onclick = () => p1MobMenuToggle());
+$('#p1DrillMobMenuBtn') && ($('#p1DrillMobMenuBtn').onclick = () => p1MobMenuToggle());
 $('#p1MobMenu') && $('#p1MobMenu').querySelectorAll('[data-tab]').forEach(b => {
   b.onclick = () => {
     document.querySelector(`.tab[data-tab="${b.dataset.tab}"]`).click();

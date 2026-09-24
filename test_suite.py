@@ -1367,9 +1367,11 @@ def test_mobile_coverflow():
           ".mobmenu[hidden]{display:none}" in css)
     check("a hamburger sits in pack 1 pick 1's own toolbar",
           'id="p1MobMenuBtn"' in html)
-    check("the drill gets its own hamburger, rewired on every redraw",
-          'id="p1DrillMobMenuBtn"' in js
-          and "if (drillMenuBtn) drillMenuBtn.onclick = () => p1MobMenuToggle();" in js)
+    check("the drill's hamburger sits in its static intro row, above #p1Drill",
+          'id="p1DrillMobMenuBtn"' in html
+          and html.index('id="p1DrillMobMenuBtn"') < html.index('id="p1Drill"'))
+    check("both hamburgers wire up once, not re-found on every redraw",
+          "$('#p1DrillMobMenuBtn') && ($('#p1DrillMobMenuBtn').onclick = () => p1MobMenuToggle());" in js)
     check("the shared menu switches tabs by clicking the real tab button",
           "document.querySelector(`.tab[data-tab=\"${b.dataset.tab}\"]`).click();" in js)
     check("the shared menu's theme option clicks the real theme button",
